@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, FolderOpen } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
+import UploadModal from "@/components/UploadModal";
 
 type Project = Tables<"projects">;
 
