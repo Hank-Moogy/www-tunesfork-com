@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, FolderOpen } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
+import UploadModal from "@/components/UploadModal";
 
 type Project = Tables<"projects">;
 
@@ -15,6 +16,7 @@ export default function Dashboard() {
   const [sharedProjects, setSharedProjects] = useState<Project[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -59,11 +61,12 @@ export default function Dashboard() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Projects</h1>
-          <Button className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
+          <Button onClick={() => setUploadOpen(true)} className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
             <Plus className="h-4 w-4" />
             Upload Project
           </Button>
         </div>
+        <UploadModal open={uploadOpen} onOpenChange={setUploadOpen} />
 
         <Tabs defaultValue="my" className="space-y-6">
           <div className="flex items-center justify-between">
