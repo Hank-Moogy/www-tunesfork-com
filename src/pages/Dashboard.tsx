@@ -61,10 +61,12 @@ export default function Dashboard() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Projects</h1>
-          <Button className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
+          <Button onClick={() => setUploadOpen(true)} className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
             <Plus className="h-4 w-4" />
             Upload Project
           </Button>
+        </div>
+        <UploadModal open={uploadOpen} onOpenChange={setUploadOpen} />
         </div>
 
         <Tabs defaultValue="my" className="space-y-6">
