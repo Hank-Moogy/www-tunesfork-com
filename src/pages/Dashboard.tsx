@@ -67,7 +67,6 @@ export default function Dashboard() {
           </Button>
         </div>
         <UploadModal open={uploadOpen} onOpenChange={setUploadOpen} />
-        </div>
 
         <Tabs defaultValue="my" className="space-y-6">
           <div className="flex items-center justify-between">
