@@ -16,6 +16,7 @@ export default function Dashboard() {
   const [sharedProjects, setSharedProjects] = useState<Project[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
