@@ -14,7 +14,213 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      collaborators: {
+        Row: {
+          created_at: string
+          id: string
+          permission_level: Database["public"]["Enums"]["permission_level"]
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          permission_level?: Database["public"]["Enums"]["permission_level"]
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          permission_level?: Database["public"]["Enums"]["permission_level"]
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collaborators_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comments: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          timestamp_seconds: number | null
+          user_id: string
+          version_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          timestamp_seconds?: number | null
+          user_id: string
+          version_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          timestamp_seconds?: number | null
+          user_id?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "project_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          message: string | null
+          read: boolean
+          reference_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          read?: boolean
+          reference_id?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          read?: boolean
+          reference_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      project_versions: {
+        Row: {
+          audio_preview_url: string | null
+          change_note: string | null
+          created_at: string
+          file_size_bytes: number
+          id: string
+          plugin_list: Json | null
+          project_id: string
+          uploader_id: string
+          version_number: number
+          zip_url: string
+        }
+        Insert: {
+          audio_preview_url?: string | null
+          change_note?: string | null
+          created_at?: string
+          file_size_bytes?: number
+          id?: string
+          plugin_list?: Json | null
+          project_id: string
+          uploader_id: string
+          version_number: number
+          zip_url: string
+        }
+        Update: {
+          audio_preview_url?: string | null
+          change_note?: string | null
+          created_at?: string
+          file_size_bytes?: number
+          id?: string
+          plugin_list?: Json | null
+          project_id?: string
+          uploader_id?: string
+          version_number?: number
+          zip_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_versions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          archived: boolean
+          bpm: number | null
+          created_at: string
+          handoff_locked_by: string | null
+          handoff_status: Database["public"]["Enums"]["handoff_status"]
+          id: string
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          bpm?: number | null
+          created_at?: string
+          handoff_locked_by?: string | null
+          handoff_status?: Database["public"]["Enums"]["handoff_status"]
+          id?: string
+          name: string
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          bpm?: number | null
+          created_at?: string
+          handoff_locked_by?: string | null
+          handoff_status?: Database["public"]["Enums"]["handoff_status"]
+          id?: string
+          name?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +229,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      handoff_status: "ready" | "in_progress"
+      permission_level: "viewer" | "contributor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +357,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      handoff_status: ["ready", "in_progress"],
+      permission_level: ["viewer", "contributor"],
+    },
   },
 } as const
