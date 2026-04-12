@@ -35,9 +35,12 @@ import {
 interface UploadModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  existingProjectId?: string;
+  existingProjectName?: string;
+  onVersionUploaded?: () => void;
 }
 
-export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
+export default function UploadModal({ open, onOpenChange, existingProjectId, existingProjectName, onVersionUploaded }: UploadModalProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
