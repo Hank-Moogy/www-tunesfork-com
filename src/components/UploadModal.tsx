@@ -62,6 +62,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   const audioInputRef = useRef<HTMLInputElement>(null);
   const progressValueRef = useRef(0);
   const progressAnimationRef = useRef<number | null>(null);
+  const uploadAbortRef = useRef(false);
 
   const stopProgressAnimation = useCallback(() => {
     if (progressAnimationRef.current !== null) {
@@ -103,68 +104,9 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
 
   useEffect(() => () => stopProgressAnimation(), [stopProgressAnimation]);
 
-  const uploadToStorageWithProgress = async ({
-    bucket,
-    path,
-    file,
-    contentType,
-    onProgress,
-  }: {
-    bucket: string;
-    path: string;
-    file: Blob;
-    contentType: string;
-    onProgress?: (fraction: number) => void;
-  }) => {
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
-
-    if (sessionError) throw sessionError;
-    if (!session?.access_token) {
-      throw new Error("Your session expired. Please sign in again.");
-    }
-
-    const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-    const uploadUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/${bucket}/${encodedPath}`;
-
-    await new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", uploadUrl);
-      xhr.setRequestHeader("Authorization", `Bearer ${session.access_token}`);
-      xhr.setRequestHeader("apikey", import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
-      xhr.setRequestHeader("x-upsert", "false");
-      xhr.setRequestHeader("content-type", contentType);
-
-      xhr.upload.onprogress = (event) => {
-        const total = event.total || file.size;
-        if (!total) return;
-        onProgress?.(event.loaded / total);
-      };
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          onProgress?.(1);
-          resolve();
-          return;
-        }
-
-        try {
-          const parsed = JSON.parse(xhr.responseText);
-          reject(new Error(parsed.message || parsed.error || "Upload failed."));
-        } catch {
-          reject(new Error(xhr.responseText || "Upload failed."));
-        }
-      };
-
-      xhr.onerror = () => reject(new Error("Network error while uploading file."));
-      xhr.send(file);
-    });
-  };
-
   const reset = () => {
     stopProgressAnimation();
+    uploadAbortRef.current = true;
     setStep(1);
     setValidation(null);
     setSelectedAls(null);
@@ -282,8 +224,9 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     setStep(4);
 
     setProgressValue(0);
-    setProgressLabel("Preparing archive...");
+    setProgressLabel("Preparing archive…");
     animateProgressTo(10, 250);
+    uploadAbortRef.current = false;
 
     try {
       let blob: Blob;
@@ -309,35 +252,46 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         setProgressValue(33);
       }
 
-      setProgressLabel("Uploading archive...");
+      // Upload zip via SDK
+      setProgressLabel("Uploading archive…");
+      // Animate optimistically from 33→85 over 15s while upload runs
+      animateProgressTo(85, 15000);
+
       const zipPath = `${user.id}/${Date.now()}.zip`;
-      await uploadToStorageWithProgress({
-        bucket: "project-zips",
-        path: zipPath,
-        file: blob,
-        contentType: blob.type || "application/zip",
-        onProgress: (fraction) => setProgressValue(33 + fraction * 57),
-      });
-      setProgressValue(90);
+      console.log("[upload] uploading zip", zipPath, "size", blob.size);
+      const { error: zipError } = await supabase.storage
+        .from("project-zips")
+        .upload(zipPath, blob, { upsert: false });
+      if (zipError) {
+        console.error("[upload] zip upload error:", zipError);
+        throw zipError;
+      }
+      console.log("[upload] zip uploaded successfully");
+
+      if (uploadAbortRef.current) return;
+      stopProgressAnimation();
+      setProgressValue(88);
 
       let audioUrl: string | null = null;
       if (audioFile) {
-        setProgressLabel("Uploading audio preview...");
+        setProgressLabel("Uploading audio preview…");
         const audioPath = `${user.id}/${Date.now()}-preview.${audioFile.name.split(".").pop()}`;
-        await uploadToStorageWithProgress({
-          bucket: "audio-previews",
-          path: audioPath,
-          file: audioFile,
-          contentType: audioFile.type || "application/octet-stream",
-          onProgress: (fraction) => setProgressValue(90 + fraction * 5),
-        });
+        const { error: audioError } = await supabase.storage
+          .from("audio-previews")
+          .upload(audioPath, audioFile, { upsert: false });
+        if (audioError) {
+          console.error("[upload] audio upload error:", audioError);
+          throw audioError;
+        }
         const { data: audioPublic } = supabase.storage
           .from("audio-previews")
           .getPublicUrl(audioPath);
         audioUrl = audioPublic.publicUrl;
       }
-      setProgressLabel("Saving project...");
-      setProgressValue(97);
+
+      if (uploadAbortRef.current) return;
+      setProgressLabel("Saving project…");
+      setProgressValue(93);
 
       const { data: project, error: projError } = await supabase
         .from("projects")
@@ -348,9 +302,11 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         })
         .select()
         .single();
-      if (projError) throw projError;
+      if (projError) {
+        console.error("[upload] project insert error:", projError);
+        throw projError;
+      }
 
-      // Create version record
       const { error: verError } = await supabase
         .from("project_versions")
         .insert({
@@ -363,7 +319,12 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
           plugin_list: metadata?.plugins ?? null,
           file_size_bytes: blob.size,
         });
-      if (verError) throw verError;
+      if (verError) {
+        console.error("[upload] version insert error:", verError);
+        throw verError;
+      }
+
+      if (uploadAbortRef.current) return;
 
       setProgressValue(100);
       setProgressLabel("Upload complete!");
@@ -380,9 +341,10 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         navigate(`/project/${project.id}`);
       }, 1500);
     } catch (error: any) {
+      console.error("[upload] failed:", error);
       toast({
         title: "Upload failed",
-        description: error.message,
+        description: error?.message || "Something went wrong.",
         variant: "destructive",
       });
       stopProgressAnimation();
