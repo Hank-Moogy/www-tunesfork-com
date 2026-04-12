@@ -376,7 +376,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
     setProgressValue(0);
     setProgressLabel("Preparing archive…");
-    animateProgressTo(10, 250);
+    animateProgressTo(10, 500);
     uploadAbortRef.current = false;
     lastLoggedUploadPercentRef.current = -1;
 
