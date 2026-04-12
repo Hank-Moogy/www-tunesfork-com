@@ -59,6 +59,29 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   const [preZippedBlob, setPreZippedBlob] = useState<Blob | null>(null);
   const [processing, setProcessing] = useState(false);
 
+  const PROCESSING_MESSAGES = [
+    "Reading project files…",
+    "Scanning for Ableton sets…",
+    "Detecting plugins & instruments…",
+    "Analyzing track layout…",
+    "Extracting clip data…",
+    "Mapping sample references…",
+    "Almost there…",
+  ];
+
+  const [processingMsgIndex, setProcessingMsgIndex] = useState(0);
+
+  useEffect(() => {
+    if (!processing) {
+      setProcessingMsgIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setProcessingMsgIndex((i) => (i + 1) % PROCESSING_MESSAGES.length);
+    }, 2200);
+    return () => clearInterval(interval);
+  }, [processing]);
+
   const folderInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
