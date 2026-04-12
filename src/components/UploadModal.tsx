@@ -78,7 +78,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
     }
     const interval = setInterval(() => {
       setProcessingMsgIndex((i) => (i + 1) % PROCESSING_MESSAGES.length);
-    }, 2200);
+    }, 4000);
     return () => clearInterval(interval);
   }, [processing]);
 
