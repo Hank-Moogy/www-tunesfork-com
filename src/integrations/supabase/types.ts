@@ -226,7 +226,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_collaborator: { Args: { _project_id: string }; Returns: boolean }
+      is_contributor: { Args: { _project_id: string }; Returns: boolean }
+      is_project_owner: { Args: { _project_id: string }; Returns: boolean }
     }
     Enums: {
       handoff_status: "ready" | "in_progress"
