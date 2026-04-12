@@ -212,6 +212,19 @@ export default function ProjectPage() {
     setAddingCollab(false);
   };
 
+  const handleDeleteProject = async () => {
+    if (!project) return;
+    setDeleting(true);
+    const { error } = await supabase.from("projects").delete().eq("id", project.id);
+    if (error) {
+      toast({ title: "Error", description: "Could not delete project.", variant: "destructive" });
+      setDeleting(false);
+    } else {
+      toast({ title: "Project deleted" });
+      navigate("/dashboard");
+    }
+  };
+
   const trackList: Track[] = selectedVersion?.track_list ? (selectedVersion.track_list as unknown as Track[]) : [];
   const pluginList: string[] = selectedVersion?.plugin_list ? (selectedVersion.plugin_list as unknown as string[]) : [];
 
