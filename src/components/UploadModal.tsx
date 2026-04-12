@@ -16,13 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Upload,
   FolderOpen,
   AlertTriangle,
@@ -88,6 +81,22 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     onOpenChange(false);
   };
 
+  // Pick the latest .als file by name (files often contain dates like 2024-01-15)
+  const pickLatestAls = (alsFiles: File[]): File => {
+    if (alsFiles.length === 1) return alsFiles[0];
+    // Sort descending by name — dates in filenames naturally sort this way
+    return [...alsFiles].sort((a, b) => b.name.localeCompare(a.name))[0];
+  };
+
+  const advanceWithAls = async (als: File) => {
+    setSelectedAls(als);
+    const meta = await parseAlsFile(als);
+    setMetadata(meta);
+    setProjectName(meta?.projectName ?? als.name.replace(/\.als$/i, ""));
+    setBpm(meta?.bpm?.toString() ?? "");
+    setStep(2);
+  };
+
   // Handle a direct .zip upload
   const handleZipSelect = useCallback(
     async (file: File) => {
@@ -111,19 +120,13 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
 
         const result = validateFolder(entries);
         setValidation(result);
-        setPreZippedBlob(file); // Store original zip to skip re-zipping
+        setPreZippedBlob(file); // Store original zip — upload as-is
 
         if (result.errors.length > 0) return;
 
-        const als = result.alsFiles.length === 1 ? result.alsFiles[0] : null;
-        if (als) {
-          setSelectedAls(als);
-          const meta = await parseAlsFile(als);
-          setMetadata(meta);
-          setProjectName(meta?.projectName ?? als.name.replace(/\.als$/i, ""));
-          setBpm(meta?.bpm?.toString() ?? "");
-          setStep(2);
-        }
+        // Auto-select latest .als file
+        const als = pickLatestAls(result.alsFiles);
+        await advanceWithAls(als);
       } catch {
         setValidation({
           alsFiles: [],
@@ -155,31 +158,13 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
 
       if (result.errors.length > 0) return;
 
-      // Auto-select if single .als, else user picks
-      const als =
-        result.alsFiles.length === 1 ? result.alsFiles[0] : null;
-      if (als) {
-        setSelectedAls(als);
-        const meta = await parseAlsFile(als);
-        setMetadata(meta);
-        setProjectName(meta?.projectName ?? als.name.replace(/\.als$/i, ""));
-        setBpm(meta?.bpm?.toString() ?? "");
-        setStep(2);
-      }
+      // Auto-select latest .als file
+      const als = pickLatestAls(result.alsFiles);
+      await advanceWithAls(als);
     },
     [handleZipSelect]
   );
 
-  const handleAlsChoice = async (fileName: string) => {
-    const file = validation?.alsFiles.find((f) => f.name === fileName);
-    if (!file) return;
-    setSelectedAls(file);
-    const meta = await parseAlsFile(file);
-    setMetadata(meta);
-    setProjectName(meta?.projectName ?? file.name.replace(/\.als$/i, ""));
-    setBpm(meta?.bpm?.toString() ?? "");
-    setStep(2);
-  };
 
   // Step 4: Upload
   const handleUpload = async () => {
@@ -390,29 +375,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
               </div>
             ))}
 
-            {/* Multiple .als selector */}
-            {validation &&
-              validation.errors.length === 0 &&
-              validation.alsFiles.length > 1 && (
-                <div className="space-y-2">
-                  <Label>
-                    Multiple sets found. Which one is your main project?
-                  </Label>
-                  <Select onValueChange={handleAlsChoice}>
-                    <SelectTrigger className="bg-secondary border-border">
-                      <SelectValue placeholder="Select a set file" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {validation.alsFiles.map((f) => (
-                        <SelectItem key={f.name} value={f.name}>
-                          {f.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
             {/* Folder info */}
             {validation && validation.errors.length === 0 && (
               <p className="text-xs text-muted-foreground">
@@ -424,22 +386,13 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
             {/* Continue with warnings */}
             {validation &&
               validation.errors.length === 0 &&
-              validation.warnings.length > 0 &&
-              validation.alsFiles.length === 1 && (
+              validation.warnings.length > 0 && (
                 <Button
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    const als = validation.alsFiles[0];
-                    setSelectedAls(als);
-                    parseAlsFile(als).then((meta) => {
-                      setMetadata(meta);
-                      setProjectName(
-                        meta?.projectName ?? als.name.replace(/\.als$/i, "")
-                      );
-                      setBpm(meta?.bpm?.toString() ?? "");
-                      setStep(2);
-                    });
+                    const als = pickLatestAls(validation.alsFiles);
+                    advanceWithAls(als);
                   }}
                 >
                   Continue anyway
