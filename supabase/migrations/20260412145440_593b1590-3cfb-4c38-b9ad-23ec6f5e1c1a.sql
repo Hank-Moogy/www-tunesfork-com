@@ -1,0 +1,1 @@
+ALTER TABLE public.project_versions ADD COLUMN track_list jsonb DEFAULT null;

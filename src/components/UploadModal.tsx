@@ -35,9 +35,12 @@ import {
 interface UploadModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  existingProjectId?: string;
+  existingProjectName?: string;
+  onVersionUploaded?: () => void;
 }
 
-export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
+export default function UploadModal({ open, onOpenChange, existingProjectId, existingProjectName, onVersionUploaded }: UploadModalProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -147,7 +150,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   const advanceWithAls = async (als: File) => {
     const meta = await parseAlsFile(als);
     setMetadata(meta);
-    setProjectName(meta?.projectName ?? als.name.replace(/\.als$/i, ""));
+    setProjectName(existingProjectName ?? meta?.projectName ?? als.name.replace(/\.als$/i, ""));
     setBpm(meta?.bpm?.toString() ?? "");
     setStep(2);
   };
@@ -439,30 +442,54 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
       if (uploadAbortRef.current) return;
       setProgressLabel("Saving project…");
       setProgressValue(93);
-      console.log("[upload] creating project record", {
-        projectName,
-        bpm: bpm ? parseInt(bpm) : null,
-        ownerId: user.id,
-      });
 
-      const { data: project, error: projError } = await supabase
-        .from("projects")
-        .insert({
-          name: projectName,
+      let projectId: string;
+
+      if (existingProjectId) {
+        // Upload new version to existing project
+        projectId = existingProjectId;
+      } else {
+        // Create new project
+        console.log("[upload] creating project record", {
+          projectName,
           bpm: bpm ? parseInt(bpm) : null,
-          owner_id: user.id,
-        })
-        .select()
-        .single();
-      if (projError) {
-        console.error("[upload] project insert error:", projError);
-        throw projError;
+          ownerId: user.id,
+        });
+
+        const { data: project, error: projError } = await supabase
+          .from("projects")
+          .insert({
+            name: projectName,
+            bpm: bpm ? parseInt(bpm) : null,
+            owner_id: user.id,
+          })
+          .select()
+          .single();
+        if (projError) {
+          console.error("[upload] project insert error:", projError);
+          throw projError;
+        }
+        console.log("[upload] project created", { projectId: project.id });
+        projectId = project.id;
       }
-      console.log("[upload] project created", { projectId: project.id });
+
+      // Determine next version number
+      let versionNumber = 1;
+      if (existingProjectId) {
+        const { data: existingVersions } = await supabase
+          .from("project_versions")
+          .select("version_number")
+          .eq("project_id", existingProjectId)
+          .order("version_number", { ascending: false })
+          .limit(1);
+        if (existingVersions && existingVersions.length > 0) {
+          versionNumber = existingVersions[0].version_number + 1;
+        }
+      }
 
       console.log("[upload] creating project version", {
-        projectId: project.id,
-        versionNumber: 1,
+        projectId,
+        versionNumber,
         zipPath,
         audioUrl,
         fileSizeBytes: blob.size,
@@ -470,22 +497,23 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
       const { error: verError } = await supabase
         .from("project_versions")
         .insert({
-          project_id: project.id,
-          version_number: 1,
+          project_id: projectId,
+          version_number: versionNumber,
           uploader_id: user.id,
           change_note: changeNote || null,
           zip_url: zipPath,
           audio_preview_url: audioUrl,
           plugin_list: metadata?.plugins ?? null,
           file_size_bytes: blob.size,
+          track_list: (metadata?.tracks as any) ?? null,
         });
       if (verError) {
         console.error("[upload] version insert error:", verError);
         throw verError;
       }
       console.log("[upload] project version created", {
-        projectId: project.id,
-        versionNumber: 1,
+        projectId,
+        versionNumber,
       });
 
       if (uploadAbortRef.current) return;
@@ -502,7 +530,11 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
 
       setTimeout(() => {
         handleClose();
-        navigate(`/project/${project.id}`);
+        if (onVersionUploaded) {
+          onVersionUploaded();
+        } else {
+          navigate(`/project/${projectId}`);
+        }
       }, 1500);
     } catch (error: any) {
       if (uploadAbortRef.current) return;
@@ -522,7 +554,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
       <DialogContent className="sm:max-w-lg bg-card border-border">
         <DialogHeader>
           <DialogTitle className="text-foreground">
-            {step === 1 && "Select Project Folder"}
+            {step === 1 && (existingProjectId ? "Upload New Version" : "Select Project Folder")}
             {step === 2 && "Project Details"}
             {step === 3 && "Audio Preview"}
             {step === 4 && "Uploading..."}
