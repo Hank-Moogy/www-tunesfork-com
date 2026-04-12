@@ -61,8 +61,10 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   const [progressLabel, setProgressLabel] = useState("");
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [preZippedBlob, setPreZippedBlob] = useState<Blob | null>(null);
 
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const zipInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
@@ -78,6 +80,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     setProgressLabel("");
     setUploading(false);
     setDragOver(false);
+    setPreZippedBlob(null);
   };
 
   const handleClose = () => {
@@ -85,10 +88,67 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     onOpenChange(false);
   };
 
+  // Handle a direct .zip upload
+  const handleZipSelect = useCallback(
+    async (file: File) => {
+      try {
+        const zip = await JSZip.loadAsync(file);
+        // Convert zip entries to pseudo-File objects for validation
+        const entries: File[] = [];
+        const promises: Promise<void>[] = [];
+        zip.forEach((relativePath, zipEntry) => {
+          if (zipEntry.dir) return;
+          promises.push(
+            zipEntry.async("blob").then((blob) => {
+              const f = new File([blob], zipEntry.name, { type: blob.type });
+              // Attach a fake webkitRelativePath for folder detection
+              Object.defineProperty(f, "webkitRelativePath", { value: relativePath });
+              entries.push(f);
+            })
+          );
+        });
+        await Promise.all(promises);
+
+        const result = validateFolder(entries);
+        setValidation(result);
+        setPreZippedBlob(file); // Store original zip to skip re-zipping
+
+        if (result.errors.length > 0) return;
+
+        const als = result.alsFiles.length === 1 ? result.alsFiles[0] : null;
+        if (als) {
+          setSelectedAls(als);
+          const meta = await parseAlsFile(als);
+          setMetadata(meta);
+          setProjectName(meta?.projectName ?? als.name.replace(/\.als$/i, ""));
+          setBpm(meta?.bpm?.toString() ?? "");
+          setStep(2);
+        }
+      } catch {
+        setValidation({
+          alsFiles: [],
+          hasSamplesFolder: false,
+          totalSizeBytes: 0,
+          allFiles: [],
+          errors: ["Could not read zip file. Make sure it's a valid .zip archive."],
+          warnings: [],
+        });
+      }
+    },
+    []
+  );
+
   // Step 1: Folder selection
   const handleFolderSelect = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
+
+      // Detect single .zip file
+      if (files.length === 1 && files[0].name.toLowerCase().endsWith(".zip")) {
+        return handleZipSelect(files[0]);
+      }
+
+      setPreZippedBlob(null);
       const fileArray = Array.from(files);
       const result = validateFolder(fileArray);
       setValidation(result);
@@ -107,7 +167,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         setStep(2);
       }
     },
-    []
+    [handleZipSelect]
   );
 
   const handleAlsChoice = async (fileName: string) => {
@@ -128,18 +188,27 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     setStep(4);
 
     try {
-      // Zip files
-      setProgressLabel("Preparing project...");
-      setProgress(10);
-      const zip = new JSZip();
-      for (const file of validation.allFiles) {
-        const path = file.webkitRelativePath || file.name;
-        zip.file(path, file);
+      let blob: Blob;
+
+      if (preZippedBlob) {
+        // Already have a zip — skip re-zipping
+        setProgressLabel("Preparing upload...");
+        setProgress(40);
+        blob = preZippedBlob;
+      } else {
+        // Zip files from folder
+        setProgressLabel("Preparing project...");
+        setProgress(10);
+        const zip = new JSZip();
+        for (const file of validation.allFiles) {
+          const path = file.webkitRelativePath || file.name;
+          zip.file(path, file);
+        }
+        blob = await zip.generateAsync(
+          { type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } },
+          (meta) => setProgress(10 + meta.percent * 0.4)
+        );
       }
-      const blob = await zip.generateAsync(
-        { type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } },
-        (meta) => setProgress(10 + meta.percent * 0.4)
-      );
 
       // Upload zip
       setProgressLabel("Uploading...");
@@ -267,9 +336,9 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
             >
               <FolderOpen className="h-10 w-10 text-muted-foreground mb-3" />
               <p className="text-sm text-foreground font-medium mb-1">
-                Drop your Ableton project folder here
+                Drop your Ableton project folder or .zip here
               </p>
-              <p className="text-xs text-muted-foreground">or click to browse</p>
+              <p className="text-xs text-muted-foreground">or click to browse folders</p>
               <input
                 ref={folderInputRef}
                 type="file"
@@ -281,6 +350,23 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
                 onChange={(e) => handleFolderSelect(e.target.files)}
               />
             </div>
+            <button
+              type="button"
+              className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
+              onClick={() => zipInputRef.current?.click()}
+            >
+              or select a .zip file
+            </button>
+            <input
+              ref={zipInputRef}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleZipSelect(file);
+              }}
+            />
 
             {/* Errors */}
             {validation?.errors.map((err, i) => (
