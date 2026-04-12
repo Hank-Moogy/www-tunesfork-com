@@ -258,15 +258,24 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
       animateProgressTo(85, 15000);
 
       const zipPath = `${user.id}/${Date.now()}.zip`;
-      console.log("[upload] uploading zip", zipPath, "size", blob.size);
-      const { error: zipError } = await supabase.storage
+      console.log("[upload] uploading zip", zipPath, "size", blob.size, "type", blob.type);
+      
+      // Ensure blob is a proper File for the upload
+      const fileToUpload = blob instanceof File 
+        ? blob 
+        : new File([blob], zipPath.split('/').pop()!, { type: 'application/zip' });
+      
+      const { data: uploadData, error: zipError } = await supabase.storage
         .from("project-zips")
-        .upload(zipPath, blob, { upsert: false });
+        .upload(zipPath, fileToUpload, { 
+          upsert: false,
+          contentType: 'application/zip'
+        });
       if (zipError) {
         console.error("[upload] zip upload error:", zipError);
         throw zipError;
       }
-      console.log("[upload] zip uploaded successfully");
+      console.log("[upload] zip uploaded successfully:", uploadData);
 
       if (uploadAbortRef.current) return;
       stopProgressAnimation();
