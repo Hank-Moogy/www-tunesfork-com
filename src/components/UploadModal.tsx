@@ -102,9 +102,9 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   // Handle a direct .zip upload
   const handleZipSelect = useCallback(
     async (file: File) => {
+      setProcessing(true);
       try {
         const zip = await JSZip.loadAsync(file);
-        // Convert zip entries to pseudo-File objects for validation
         const entries: File[] = [];
         const promises: Promise<void>[] = [];
         zip.forEach((relativePath, zipEntry) => {
@@ -112,7 +112,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
           promises.push(
             zipEntry.async("blob").then((blob) => {
               const f = new File([blob], zipEntry.name, { type: blob.type });
-              // Attach a fake webkitRelativePath for folder detection
               Object.defineProperty(f, "webkitRelativePath", { value: relativePath });
               entries.push(f);
             })
@@ -122,11 +121,13 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
 
         const result = validateFolder(entries);
         setValidation(result);
-        setPreZippedBlob(file); // Store original zip — upload as-is
+        setPreZippedBlob(file);
 
-        if (result.errors.length > 0) return;
+        if (result.errors.length > 0) {
+          setProcessing(false);
+          return;
+        }
 
-        // Auto-select latest .als file
         const als = pickLatestAls(result.alsFiles);
         await advanceWithAls(als);
       } catch {
@@ -139,6 +140,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
           warnings: [],
         });
       }
+      setProcessing(false);
     },
     []
   );
