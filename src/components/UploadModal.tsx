@@ -150,7 +150,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   const advanceWithAls = async (als: File) => {
     const meta = await parseAlsFile(als);
     setMetadata(meta);
-    setProjectName(meta?.projectName ?? als.name.replace(/\.als$/i, ""));
+    setProjectName(existingProjectName ?? meta?.projectName ?? als.name.replace(/\.als$/i, ""));
     setBpm(meta?.bpm?.toString() ?? "");
     setStep(2);
   };
