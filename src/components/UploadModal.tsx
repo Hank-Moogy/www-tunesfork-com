@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import JSZip from "jszip";
+import * as tus from "tus-js-client";
 import confetti from "canvas-confetti";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -44,7 +45,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   // State
   const [step, setStep] = useState(1);
   const [validation, setValidation] = useState<FolderValidation | null>(null);
-  const [selectedAls, setSelectedAls] = useState<File | null>(null);
   const [metadata, setMetadata] = useState<AlsMetadata | null>(null);
   const [projectName, setProjectName] = useState("");
   const [bpm, setBpm] = useState("");
@@ -52,7 +52,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
-  const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [preZippedBlob, setPreZippedBlob] = useState<Blob | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -63,6 +62,8 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   const progressValueRef = useRef(0);
   const progressAnimationRef = useRef<number | null>(null);
   const uploadAbortRef = useRef(false);
+  const resumableUploadRef = useRef<tus.Upload | null>(null);
+  const lastLoggedUploadPercentRef = useRef(-1);
 
   const stopProgressAnimation = useCallback(() => {
     if (progressAnimationRef.current !== null) {
@@ -107,9 +108,18 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   const reset = () => {
     stopProgressAnimation();
     uploadAbortRef.current = true;
+    lastLoggedUploadPercentRef.current = -1;
+
+    const activeUpload = resumableUploadRef.current;
+    resumableUploadRef.current = null;
+    if (activeUpload) {
+      Promise.resolve(activeUpload.abort(true)).catch((error) => {
+        console.warn("[upload] failed to abort resumable upload", error);
+      });
+    }
+
     setStep(1);
     setValidation(null);
-    setSelectedAls(null);
     setMetadata(null);
     setProjectName("");
     setBpm("");
@@ -117,7 +127,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     setAudioFile(null);
     setProgressValue(0);
     setProgressLabel("");
-    setUploading(false);
     setDragOver(false);
     setPreZippedBlob(null);
     setProcessing(false);
@@ -136,13 +145,130 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   };
 
   const advanceWithAls = async (als: File) => {
-    setSelectedAls(als);
     const meta = await parseAlsFile(als);
     setMetadata(meta);
     setProjectName(meta?.projectName ?? als.name.replace(/\.als$/i, ""));
     setBpm(meta?.bpm?.toString() ?? "");
     setStep(2);
   };
+
+  const uploadZipResumable = useCallback(
+    async (
+      file: File,
+      objectPath: string,
+      onProgress: (percentage: number, bytesUploaded: number, bytesTotal: number) => void
+    ) => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("You need to be signed in before uploading.");
+      }
+
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const endpoint = `https://${projectId}.storage.supabase.co/storage/v1/upload/resumable`;
+
+      console.log("[upload] starting resumable upload", {
+        endpoint,
+        bucket: "project-zips",
+        objectPath,
+        fileName: file.name,
+        size: file.size,
+        type: file.type,
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        const upload = new tus.Upload(file, {
+          endpoint,
+          retryDelays: [0, 3000, 5000, 10000, 20000],
+          headers: {
+            authorization: `Bearer ${session.access_token}`,
+          },
+          uploadDataDuringCreation: true,
+          removeFingerprintOnSuccess: true,
+          chunkSize: 6 * 1024 * 1024,
+          metadata: {
+            bucketName: "project-zips",
+            objectName: objectPath,
+            contentType: file.type || "application/zip",
+            cacheControl: "3600",
+          },
+          onError: (error) => {
+            resumableUploadRef.current = null;
+            const detailedError = error as Error & {
+              originalRequest?: unknown;
+              originalResponse?: unknown;
+            };
+
+            console.error("[upload] resumable upload error", {
+              objectPath,
+              message: error.message,
+              name: error.name,
+              originalRequest: detailedError.originalRequest,
+              originalResponse: detailedError.originalResponse,
+            });
+            reject(error);
+          },
+          onProgress: (bytesUploaded, bytesTotal) => {
+            const percentage = bytesTotal > 0 ? (bytesUploaded / bytesTotal) * 100 : 0;
+            const rounded = Math.floor(percentage);
+
+            if (rounded >= lastLoggedUploadPercentRef.current + 5 || rounded === 100) {
+              lastLoggedUploadPercentRef.current = rounded;
+              console.log("[upload] resumable progress", {
+                objectPath,
+                bytesUploaded,
+                bytesTotal,
+                percentage: Number(percentage.toFixed(2)),
+              });
+            }
+
+            onProgress(percentage, bytesUploaded, bytesTotal);
+          },
+          onSuccess: () => {
+            resumableUploadRef.current = null;
+            console.log("[upload] resumable upload complete", {
+              objectPath,
+              uploadUrl: upload.url,
+            });
+            resolve();
+          },
+        });
+
+        resumableUploadRef.current = upload;
+
+        upload
+          .findPreviousUploads()
+          .then((previousUploads) => {
+            if (previousUploads.length > 0) {
+              console.log("[upload] found previous resumable upload", {
+                objectPath,
+                count: previousUploads.length,
+              });
+              upload.resumeFromPreviousUpload(previousUploads[0]);
+            }
+
+            if (uploadAbortRef.current) {
+              resumableUploadRef.current = null;
+              reject(new Error("Upload cancelled."));
+              return;
+            }
+
+            upload.start();
+          })
+          .catch((error) => {
+            resumableUploadRef.current = null;
+            console.error("[upload] failed to initialize resumable upload", {
+              objectPath,
+              error,
+            });
+            reject(error);
+          });
+      });
+    },
+    []
+  );
 
   // Handle a direct .zip upload
   const handleZipSelect = useCallback(
@@ -220,13 +346,13 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   // Step 4: Upload
   const handleUpload = async () => {
     if (!validation || !user) return;
-    setUploading(true);
     setStep(4);
 
     setProgressValue(0);
     setProgressLabel("Preparing archive…");
     animateProgressTo(10, 250);
     uploadAbortRef.current = false;
+    lastLoggedUploadPercentRef.current = -1;
 
     try {
       let blob: Blob;
@@ -254,8 +380,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
 
       // Upload zip via SDK
       setProgressLabel("Uploading archive…");
-      // Animate optimistically from 33→85 over 15s while upload runs
-      animateProgressTo(85, 15000);
 
       const zipPath = `${user.id}/${Date.now()}.zip`;
       console.log("[upload] uploading zip", zipPath, "size", blob.size, "type", blob.type);
@@ -264,18 +388,25 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
       const fileToUpload = blob instanceof File 
         ? blob 
         : new File([blob], zipPath.split('/').pop()!, { type: 'application/zip' });
-      
-      const { data: uploadData, error: zipError } = await supabase.storage
-        .from("project-zips")
-        .upload(zipPath, fileToUpload, { 
-          upsert: false,
-          contentType: 'application/zip'
-        });
-      if (zipError) {
-        console.error("[upload] zip upload error:", zipError);
-        throw zipError;
-      }
-      console.log("[upload] zip uploaded successfully:", uploadData);
+
+      const uploadStartedAt = performance.now();
+      await uploadZipResumable(fileToUpload, zipPath, (percentage, bytesUploaded, bytesTotal) => {
+        stopProgressAnimation();
+        setProgressValue(Math.max(33, Math.min(85, 33 + percentage * 0.52)));
+        setProgressLabel(`Uploading archive… ${percentage.toFixed(1)}%`);
+
+        if (percentage >= 100) {
+          console.log("[upload] file transfer finished", {
+            zipPath,
+            bytesUploaded,
+            bytesTotal,
+          });
+        }
+      });
+      console.log("[upload] zip uploaded successfully", {
+        zipPath,
+        durationMs: Math.round(performance.now() - uploadStartedAt),
+      });
 
       if (uploadAbortRef.current) return;
       stopProgressAnimation();
@@ -285,6 +416,11 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
       if (audioFile) {
         setProgressLabel("Uploading audio preview…");
         const audioPath = `${user.id}/${Date.now()}-preview.${audioFile.name.split(".").pop()}`;
+        console.log("[upload] uploading audio preview", {
+          audioPath,
+          size: audioFile.size,
+          type: audioFile.type,
+        });
         const { error: audioError } = await supabase.storage
           .from("audio-previews")
           .upload(audioPath, audioFile, { upsert: false });
@@ -292,6 +428,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
           console.error("[upload] audio upload error:", audioError);
           throw audioError;
         }
+        console.log("[upload] audio preview uploaded", { audioPath });
         const { data: audioPublic } = supabase.storage
           .from("audio-previews")
           .getPublicUrl(audioPath);
@@ -301,6 +438,11 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
       if (uploadAbortRef.current) return;
       setProgressLabel("Saving project…");
       setProgressValue(93);
+      console.log("[upload] creating project record", {
+        projectName,
+        bpm: bpm ? parseInt(bpm) : null,
+        ownerId: user.id,
+      });
 
       const { data: project, error: projError } = await supabase
         .from("projects")
@@ -315,7 +457,15 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         console.error("[upload] project insert error:", projError);
         throw projError;
       }
+      console.log("[upload] project created", { projectId: project.id });
 
+      console.log("[upload] creating project version", {
+        projectId: project.id,
+        versionNumber: 1,
+        zipPath,
+        audioUrl,
+        fileSizeBytes: blob.size,
+      });
       const { error: verError } = await supabase
         .from("project_versions")
         .insert({
@@ -332,6 +482,10 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         console.error("[upload] version insert error:", verError);
         throw verError;
       }
+      console.log("[upload] project version created", {
+        projectId: project.id,
+        versionNumber: 1,
+      });
 
       if (uploadAbortRef.current) return;
 
@@ -350,6 +504,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         navigate(`/project/${project.id}`);
       }, 1500);
     } catch (error: any) {
+      if (uploadAbortRef.current) return;
       console.error("[upload] failed:", error);
       toast({
         title: "Upload failed",
@@ -357,7 +512,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         variant: "destructive",
       });
       stopProgressAnimation();
-      setUploading(false);
       setStep(3);
     }
   };
