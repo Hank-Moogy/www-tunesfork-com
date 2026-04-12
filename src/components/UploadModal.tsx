@@ -388,29 +388,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
               </div>
             ))}
 
-            {/* Multiple .als selector */}
-            {validation &&
-              validation.errors.length === 0 &&
-              validation.alsFiles.length > 1 && (
-                <div className="space-y-2">
-                  <Label>
-                    Multiple sets found. Which one is your main project?
-                  </Label>
-                  <Select onValueChange={handleAlsChoice}>
-                    <SelectTrigger className="bg-secondary border-border">
-                      <SelectValue placeholder="Select a set file" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {validation.alsFiles.map((f) => (
-                        <SelectItem key={f.name} value={f.name}>
-                          {f.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
             {/* Folder info */}
             {validation && validation.errors.length === 0 && (
               <p className="text-xs text-muted-foreground">
@@ -422,22 +399,18 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
             {/* Continue with warnings */}
             {validation &&
               validation.errors.length === 0 &&
-              validation.warnings.length > 0 &&
-              validation.alsFiles.length === 1 && (
+              validation.warnings.length > 0 && (
                 <Button
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    const als = validation.alsFiles[0];
-                    setSelectedAls(als);
-                    parseAlsFile(als).then((meta) => {
-                      setMetadata(meta);
-                      setProjectName(
-                        meta?.projectName ?? als.name.replace(/\.als$/i, "")
-                      );
-                      setBpm(meta?.bpm?.toString() ?? "");
-                      setStep(2);
-                    });
+                    const als = pickLatestAls(validation.alsFiles);
+                    advanceWithAls(als);
+                  }}
+                >
+                  Continue anyway
+                </Button>
+              )}
                   }}
                 >
                   Continue anyway
