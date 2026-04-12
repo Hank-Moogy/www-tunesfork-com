@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import JSZip from "jszip";
 import confetti from "canvas-confetti";
@@ -60,8 +60,111 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   const folderInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const progressValueRef = useRef(0);
+  const progressAnimationRef = useRef<number | null>(null);
+
+  const stopProgressAnimation = useCallback(() => {
+    if (progressAnimationRef.current !== null) {
+      cancelAnimationFrame(progressAnimationRef.current);
+      progressAnimationRef.current = null;
+    }
+  }, []);
+
+  const setProgressValue = useCallback((value: number) => {
+    const next = Math.max(0, Math.min(100, value));
+    progressValueRef.current = next;
+    setProgress(next);
+  }, []);
+
+  const animateProgressTo = useCallback(
+    (target: number, durationMs: number) => {
+      stopProgressAnimation();
+      const start = performance.now();
+      const from = progressValueRef.current;
+      const tick = () => {
+        const elapsed = performance.now() - start;
+        const t = Math.min(elapsed / durationMs, 1);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const next = from + (target - from) * eased;
+        progressValueRef.current = next;
+        setProgress(next);
+
+        if (t < 1) {
+          progressAnimationRef.current = requestAnimationFrame(tick);
+        } else {
+          progressAnimationRef.current = null;
+        }
+      };
+
+      progressAnimationRef.current = requestAnimationFrame(tick);
+    },
+    [stopProgressAnimation]
+  );
+
+  useEffect(() => () => stopProgressAnimation(), [stopProgressAnimation]);
+
+  const uploadToStorageWithProgress = async ({
+    bucket,
+    path,
+    file,
+    contentType,
+    onProgress,
+  }: {
+    bucket: string;
+    path: string;
+    file: Blob;
+    contentType: string;
+    onProgress?: (fraction: number) => void;
+  }) => {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) throw sessionError;
+    if (!session?.access_token) {
+      throw new Error("Your session expired. Please sign in again.");
+    }
+
+    const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+    const uploadUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/${bucket}/${encodedPath}`;
+
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", uploadUrl);
+      xhr.setRequestHeader("Authorization", `Bearer ${session.access_token}`);
+      xhr.setRequestHeader("apikey", import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
+      xhr.setRequestHeader("x-upsert", "false");
+      xhr.setRequestHeader("content-type", contentType);
+
+      xhr.upload.onprogress = (event) => {
+        const total = event.total || file.size;
+        if (!total) return;
+        onProgress?.(event.loaded / total);
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress?.(1);
+          resolve();
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(xhr.responseText);
+          reject(new Error(parsed.message || parsed.error || "Upload failed."));
+        } catch {
+          reject(new Error(xhr.responseText || "Upload failed."));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error while uploading file."));
+      xhr.send(file);
+    });
+  };
 
   const reset = () => {
+    stopProgressAnimation();
     setStep(1);
     setValidation(null);
     setSelectedAls(null);
@@ -70,7 +173,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     setBpm("");
     setChangeNote("");
     setAudioFile(null);
-    setProgress(0);
+    setProgressValue(0);
     setProgressLabel("");
     setUploading(false);
     setDragOver(false);
@@ -172,78 +275,70 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     [handleZipSelect]
   );
 
-
-  // Optimistic progress: smoothly animate from current to target over duration
-  const animateProgress = (from: number, to: number, durationMs: number) => {
-    const start = performance.now();
-    const tick = () => {
-      const elapsed = performance.now() - start;
-      const t = Math.min(elapsed / durationMs, 1);
-      // ease-out cubic
-      const eased = 1 - Math.pow(1 - t, 3);
-      setProgress(from + (to - from) * eased);
-      if (t < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  };
-
   // Step 4: Upload
   const handleUpload = async () => {
     if (!validation || !user) return;
     setUploading(true);
     setStep(4);
 
-    // Kick off optimistic progress immediately
-    setProgressLabel("Preparing project...");
-    setProgress(5);
-    animateProgress(5, 30, 1500);
+    setProgressValue(0);
+    setProgressLabel("Preparing archive...");
+    animateProgressTo(10, 250);
 
     try {
       let blob: Blob;
 
       if (preZippedBlob) {
         blob = preZippedBlob;
-        // Jump ahead since no zipping needed
-        await new Promise((r) => setTimeout(r, 400));
-        setProgress(35);
+        animateProgressTo(33, 500);
+        await new Promise((r) => setTimeout(r, 500));
+        stopProgressAnimation();
+        setProgressValue(33);
       } else {
+        await new Promise((r) => setTimeout(r, 150));
+        stopProgressAnimation();
         const zip = new JSZip();
         for (const file of validation.allFiles) {
           const path = file.webkitRelativePath || file.name;
           zip.file(path, file);
         }
         blob = await zip.generateAsync(
-          { type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } },
-          (meta) => setProgress(15 + meta.percent * 0.25)
+          { type: "blob", compression: "DEFLATE", compressionOptions: { level: 1 } },
+          (meta) => setProgressValue(Math.max(10, Math.min(33, 10 + meta.percent * 0.23)))
         );
+        setProgressValue(33);
       }
 
-      // Upload zip
-      setProgressLabel("Uploading...");
-      animateProgress(40, 75, 3000);
+      setProgressLabel("Uploading archive...");
       const zipPath = `${user.id}/${Date.now()}.zip`;
-      const { error: zipError } = await supabase.storage
-        .from("project-zips")
-        .upload(zipPath, blob, { upsert: false });
-      if (zipError) throw zipError;
-      setProgress(80);
+      await uploadToStorageWithProgress({
+        bucket: "project-zips",
+        path: zipPath,
+        file: blob,
+        contentType: blob.type || "application/zip",
+        onProgress: (fraction) => setProgressValue(33 + fraction * 57),
+      });
+      setProgressValue(90);
 
-      // Upload audio preview (optional)
       let audioUrl: string | null = null;
       if (audioFile) {
+        setProgressLabel("Uploading audio preview...");
         const audioPath = `${user.id}/${Date.now()}-preview.${audioFile.name.split(".").pop()}`;
-        const { error: audioError } = await supabase.storage
-          .from("audio-previews")
-          .upload(audioPath, audioFile, { upsert: false });
-        if (audioError) throw audioError;
+        await uploadToStorageWithProgress({
+          bucket: "audio-previews",
+          path: audioPath,
+          file: audioFile,
+          contentType: audioFile.type || "application/octet-stream",
+          onProgress: (fraction) => setProgressValue(90 + fraction * 5),
+        });
         const { data: audioPublic } = supabase.storage
           .from("audio-previews")
           .getPublicUrl(audioPath);
         audioUrl = audioPublic.publicUrl;
       }
-      setProgress(90);
+      setProgressLabel("Saving project...");
+      setProgressValue(97);
 
-      // Create project record
       const { data: project, error: projError } = await supabase
         .from("projects")
         .insert({
@@ -270,10 +365,9 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         });
       if (verError) throw verError;
 
-      setProgress(100);
-      setProgressLabel("Done!");
+      setProgressValue(100);
+      setProgressLabel("Upload complete!");
 
-      // Confetti!
       confetti({
         particleCount: 100,
         spread: 70,
@@ -281,7 +375,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         colors: ["#3B82F6", "#22C55E", "#fff"],
       });
 
-      // Redirect after a moment
       setTimeout(() => {
         handleClose();
         navigate(`/project/${project.id}`);
@@ -292,6 +385,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         description: error.message,
         variant: "destructive",
       });
+      stopProgressAnimation();
       setUploading(false);
       setStep(3);
     }
@@ -577,6 +671,9 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
               )}
               <p className="text-sm font-medium text-foreground">
                 {progressLabel}
+              </p>
+              <p className="font-mono text-3xl font-semibold text-foreground tabular-nums">
+                {Math.round(progress)}%
               </p>
             </div>
             <Progress value={progress} className="h-2" />
