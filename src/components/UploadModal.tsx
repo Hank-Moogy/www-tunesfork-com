@@ -88,10 +88,67 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     onOpenChange(false);
   };
 
+  // Handle a direct .zip upload
+  const handleZipSelect = useCallback(
+    async (file: File) => {
+      try {
+        const zip = await JSZip.loadAsync(file);
+        // Convert zip entries to pseudo-File objects for validation
+        const entries: File[] = [];
+        const promises: Promise<void>[] = [];
+        zip.forEach((relativePath, zipEntry) => {
+          if (zipEntry.dir) return;
+          promises.push(
+            zipEntry.async("blob").then((blob) => {
+              const f = new File([blob], zipEntry.name, { type: blob.type });
+              // Attach a fake webkitRelativePath for folder detection
+              Object.defineProperty(f, "webkitRelativePath", { value: relativePath });
+              entries.push(f);
+            })
+          );
+        });
+        await Promise.all(promises);
+
+        const result = validateFolder(entries);
+        setValidation(result);
+        setPreZippedBlob(file); // Store original zip to skip re-zipping
+
+        if (result.errors.length > 0) return;
+
+        const als = result.alsFiles.length === 1 ? result.alsFiles[0] : null;
+        if (als) {
+          setSelectedAls(als);
+          const meta = await parseAlsFile(als);
+          setMetadata(meta);
+          setProjectName(meta?.projectName ?? als.name.replace(/\.als$/i, ""));
+          setBpm(meta?.bpm?.toString() ?? "");
+          setStep(2);
+        }
+      } catch {
+        setValidation({
+          alsFiles: [],
+          hasSamplesFolder: false,
+          totalSizeBytes: 0,
+          allFiles: [],
+          errors: ["Could not read zip file. Make sure it's a valid .zip archive."],
+          warnings: [],
+        });
+      }
+    },
+    []
+  );
+
   // Step 1: Folder selection
   const handleFolderSelect = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
+
+      // Detect single .zip file
+      if (files.length === 1 && files[0].name.toLowerCase().endsWith(".zip")) {
+        return handleZipSelect(files[0]);
+      }
+
+      setPreZippedBlob(null);
       const fileArray = Array.from(files);
       const result = validateFolder(fileArray);
       setValidation(result);
@@ -110,7 +167,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         setStep(2);
       }
     },
-    []
+    [handleZipSelect]
   );
 
   const handleAlsChoice = async (fileName: string) => {
