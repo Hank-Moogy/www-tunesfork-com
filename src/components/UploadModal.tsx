@@ -166,24 +166,40 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   );
 
 
+  // Optimistic progress: smoothly animate from current to target over duration
+  const animateProgress = (from: number, to: number, durationMs: number) => {
+    const start = performance.now();
+    const tick = () => {
+      const elapsed = performance.now() - start;
+      const t = Math.min(elapsed / durationMs, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - t, 3);
+      setProgress(from + (to - from) * eased);
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  };
+
   // Step 4: Upload
   const handleUpload = async () => {
     if (!validation || !user) return;
     setUploading(true);
     setStep(4);
 
+    // Kick off optimistic progress immediately
+    setProgressLabel("Preparing project...");
+    setProgress(5);
+    animateProgress(5, 30, 1500);
+
     try {
       let blob: Blob;
 
       if (preZippedBlob) {
-        // Already have a zip — skip re-zipping
-        setProgressLabel("Preparing upload...");
-        setProgress(40);
         blob = preZippedBlob;
+        // Jump ahead since no zipping needed
+        await new Promise((r) => setTimeout(r, 400));
+        setProgress(35);
       } else {
-        // Zip files from folder
-        setProgressLabel("Preparing project...");
-        setProgress(10);
         const zip = new JSZip();
         for (const file of validation.allFiles) {
           const path = file.webkitRelativePath || file.name;
@@ -191,13 +207,13 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         }
         blob = await zip.generateAsync(
           { type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } },
-          (meta) => setProgress(10 + meta.percent * 0.4)
+          (meta) => setProgress(15 + meta.percent * 0.25)
         );
       }
 
       // Upload zip
       setProgressLabel("Uploading...");
-      setProgress(50);
+      animateProgress(40, 75, 3000);
       const zipPath = `${user.id}/${Date.now()}.zip`;
       const { error: zipError } = await supabase.storage
         .from("project-zips")
