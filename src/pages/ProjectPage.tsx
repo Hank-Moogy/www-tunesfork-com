@@ -153,8 +153,15 @@ export default function ProjectPage() {
   };
 
   const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    toast({ title: "Link copied", description: "Project link copied to clipboard." });
+    const shareToken = (project as any)?.share_token;
+    if (shareToken) {
+      const shareUrl = `${window.location.origin}/share/${shareToken}`;
+      navigator.clipboard.writeText(shareUrl);
+      toast({ title: "Share link copied", description: "Anyone with this link can preview the project." });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      toast({ title: "Link copied", description: "Project link copied to clipboard." });
+    }
   };
 
   const handleAddCollaborator = async () => {
