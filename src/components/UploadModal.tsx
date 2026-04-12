@@ -75,6 +75,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     setUploading(false);
     setDragOver(false);
     setPreZippedBlob(null);
+    setProcessing(false);
   };
 
   const handleClose = () => {
