@@ -55,6 +55,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [preZippedBlob, setPreZippedBlob] = useState<Blob | null>(null);
+  const [processing, setProcessing] = useState(false);
 
   const folderInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
@@ -74,6 +75,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     setUploading(false);
     setDragOver(false);
     setPreZippedBlob(null);
+    setProcessing(false);
   };
 
   const handleClose = () => {
@@ -100,9 +102,9 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   // Handle a direct .zip upload
   const handleZipSelect = useCallback(
     async (file: File) => {
+      setProcessing(true);
       try {
         const zip = await JSZip.loadAsync(file);
-        // Convert zip entries to pseudo-File objects for validation
         const entries: File[] = [];
         const promises: Promise<void>[] = [];
         zip.forEach((relativePath, zipEntry) => {
@@ -110,7 +112,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
           promises.push(
             zipEntry.async("blob").then((blob) => {
               const f = new File([blob], zipEntry.name, { type: blob.type });
-              // Attach a fake webkitRelativePath for folder detection
               Object.defineProperty(f, "webkitRelativePath", { value: relativePath });
               entries.push(f);
             })
@@ -120,11 +121,13 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
 
         const result = validateFolder(entries);
         setValidation(result);
-        setPreZippedBlob(file); // Store original zip — upload as-is
+        setPreZippedBlob(file);
 
-        if (result.errors.length > 0) return;
+        if (result.errors.length > 0) {
+          setProcessing(false);
+          return;
+        }
 
-        // Auto-select latest .als file
         const als = pickLatestAls(result.alsFiles);
         await advanceWithAls(als);
       } catch {
@@ -137,6 +140,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
           warnings: [],
         });
       }
+      setProcessing(false);
     },
     []
   );
@@ -146,21 +150,24 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
 
-      // Detect single .zip file
       if (files.length === 1 && files[0].name.toLowerCase().endsWith(".zip")) {
         return handleZipSelect(files[0]);
       }
 
+      setProcessing(true);
       setPreZippedBlob(null);
       const fileArray = Array.from(files);
       const result = validateFolder(fileArray);
       setValidation(result);
 
-      if (result.errors.length > 0) return;
+      if (result.errors.length > 0) {
+        setProcessing(false);
+        return;
+      }
 
-      // Auto-select latest .als file
       const als = pickLatestAls(result.alsFiles);
       await advanceWithAls(als);
+      setProcessing(false);
     },
     [handleZipSelect]
   );
@@ -317,6 +324,14 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         {/* Step 1: Folder selection */}
         {step === 1 && (
           <div className="space-y-4">
+            {processing && (
+              <div className="flex flex-col items-center justify-center rounded-lg border-2 border-primary/30 bg-primary/5 p-10">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary mb-3" />
+                <p className="text-sm text-foreground font-medium">Reading project files…</p>
+                <p className="text-xs text-muted-foreground mt-1">This may take a moment for large projects</p>
+              </div>
+            )}
+            {!processing && (<>
             <div
               className={`relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 transition-colors cursor-pointer ${
                 dragOver
@@ -369,7 +384,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
               }}
             />
 
-            {/* Errors */}
             {validation?.errors.map((err, i) => (
               <div
                 key={i}
@@ -380,7 +394,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
               </div>
             ))}
 
-            {/* Warnings */}
             {validation?.warnings.map((w, i) => (
               <div
                 key={i}
@@ -391,7 +404,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
               </div>
             ))}
 
-            {/* Folder info */}
             {validation && validation.errors.length === 0 && (
               <p className="text-xs text-muted-foreground">
                 {validation.allFiles.length} files ·{" "}
@@ -399,7 +411,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
               </p>
             )}
 
-            {/* Continue with warnings */}
             {validation &&
               validation.errors.length === 0 &&
               validation.warnings.length > 0 && (
@@ -414,6 +425,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
                   Continue anyway
                 </Button>
               )}
+            </>)}
           </div>
         )}
 
