@@ -33,7 +33,24 @@ import {
   Send,
   Music,
   ChevronLeft,
+  Trash2,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
 import type { Tables } from "@/integrations/supabase/types";
