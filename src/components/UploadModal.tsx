@@ -393,7 +393,8 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
       await uploadZipResumable(fileToUpload, zipPath, (percentage, bytesUploaded, bytesTotal) => {
         stopProgressAnimation();
         setProgressValue(Math.max(33, Math.min(85, 33 + percentage * 0.52)));
-        setProgressLabel(`Uploading archive… ${percentage.toFixed(1)}%`);
+        // Don't show percentage in label - it's shown separately in the UI
+        setProgressLabel("Uploading archive…");
 
         if (percentage >= 100) {
           console.log("[upload] file transfer finished", {
