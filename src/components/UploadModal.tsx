@@ -165,12 +165,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     [handleZipSelect]
   );
 
-  // Allow manual override if user wants a different .als
-  const handleAlsChoice = async (fileName: string) => {
-    const file = validation?.alsFiles.find((f) => f.name === fileName);
-    if (!file) return;
-    await advanceWithAls(file);
-  };
 
   // Step 4: Upload
   const handleUpload = async () => {
