@@ -70,36 +70,53 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
       GroupTrack: "group",
     };
 
-    for (const [tag, type] of Object.entries(trackTypeMap)) {
-      // Find each track block
-      const trackRegex = new RegExp(`<${tag}\\s[^>]*Id="\\d+"[^>]*>([\\s\\S]*?)(?=<(?:AudioTrack|MidiTrack|ReturnTrack|GroupTrack|MasterTrack)\\s|$)`, "g");
-      let trackMatch;
-      while ((trackMatch = trackRegex.exec(xml)) !== null) {
-        const trackBlock = trackMatch[1];
+    // Parse all tracks in document order using a single pass
+    const allTrackTags = Object.keys(trackTypeMap).join("|");
+    const trackStartRegex = new RegExp(`<(${allTrackTags})\\s[^>]*Id="\\d+"[^>]*>`, "g");
+    
+    // Find all track start positions
+    const trackStarts: { index: number; tag: string; matchEnd: number }[] = [];
+    let m;
+    while ((m = trackStartRegex.exec(xml)) !== null) {
+      trackStarts.push({ index: m.index, tag: m[1], matchEnd: m.index + m[0].length });
+    }
 
-        // Extract track name
-        const nameMatch = trackBlock.match(/<EffectiveName\s+Value="([^"]*)"/);
-        const name = nameMatch?.[1] || `${type} track`;
+    // Also find MasterTrack to use as boundary
+    const masterMatch = xml.match(/<MasterTrack\s/);
+    const masterIndex = masterMatch ? xml.indexOf(masterMatch[0]) : xml.length;
 
-        // Extract color
-        const colorMatch = trackBlock.match(/<Color\s+Value="(\d+)"/);
-        const color = colorMatch ? parseInt(colorMatch[1]) : 0;
+    for (let ti = 0; ti < trackStarts.length; ti++) {
+      const { tag, matchEnd } = trackStarts[ti];
+      const type = trackTypeMap[tag];
+      
+      // Track block extends from after the opening tag to just before the next track (or MasterTrack/end)
+      const nextBoundary = ti + 1 < trackStarts.length 
+        ? trackStarts[ti + 1].index 
+        : masterIndex;
+      const trackBlock = xml.slice(matchEnd, nextBoundary);
 
-        // Extract clips
-        const clips: Clip[] = [];
-        const clipRegex = /<(?:AudioClip|MidiClip)\s[^>]*>[\s\S]*?<CurrentStart\s+Value="([^"]+)"[\s\S]*?<CurrentEnd\s+Value="([^"]+)"[\s\S]*?(?:<Name\s+Value="([^"]*)")?/g;
-        let clipMatch;
-        while ((clipMatch = clipRegex.exec(trackBlock)) !== null) {
-          const start = parseFloat(clipMatch[1]);
-          const end = parseFloat(clipMatch[2]);
-          const clipName = clipMatch[3] || "";
-          if (!isNaN(start) && !isNaN(end) && end > start) {
-            clips.push({ name: clipName, start, end });
-          }
+      // Extract track name
+      const nameMatch = trackBlock.match(/<EffectiveName\s+Value="([^"]*)"/);
+      const name = nameMatch?.[1] || `${type} track`;
+
+      // Extract color
+      const colorMatch = trackBlock.match(/<Color\s+Value="(\d+)"/);
+      const color = colorMatch ? parseInt(colorMatch[1]) : 0;
+
+      // Extract clips
+      const clips: Clip[] = [];
+      const clipRegex = /<(?:AudioClip|MidiClip)\s[^>]*>[\s\S]*?<CurrentStart\s+Value="([^"]+)"[\s\S]*?<CurrentEnd\s+Value="([^"]+)"[\s\S]*?(?:<Name\s+Value="([^"]*)")?/g;
+      let clipMatch;
+      while ((clipMatch = clipRegex.exec(trackBlock)) !== null) {
+        const start = parseFloat(clipMatch[1]);
+        const end = parseFloat(clipMatch[2]);
+        const clipName = clipMatch[3] || "";
+        if (!isNaN(start) && !isNaN(end) && end > start) {
+          clips.push({ name: clipName, start, end });
         }
-
-        tracks.push({ name, type, color, clips });
       }
+
+      tracks.push({ name, type, color, clips });
     }
 
     return { projectName, bpm, plugins: Array.from(plugins), tracks };
