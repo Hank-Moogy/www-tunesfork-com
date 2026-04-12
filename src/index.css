@@ -37,6 +37,13 @@
     --sidebar-border: 0 0% 89%;
     --sidebar-ring: 0 0% 55%;
     --radius: 0.625rem;
+
+    /* Pastel action colors */
+    --pastel-blue: 217 70% 55%;
+    --pastel-green: 142 55% 42%;
+    --pastel-purple: 264 50% 55%;
+    --pastel-orange: 30 70% 52%;
+    --pastel-pink: 340 55% 55%;
   }
 
   .dark {
