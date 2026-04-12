@@ -165,30 +165,18 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
 
       if (result.errors.length > 0) return;
 
-      // Auto-select if single .als, else user picks
-      const als =
-        result.alsFiles.length === 1 ? result.alsFiles[0] : null;
-      if (als) {
-        setSelectedAls(als);
-        const meta = await parseAlsFile(als);
-        setMetadata(meta);
-        setProjectName(meta?.projectName ?? als.name.replace(/\.als$/i, ""));
-        setBpm(meta?.bpm?.toString() ?? "");
-        setStep(2);
-      }
+      // Auto-select latest .als file
+      const als = pickLatestAls(result.alsFiles);
+      await advanceWithAls(als);
     },
     [handleZipSelect]
   );
 
+  // Allow manual override if user wants a different .als
   const handleAlsChoice = async (fileName: string) => {
     const file = validation?.alsFiles.find((f) => f.name === fileName);
     if (!file) return;
-    setSelectedAls(file);
-    const meta = await parseAlsFile(file);
-    setMetadata(meta);
-    setProjectName(meta?.projectName ?? file.name.replace(/\.als$/i, ""));
-    setBpm(meta?.bpm?.toString() ?? "");
-    setStep(2);
+    await advanceWithAls(file);
   };
 
   // Step 4: Upload
