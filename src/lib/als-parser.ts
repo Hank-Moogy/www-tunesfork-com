@@ -1,10 +1,37 @@
 import pako from "pako";
 
+export interface Clip {
+  name: string;
+  start: number; // in beats
+  end: number;   // in beats
+}
+
+export interface Track {
+  name: string;
+  type: "audio" | "midi" | "return" | "group";
+  color: number; // Ableton color index
+  clips: Clip[];
+}
+
 export interface AlsMetadata {
   projectName: string;
   bpm: number | null;
   plugins: string[];
+  tracks: Track[];
 }
+
+// Ableton's 70-color palette (index → hex)
+export const ABLETON_COLORS: string[] = [
+  "#FF94A6","#FFA529","#CC9927","#F7F47C","#BFFB00","#1AFF2F","#25FFA8","#5CFFE8",
+  "#8BC5FF","#5480E4","#92A7FF","#D86CE4","#E553A0","#FFFFFF","#FF3636","#F66C03",
+  "#99724B","#FFF034","#87FF67","#3DC300","#00BFAF","#19E9FF","#10A4EE","#007DC0",
+  "#886CE4","#B677C6","#FF39D4","#D0D0D0","#E2675A","#FFA374","#D3AD71","#E8E55C",
+  "#C6E48B","#85C1A3","#9AD3C2","#B4D5E0","#A7C7E7","#849BC1","#B9A9D4","#CDB2CB",
+  "#E4A0BE","#A9A9A9","#C6928A","#B78256","#A69279","#C2C57C","#9DBB84","#7DAF8C",
+  "#85B5A4","#8EB9B3","#92B8C8","#84A0B5","#A09BB5","#B296B4","#BD93A8","#7B7B7B",
+  "#AF7963","#A05B3C","#7E6C56","#A6A455","#83A06C","#6B9775","#73A58E","#7CAC9F",
+  "#84AAB4","#6D8AA1","#8B839D","#A07F98","#A5799B","#5E5E5E","#9A6B56","#825A3D",
+];
 
 /**
  * Parse an .als file (gzip-compressed XML) to extract metadata.
@@ -34,7 +61,48 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
       if (m[1]) plugins.add(m[1]);
     }
 
-    return { projectName, bpm, plugins: Array.from(plugins) };
+    // Extract tracks and clips
+    const tracks: Track[] = [];
+    const trackTypeMap: Record<string, Track["type"]> = {
+      AudioTrack: "audio",
+      MidiTrack: "midi",
+      ReturnTrack: "return",
+      GroupTrack: "group",
+    };
+
+    for (const [tag, type] of Object.entries(trackTypeMap)) {
+      // Find each track block
+      const trackRegex = new RegExp(`<${tag}\\s[^>]*Id="\\d+"[^>]*>([\\s\\S]*?)(?=<(?:AudioTrack|MidiTrack|ReturnTrack|GroupTrack|MasterTrack)\\s|$)`, "g");
+      let trackMatch;
+      while ((trackMatch = trackRegex.exec(xml)) !== null) {
+        const trackBlock = trackMatch[1];
+
+        // Extract track name
+        const nameMatch = trackBlock.match(/<EffectiveName\s+Value="([^"]*)"/);
+        const name = nameMatch?.[1] || `${type} track`;
+
+        // Extract color
+        const colorMatch = trackBlock.match(/<Color\s+Value="(\d+)"/);
+        const color = colorMatch ? parseInt(colorMatch[1]) : 0;
+
+        // Extract clips
+        const clips: Clip[] = [];
+        const clipRegex = /<(?:AudioClip|MidiClip)\s[^>]*>[\s\S]*?<CurrentStart\s+Value="([^"]+)"[\s\S]*?<CurrentEnd\s+Value="([^"]+)"[\s\S]*?(?:<Name\s+Value="([^"]*)")?/g;
+        let clipMatch;
+        while ((clipMatch = clipRegex.exec(trackBlock)) !== null) {
+          const start = parseFloat(clipMatch[1]);
+          const end = parseFloat(clipMatch[2]);
+          const clipName = clipMatch[3] || "";
+          if (!isNaN(start) && !isNaN(end) && end > start) {
+            clips.push({ name: clipName, start, end });
+          }
+        }
+
+        tracks.push({ name, type, color, clips });
+      }
+    }
+
+    return { projectName, bpm, plugins: Array.from(plugins), tracks };
   } catch {
     // Parsing failed — skip silently per spec
     return null;
