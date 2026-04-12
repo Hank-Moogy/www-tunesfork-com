@@ -45,7 +45,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   // State
   const [step, setStep] = useState(1);
   const [validation, setValidation] = useState<FolderValidation | null>(null);
-  const [selectedAls, setSelectedAls] = useState<File | null>(null);
   const [metadata, setMetadata] = useState<AlsMetadata | null>(null);
   const [projectName, setProjectName] = useState("");
   const [bpm, setBpm] = useState("");
@@ -53,7 +52,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
-  const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [preZippedBlob, setPreZippedBlob] = useState<Blob | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -122,7 +120,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
 
     setStep(1);
     setValidation(null);
-    setSelectedAls(null);
     setMetadata(null);
     setProjectName("");
     setBpm("");
@@ -130,7 +127,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     setAudioFile(null);
     setProgressValue(0);
     setProgressLabel("");
-    setUploading(false);
     setDragOver(false);
     setPreZippedBlob(null);
     setProcessing(false);
@@ -149,7 +145,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   };
 
   const advanceWithAls = async (als: File) => {
-    setSelectedAls(als);
     const meta = await parseAlsFile(als);
     setMetadata(meta);
     setProjectName(meta?.projectName ?? als.name.replace(/\.als$/i, ""));
@@ -201,12 +196,17 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
           },
           onError: (error) => {
             resumableUploadRef.current = null;
+            const detailedError = error as Error & {
+              originalRequest?: unknown;
+              originalResponse?: unknown;
+            };
+
             console.error("[upload] resumable upload error", {
               objectPath,
               message: error.message,
               name: error.name,
-              originalRequest: error.originalRequest,
-              originalResponse: error.originalResponse,
+              originalRequest: detailedError.originalRequest,
+              originalResponse: detailedError.originalResponse,
             });
             reject(error);
           },
@@ -346,7 +346,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   // Step 4: Upload
   const handleUpload = async () => {
     if (!validation || !user) return;
-    setUploading(true);
     setStep(4);
 
     setProgressValue(0);
@@ -513,7 +512,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         variant: "destructive",
       });
       stopProgressAnimation();
-      setUploading(false);
       setStep(3);
     }
   };
