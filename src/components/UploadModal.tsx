@@ -61,8 +61,10 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   const [progressLabel, setProgressLabel] = useState("");
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [preZippedBlob, setPreZippedBlob] = useState<Blob | null>(null);
 
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const zipInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
