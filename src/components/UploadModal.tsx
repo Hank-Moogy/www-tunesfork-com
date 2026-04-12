@@ -336,9 +336,9 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
             >
               <FolderOpen className="h-10 w-10 text-muted-foreground mb-3" />
               <p className="text-sm text-foreground font-medium mb-1">
-                Drop your Ableton project folder here
+                Drop your Ableton project folder or .zip here
               </p>
-              <p className="text-xs text-muted-foreground">or click to browse</p>
+              <p className="text-xs text-muted-foreground">or click to browse folders</p>
               <input
                 ref={folderInputRef}
                 type="file"
@@ -350,6 +350,23 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
                 onChange={(e) => handleFolderSelect(e.target.files)}
               />
             </div>
+            <button
+              type="button"
+              className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
+              onClick={() => zipInputRef.current?.click()}
+            >
+              or select a .zip file
+            </button>
+            <input
+              ref={zipInputRef}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleZipSelect(file);
+              }}
+            />
 
             {/* Errors */}
             {validation?.errors.map((err, i) => (
