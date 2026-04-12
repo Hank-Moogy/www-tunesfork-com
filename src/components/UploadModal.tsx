@@ -442,30 +442,54 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
       if (uploadAbortRef.current) return;
       setProgressLabel("Saving project…");
       setProgressValue(93);
-      console.log("[upload] creating project record", {
-        projectName,
-        bpm: bpm ? parseInt(bpm) : null,
-        ownerId: user.id,
-      });
 
-      const { data: project, error: projError } = await supabase
-        .from("projects")
-        .insert({
-          name: projectName,
+      let projectId: string;
+
+      if (existingProjectId) {
+        // Upload new version to existing project
+        projectId = existingProjectId;
+      } else {
+        // Create new project
+        console.log("[upload] creating project record", {
+          projectName,
           bpm: bpm ? parseInt(bpm) : null,
-          owner_id: user.id,
-        })
-        .select()
-        .single();
-      if (projError) {
-        console.error("[upload] project insert error:", projError);
-        throw projError;
+          ownerId: user.id,
+        });
+
+        const { data: project, error: projError } = await supabase
+          .from("projects")
+          .insert({
+            name: projectName,
+            bpm: bpm ? parseInt(bpm) : null,
+            owner_id: user.id,
+          })
+          .select()
+          .single();
+        if (projError) {
+          console.error("[upload] project insert error:", projError);
+          throw projError;
+        }
+        console.log("[upload] project created", { projectId: project.id });
+        projectId = project.id;
       }
-      console.log("[upload] project created", { projectId: project.id });
+
+      // Determine next version number
+      let versionNumber = 1;
+      if (existingProjectId) {
+        const { data: existingVersions } = await supabase
+          .from("project_versions")
+          .select("version_number")
+          .eq("project_id", existingProjectId)
+          .order("version_number", { ascending: false })
+          .limit(1);
+        if (existingVersions && existingVersions.length > 0) {
+          versionNumber = existingVersions[0].version_number + 1;
+        }
+      }
 
       console.log("[upload] creating project version", {
-        projectId: project.id,
-        versionNumber: 1,
+        projectId,
+        versionNumber,
         zipPath,
         audioUrl,
         fileSizeBytes: blob.size,
@@ -473,22 +497,23 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
       const { error: verError } = await supabase
         .from("project_versions")
         .insert({
-          project_id: project.id,
-          version_number: 1,
+          project_id: projectId,
+          version_number: versionNumber,
           uploader_id: user.id,
           change_note: changeNote || null,
           zip_url: zipPath,
           audio_preview_url: audioUrl,
           plugin_list: metadata?.plugins ?? null,
           file_size_bytes: blob.size,
+          track_list: (metadata?.tracks as any) ?? null,
         });
       if (verError) {
         console.error("[upload] version insert error:", verError);
         throw verError;
       }
       console.log("[upload] project version created", {
-        projectId: project.id,
-        versionNumber: 1,
+        projectId,
+        versionNumber,
       });
 
       if (uploadAbortRef.current) return;
@@ -505,7 +530,11 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
       setTimeout(() => {
         handleClose();
-        navigate(`/project/${project.id}`);
+        if (onVersionUploaded) {
+          onVersionUploaded();
+        } else {
+          navigate(`/project/${projectId}`);
+        }
       }, 1500);
     } catch (error: any) {
       if (uploadAbortRef.current) return;
