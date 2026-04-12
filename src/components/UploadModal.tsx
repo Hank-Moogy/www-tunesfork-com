@@ -331,7 +331,8 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
                 <p className="text-xs text-muted-foreground mt-1">This may take a moment for large projects</p>
               </div>
             )}
-            {!processing && (
+            {!processing && (<>
+            <div
               className={`relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 transition-colors cursor-pointer ${
                 dragOver
                   ? "border-primary bg-primary/5"
@@ -383,7 +384,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
               }}
             />
 
-            {/* Errors */}
             {validation?.errors.map((err, i) => (
               <div
                 key={i}
@@ -394,7 +394,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
               </div>
             ))}
 
-            {/* Warnings */}
             {validation?.warnings.map((w, i) => (
               <div
                 key={i}
@@ -405,7 +404,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
               </div>
             ))}
 
-            {/* Folder info */}
             {validation && validation.errors.length === 0 && (
               <p className="text-xs text-muted-foreground">
                 {validation.allFiles.length} files ·{" "}
@@ -413,7 +411,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
               </p>
             )}
 
-            {/* Continue with warnings */}
             {validation &&
               validation.errors.length === 0 &&
               validation.warnings.length > 0 && (
@@ -428,6 +425,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
                   Continue anyway
                 </Button>
               )}
+            </>)}
           </div>
         )}
 
