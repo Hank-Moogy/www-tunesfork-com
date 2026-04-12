@@ -150,21 +150,24 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
 
-      // Detect single .zip file
       if (files.length === 1 && files[0].name.toLowerCase().endsWith(".zip")) {
         return handleZipSelect(files[0]);
       }
 
+      setProcessing(true);
       setPreZippedBlob(null);
       const fileArray = Array.from(files);
       const result = validateFolder(fileArray);
       setValidation(result);
 
-      if (result.errors.length > 0) return;
+      if (result.errors.length > 0) {
+        setProcessing(false);
+        return;
+      }
 
-      // Auto-select latest .als file
       const als = pickLatestAls(result.alsFiles);
       await advanceWithAls(als);
+      setProcessing(false);
     },
     [handleZipSelect]
   );
