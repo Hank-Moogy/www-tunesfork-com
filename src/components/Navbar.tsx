@@ -26,7 +26,7 @@ export default function Navbar() {
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
         {/* Left */}
         <Link to="/dashboard" className="flex items-center gap-2">
-          <Music2 className="h-5 w-5 text-primary" />
+          <img src="/logo.png" alt="cloudbleton" className="h-8 w-auto" />
           <span className="text-lg font-bold tracking-tight">cloudbleton</span>
         </Link>
 
