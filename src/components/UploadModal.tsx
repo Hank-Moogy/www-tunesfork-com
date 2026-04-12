@@ -59,6 +59,29 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   const [preZippedBlob, setPreZippedBlob] = useState<Blob | null>(null);
   const [processing, setProcessing] = useState(false);
 
+  const PROCESSING_MESSAGES = [
+    "Reading project files…",
+    "Scanning for Ableton sets…",
+    "Detecting plugins & instruments…",
+    "Analyzing track layout…",
+    "Extracting clip data…",
+    "Mapping sample references…",
+    "Almost there…",
+  ];
+
+  const [processingMsgIndex, setProcessingMsgIndex] = useState(0);
+
+  useEffect(() => {
+    if (!processing) {
+      setProcessingMsgIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setProcessingMsgIndex((i) => (i + 1) % PROCESSING_MESSAGES.length);
+    }, 2200);
+    return () => clearInterval(interval);
+  }, [processing]);
+
   const folderInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -579,7 +602,9 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
             {processing && (
               <div className="flex flex-col items-center justify-center rounded-lg border-2 border-primary/30 bg-primary/5 p-10">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary mb-3" />
-                <p className="text-sm text-foreground font-medium">Reading project files…</p>
+                <p className="text-sm text-foreground font-medium animate-fade-in" key={processingMsgIndex}>
+                  {PROCESSING_MESSAGES[processingMsgIndex]}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">This may take a moment for large projects</p>
               </div>
             )}
