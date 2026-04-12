@@ -782,7 +782,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Attach a rough mix or bounce for your collaborators to preview
-              (MP3 or WAV, max 50MB). This is optional.
+              (MP3 or WAV, up to 500MB). This is optional.
             </p>
 
             <div
@@ -816,7 +816,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
                   } else if (file) {
                     toast({
                       title: "File too large",
-                      description: "Audio preview must be under 50MB.",
+                      description: "Audio preview must be under 500MB.",
                       variant: "destructive",
                     });
                   }
