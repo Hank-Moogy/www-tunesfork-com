@@ -80,6 +80,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     setProgressLabel("");
     setUploading(false);
     setDragOver(false);
+    setPreZippedBlob(null);
   };
 
   const handleClose = () => {
