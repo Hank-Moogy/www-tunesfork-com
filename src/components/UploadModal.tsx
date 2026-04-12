@@ -88,6 +88,22 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     onOpenChange(false);
   };
 
+  // Pick the latest .als file by name (files often contain dates like 2024-01-15)
+  const pickLatestAls = (alsFiles: File[]): File => {
+    if (alsFiles.length === 1) return alsFiles[0];
+    // Sort descending by name — dates in filenames naturally sort this way
+    return [...alsFiles].sort((a, b) => b.name.localeCompare(a.name))[0];
+  };
+
+  const advanceWithAls = async (als: File) => {
+    setSelectedAls(als);
+    const meta = await parseAlsFile(als);
+    setMetadata(meta);
+    setProjectName(meta?.projectName ?? als.name.replace(/\.als$/i, ""));
+    setBpm(meta?.bpm?.toString() ?? "");
+    setStep(2);
+  };
+
   // Handle a direct .zip upload
   const handleZipSelect = useCallback(
     async (file: File) => {
@@ -111,19 +127,13 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
 
         const result = validateFolder(entries);
         setValidation(result);
-        setPreZippedBlob(file); // Store original zip to skip re-zipping
+        setPreZippedBlob(file); // Store original zip — upload as-is
 
         if (result.errors.length > 0) return;
 
-        const als = result.alsFiles.length === 1 ? result.alsFiles[0] : null;
-        if (als) {
-          setSelectedAls(als);
-          const meta = await parseAlsFile(als);
-          setMetadata(meta);
-          setProjectName(meta?.projectName ?? als.name.replace(/\.als$/i, ""));
-          setBpm(meta?.bpm?.toString() ?? "");
-          setStep(2);
-        }
+        // Auto-select latest .als file
+        const als = pickLatestAls(result.alsFiles);
+        await advanceWithAls(als);
       } catch {
         setValidation({
           alsFiles: [],
