@@ -203,7 +203,7 @@ export default function ProjectPage() {
   if (!project) return null;
 
   return (
-    <div className="min-h-screen bg-background dark">
+    <div className="min-h-screen bg-background">
       <Navbar />
       <main className="mx-auto max-w-6xl px-4 py-4">
         {/* Compact header */}
