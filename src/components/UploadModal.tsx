@@ -554,7 +554,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
       <DialogContent className="sm:max-w-lg bg-card border-border">
         <DialogHeader>
           <DialogTitle className="text-foreground">
-            {step === 1 && "Select Project Folder"}
+            {step === 1 && (existingProjectId ? "Upload New Version" : "Select Project Folder")}
             {step === 2 && "Project Details"}
             {step === 3 && "Audio Preview"}
             {step === 4 && "Uploading..."}
