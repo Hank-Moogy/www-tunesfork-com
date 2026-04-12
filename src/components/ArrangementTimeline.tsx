@@ -58,7 +58,7 @@ export default function ArrangementTimeline({ tracks }: ArrangementTimelineProps
   }
 
   return (
-    <div className="rounded-lg border border-border bg-secondary/30 overflow-hidden">
+    <div className="bg-secondary/20 overflow-hidden">
       <div className="flex">
         {/* Track labels */}
         <div className="shrink-0 border-r border-border" style={{ width: LABEL_WIDTH }}>
