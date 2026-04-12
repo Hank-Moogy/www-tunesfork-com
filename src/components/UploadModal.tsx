@@ -188,18 +188,27 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
     setStep(4);
 
     try {
-      // Zip files
-      setProgressLabel("Preparing project...");
-      setProgress(10);
-      const zip = new JSZip();
-      for (const file of validation.allFiles) {
-        const path = file.webkitRelativePath || file.name;
-        zip.file(path, file);
+      let blob: Blob;
+
+      if (preZippedBlob) {
+        // Already have a zip — skip re-zipping
+        setProgressLabel("Preparing upload...");
+        setProgress(40);
+        blob = preZippedBlob;
+      } else {
+        // Zip files from folder
+        setProgressLabel("Preparing project...");
+        setProgress(10);
+        const zip = new JSZip();
+        for (const file of validation.allFiles) {
+          const path = file.webkitRelativePath || file.name;
+          zip.file(path, file);
+        }
+        blob = await zip.generateAsync(
+          { type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } },
+          (meta) => setProgress(10 + meta.percent * 0.4)
+        );
       }
-      const blob = await zip.generateAsync(
-        { type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } },
-        (meta) => setProgress(10 + meta.percent * 0.4)
-      );
 
       // Upload zip
       setProgressLabel("Uploading...");
