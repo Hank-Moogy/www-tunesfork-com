@@ -324,7 +324,14 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
         {/* Step 1: Folder selection */}
         {step === 1 && (
           <div className="space-y-4">
-            <div
+            {processing && (
+              <div className="flex flex-col items-center justify-center rounded-lg border-2 border-primary/30 bg-primary/5 p-10">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary mb-3" />
+                <p className="text-sm text-foreground font-medium">Reading project files…</p>
+                <p className="text-xs text-muted-foreground mt-1">This may take a moment for large projects</p>
+              </div>
+            )}
+            {!processing && (
               className={`relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 transition-colors cursor-pointer ${
                 dragOver
                   ? "border-primary bg-primary/5"
