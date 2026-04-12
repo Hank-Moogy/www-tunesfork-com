@@ -33,7 +33,24 @@ import {
   Send,
   Music,
   ChevronLeft,
+  Trash2,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
 import type { Tables } from "@/integrations/supabase/types";
@@ -77,6 +94,8 @@ export default function ProjectPage() {
   const [collabRole, setCollabRole] = useState<"viewer" | "contributor">("viewer");
   const [addingCollab, setAddingCollab] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const commentInputRef = useRef<HTMLInputElement>(null);
 
@@ -193,6 +212,19 @@ export default function ProjectPage() {
     setAddingCollab(false);
   };
 
+  const handleDeleteProject = async () => {
+    if (!project) return;
+    setDeleting(true);
+    const { error } = await supabase.from("projects").delete().eq("id", project.id);
+    if (error) {
+      toast({ title: "Error", description: "Could not delete project.", variant: "destructive" });
+      setDeleting(false);
+    } else {
+      toast({ title: "Project deleted" });
+      navigate("/dashboard");
+    }
+  };
+
   const trackList: Track[] = selectedVersion?.track_list ? (selectedVersion.track_list as unknown as Track[]) : [];
   const pluginList: string[] = selectedVersion?.plugin_list ? (selectedVersion.plugin_list as unknown as string[]) : [];
 
@@ -254,9 +286,23 @@ export default function ProjectPage() {
             >
               <Download className="h-3 w-3" /> Download
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
-              <Settings className="h-3.5 w-3.5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                  <Settings className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {project.owner_id === user?.id && (
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive gap-2"
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete project
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -494,6 +540,26 @@ export default function ProjectPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{project.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the project, all versions, and comments. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteProject}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
