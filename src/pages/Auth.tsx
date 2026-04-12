@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Music2 } from "lucide-react";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -71,8 +70,8 @@ export default function Auth() {
       <div className="w-full max-w-sm space-y-8">
         {/* Logo */}
         <div className="text-center space-y-2">
-          <div className="flex items-center justify-center gap-2">
-            <Music2 className="h-8 w-8 text-primary" />
+          <div className="flex items-center justify-center gap-3">
+            <img src="/logo.png" alt="cloudbleton" className="h-10 w-auto" />
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
               cloudbleton
             </h1>

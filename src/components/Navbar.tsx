@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Bell, LogOut, Music2, User } from "lucide-react";
+import { Bell, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -26,7 +26,7 @@ export default function Navbar() {
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
         {/* Left */}
         <Link to="/dashboard" className="flex items-center gap-2">
-          <Music2 className="h-5 w-5 text-primary" />
+          <img src="/logo.png" alt="cloudbleton" className="h-8 w-auto" />
           <span className="text-lg font-bold tracking-tight">cloudbleton</span>
         </Link>
 
