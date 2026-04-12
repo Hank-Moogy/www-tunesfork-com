@@ -80,77 +80,41 @@ export default function ProjectPage() {
 
   const commentInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch project data
   useEffect(() => {
     if (!id || !user) return;
     const fetchAll = async () => {
       setLoading(true);
-
-      const { data: proj } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("id", id)
-        .single();
-      if (!proj) {
-        navigate("/dashboard");
-        return;
-      }
+      const { data: proj } = await supabase.from("projects").select("*").eq("id", id).single();
+      if (!proj) { navigate("/dashboard"); return; }
       setProject(proj);
 
       const { data: vers } = await supabase
-        .from("project_versions")
-        .select("*")
-        .eq("project_id", id)
+        .from("project_versions").select("*").eq("project_id", id)
         .order("version_number", { ascending: false });
       setVersions(vers ?? []);
-      if (vers && vers.length > 0) {
-        setSelectedVersion(vers[0]);
-      }
+      if (vers && vers.length > 0) setSelectedVersion(vers[0]);
 
-      // Fetch collaborators with profiles
-      const { data: collabs } = await supabase
-        .from("collaborators")
-        .select("*")
-        .eq("project_id", id);
+      const { data: collabs } = await supabase.from("collaborators").select("*").eq("project_id", id);
       if (collabs) {
         const userIds = collabs.map((c) => c.user_id);
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, display_name, avatar_url")
-          .in("user_id", userIds);
+        const { data: profiles } = await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", userIds);
         const profileMap = new Map(profiles?.map((p) => [p.user_id, p]));
-        setCollaborators(
-          collabs.map((c) => ({
-            ...c,
-            profile: profileMap.get(c.user_id) ?? null,
-          }))
-        );
+        setCollaborators(collabs.map((c) => ({ ...c, profile: profileMap.get(c.user_id) ?? null })));
       }
-
       setLoading(false);
     };
     fetchAll();
   }, [id, user, navigate]);
 
-  // Fetch comments when selected version changes
   useEffect(() => {
     if (!selectedVersion) return;
     const fetchComments = async () => {
-      const { data } = await supabase
-        .from("comments")
-        .select("*")
-        .eq("version_id", selectedVersion.id)
-        .order("created_at", { ascending: true });
+      const { data } = await supabase.from("comments").select("*").eq("version_id", selectedVersion.id).order("created_at", { ascending: true });
       if (data) {
         const userIds = [...new Set(data.map((c) => c.user_id))];
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, display_name, avatar_url")
-          .in("user_id", userIds);
+        const { data: profiles } = await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", userIds);
         const profileMap = new Map(profiles?.map((p) => [p.user_id, p]));
-        setComments(
-          data.map((c) => ({ ...c, profile: profileMap.get(c.user_id) ?? null }))
-        );
+        setComments(data.map((c) => ({ ...c, profile: profileMap.get(c.user_id) ?? null })));
       }
     };
     fetchComments();
@@ -159,31 +123,17 @@ export default function ProjectPage() {
   const handleSendComment = async () => {
     if (!newComment.trim() || !selectedVersion || !user) return;
     setSendingComment(true);
-    const { error } = await supabase.from("comments").insert({
-      body: newComment.trim(),
-      version_id: selectedVersion.id,
-      user_id: user.id,
-    });
+    const { error } = await supabase.from("comments").insert({ body: newComment.trim(), version_id: selectedVersion.id, user_id: user.id });
     if (error) {
       toast({ title: "Error", description: "Could not post comment.", variant: "destructive" });
     } else {
       setNewComment("");
-      // Re-fetch comments
-      const { data } = await supabase
-        .from("comments")
-        .select("*")
-        .eq("version_id", selectedVersion.id)
-        .order("created_at", { ascending: true });
+      const { data } = await supabase.from("comments").select("*").eq("version_id", selectedVersion.id).order("created_at", { ascending: true });
       if (data) {
         const userIds = [...new Set(data.map((c) => c.user_id))];
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, display_name, avatar_url")
-          .in("user_id", userIds);
+        const { data: profiles } = await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", userIds);
         const profileMap = new Map(profiles?.map((p) => [p.user_id, p]));
-        setComments(
-          data.map((c) => ({ ...c, profile: profileMap.get(c.user_id) ?? null }))
-        );
+        setComments(data.map((c) => ({ ...c, profile: profileMap.get(c.user_id) ?? null })));
       }
     }
     setSendingComment(false);
@@ -193,13 +143,9 @@ export default function ProjectPage() {
     if (!selectedVersion) return;
     setDownloading(true);
     try {
-      const { data, error } = await supabase.storage
-        .from("project-zips")
-        .createSignedUrl(selectedVersion.zip_url, 300);
+      const { data, error } = await supabase.storage.from("project-zips").createSignedUrl(selectedVersion.zip_url, 300);
       if (error) throw error;
-      if (data?.signedUrl) {
-        window.open(data.signedUrl, "_blank");
-      }
+      if (data?.signedUrl) window.open(data.signedUrl, "_blank");
     } catch {
       toast({ title: "Error", description: "Could not generate download link.", variant: "destructive" });
     }
@@ -214,51 +160,25 @@ export default function ProjectPage() {
   const handleAddCollaborator = async () => {
     if (!collabEmail.trim() || !project) return;
     setAddingCollab(true);
-    // Look up user by email via profiles (display_name might contain email)
-    // Since we can't query auth.users, we search profiles
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("user_id, display_name")
-      .ilike("display_name", `%${collabEmail.trim()}%`);
-    
-    // If no match, try exact match on the email part before @
+    const { data: profiles } = await supabase.from("profiles").select("user_id, display_name").ilike("display_name", `%${collabEmail.trim()}%`);
     let targetUserId: string | null = null;
-    if (profiles && profiles.length > 0) {
-      targetUserId = profiles[0].user_id;
-    }
-
+    if (profiles && profiles.length > 0) targetUserId = profiles[0].user_id;
     if (!targetUserId) {
-      toast({
-        title: "User not found",
-        description: "No user found with that name or email. They need to sign up first.",
-        variant: "destructive",
-      });
+      toast({ title: "User not found", description: "No user found with that name. They need to sign up first.", variant: "destructive" });
       setAddingCollab(false);
       return;
     }
-
-    const { error } = await supabase.from("collaborators").insert({
-      project_id: project.id,
-      user_id: targetUserId,
-      permission_level: collabRole,
-    });
+    const { error } = await supabase.from("collaborators").insert({ project_id: project.id, user_id: targetUserId, permission_level: collabRole });
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Collaborator added" });
       setCollabEmail("");
       setAddCollabOpen(false);
-      // Refresh collaborators
-      const { data: collabs } = await supabase
-        .from("collaborators")
-        .select("*")
-        .eq("project_id", project.id);
+      const { data: collabs } = await supabase.from("collaborators").select("*").eq("project_id", project.id);
       if (collabs) {
         const uids = collabs.map((c) => c.user_id);
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("user_id, display_name, avatar_url")
-          .in("user_id", uids);
+        const { data: profs } = await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", uids);
         const pm = new Map(profs?.map((p) => [p.user_id, p]));
         setCollaborators(collabs.map((c) => ({ ...c, profile: pm.get(c.user_id) ?? null })));
       }
@@ -266,13 +186,8 @@ export default function ProjectPage() {
     setAddingCollab(false);
   };
 
-  const trackList: Track[] = selectedVersion?.track_list
-    ? (selectedVersion.track_list as unknown as Track[])
-    : [];
-
-  const pluginList: string[] = selectedVersion?.plugin_list
-    ? (selectedVersion.plugin_list as unknown as string[])
-    : [];
+  const trackList: Track[] = selectedVersion?.track_list ? (selectedVersion.track_list as unknown as Track[]) : [];
+  const pluginList: string[] = selectedVersion?.plugin_list ? (selectedVersion.plugin_list as unknown as string[]) : [];
 
   if (loading) {
     return (
@@ -288,194 +203,175 @@ export default function ProjectPage() {
   if (!project) return null;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background dark">
       <Navbar />
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-            <ChevronLeft className="h-5 w-5" />
+      <main className="mx-auto max-w-6xl px-4 py-4">
+        {/* Compact header */}
+        <div className="flex items-center gap-2 mb-4">
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigate("/dashboard")}>
+            <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold truncate">{project.name}</h1>
-            <div className="flex items-center gap-2 mt-1">
-              {project.bpm && (
-                <Badge variant="secondary" className="font-mono text-xs">
-                  {project.bpm} BPM
-                </Badge>
-              )}
-              {pluginList.length > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  {pluginList.length} plugins
-                </Badge>
-              )}
-              {selectedVersion && (
-                <Badge variant="outline" className="text-xs">
-                  {formatBytes(selectedVersion.file_size_bytes)}
-                </Badge>
-              )}
-            </div>
+          <h1 className="text-xl font-bold truncate flex-1">{project.name}</h1>
+          <div className="flex items-center gap-1.5">
+            {project.bpm && (
+              <Badge variant="outline" className="font-mono text-[10px] border-pastel-blue/30 text-pastel-blue">
+                {project.bpm} BPM
+              </Badge>
+            )}
+            {pluginList.length > 0 && (
+              <Badge variant="outline" className="text-[10px] border-pastel-purple/30 text-pastel-purple">
+                {pluginList.length} plugins
+              </Badge>
+            )}
+            {selectedVersion && (
+              <Badge variant="outline" className="text-[10px] font-mono border-border">
+                {formatBytes(selectedVersion.file_size_bytes)}
+              </Badge>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleShare}>
-              <Share2 className="h-4 w-4 mr-1" /> Share
+          <div className="flex items-center gap-1 ml-2">
+            <Button
+              size="sm"
+              className="h-7 text-xs gap-1 bg-pastel-green/15 text-pastel-green border border-pastel-green/25 hover:bg-pastel-green/25"
+              variant="outline"
+              onClick={handleShare}
+            >
+              <Share2 className="h-3 w-3" /> Share
             </Button>
             <Button
-              variant="outline"
               size="sm"
+              className="h-7 text-xs gap-1 bg-pastel-blue/15 text-pastel-blue border border-pastel-blue/25 hover:bg-pastel-blue/25"
+              variant="outline"
               onClick={handleDownload}
               disabled={downloading || !selectedVersion}
             >
-              <Download className="h-4 w-4 mr-1" /> Download
+              <Download className="h-3 w-3" /> Download
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => navigate(`/project/${id}`)}>
-              <Settings className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+              <Settings className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
 
-        <div className="flex gap-6">
-          {/* Left sidebar — Version Timeline */}
-          <div className="w-64 shrink-0">
-            <div className="rounded-lg border border-border bg-card p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        {/* Unified content area */}
+        <div className="flex gap-4">
+          {/* Left: Versions + Collaborators */}
+          <div className="w-56 shrink-0 space-y-3">
+            {/* Versions */}
+            <div className="rounded-lg border border-border bg-card/60 backdrop-blur-sm">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Versions
-                </h2>
+                </span>
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 gap-1 text-xs"
+                  className="h-6 px-2 text-[10px] gap-1 text-pastel-orange hover:text-pastel-orange hover:bg-pastel-orange/10"
                   onClick={() => setUploadOpen(true)}
                 >
                   <Plus className="h-3 w-3" /> New
                 </Button>
               </div>
-
-              <div className="space-y-1">
+              <div className="p-1.5 space-y-0.5 max-h-64 overflow-y-auto">
                 {versions.map((v) => (
                   <button
                     key={v.id}
                     onClick={() => setSelectedVersion(v)}
-                    className={`w-full text-left rounded-md px-3 py-2 transition-colors ${
+                    className={`w-full text-left rounded-md px-2.5 py-1.5 transition-all text-xs ${
                       selectedVersion?.id === v.id
-                        ? "bg-primary/10 border border-primary/30"
-                        : "hover:bg-secondary"
+                        ? "bg-primary/10 border border-primary/20"
+                        : "hover:bg-secondary border border-transparent"
                     }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`h-2 w-2 rounded-full shrink-0 ${
-                          selectedVersion?.id === v.id ? "bg-primary" : "bg-muted-foreground/30"
-                        }`}
-                      />
-                      <span className="text-sm font-medium">Version {v.version_number}</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${selectedVersion?.id === v.id ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                      <span className="font-medium">V{v.version_number}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono ml-auto">
+                        {new Date(v.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                      </span>
                     </div>
                     {v.change_note && (
-                      <p className="text-xs text-muted-foreground mt-1 pl-4 truncate">
-                        {v.change_note}
-                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 pl-3 truncate">{v.change_note}</p>
                     )}
-                    <p className="text-[10px] text-muted-foreground pl-4 mt-0.5 font-mono">
-                      {new Date(v.created_at).toLocaleDateString()}
-                    </p>
                   </button>
                 ))}
+                {versions.length === 0 && (
+                  <p className="text-[10px] text-muted-foreground text-center py-3">No versions yet.</p>
+                )}
               </div>
-
-              {versions.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  No versions yet.
-                </p>
-              )}
             </div>
 
             {/* Collaborators */}
-            <div className="rounded-lg border border-border bg-card p-4 mt-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Collaborators
-                </h2>
+            <div className="rounded-lg border border-border bg-card/60 backdrop-blur-sm">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Team
+                </span>
                 {project.owner_id === user?.id && (
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 gap-1 text-xs"
+                    className="h-6 px-2 text-[10px] gap-1 text-pastel-pink hover:text-pastel-pink hover:bg-pastel-pink/10"
                     onClick={() => setAddCollabOpen(true)}
                   >
                     <UserPlus className="h-3 w-3" /> Add
                   </Button>
                 )}
               </div>
-
-              {/* Owner */}
-              <div className="flex items-center gap-2">
-                <Avatar className="h-6 w-6">
-                  <AvatarFallback className="text-[10px] bg-primary/20 text-primary">
-                    OW
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium truncate">Owner</p>
-                  <p className="text-[10px] text-muted-foreground">Owner</p>
-                </div>
-              </div>
-
-              {collaborators.map((c) => (
-                <div key={c.id} className="flex items-center gap-2">
-                  <Avatar className="h-6 w-6">
-                    <AvatarFallback className="text-[10px] bg-secondary text-muted-foreground">
-                      {(c.profile?.display_name ?? "?").slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
+              <div className="p-2 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-5 w-5">
+                    <AvatarFallback className="text-[8px] bg-pastel-blue/20 text-pastel-blue">OW</AvatarFallback>
                   </Avatar>
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium truncate">
-                      {c.profile?.display_name ?? "User"}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground capitalize">
-                      {c.permission_level}
-                    </p>
-                  </div>
+                  <span className="text-[11px] text-muted-foreground">Owner</span>
                 </div>
-              ))}
+                {collaborators.map((c) => (
+                  <div key={c.id} className="flex items-center gap-2">
+                    <Avatar className="h-5 w-5">
+                      <AvatarFallback className="text-[8px] bg-secondary text-muted-foreground">
+                        {(c.profile?.display_name ?? "?").slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-[11px] truncate">{c.profile?.display_name ?? "User"}</span>
+                    <span className="text-[9px] text-muted-foreground capitalize ml-auto">{c.permission_level}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Right main area */}
-          <div className="flex-1 min-w-0 space-y-6">
+          {/* Right: Main content */}
+          <div className="flex-1 min-w-0 rounded-lg border border-border bg-card/40 backdrop-blur-sm overflow-hidden">
             {/* Audio preview */}
             {selectedVersion?.audio_preview_url && (
-              <div className="rounded-lg border border-border bg-card p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Music className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="text-sm font-medium">Audio Preview</h3>
+              <div className="px-4 py-3 border-b border-border">
+                <div className="flex items-center gap-2 mb-2">
+                  <Music className="h-3.5 w-3.5 text-pastel-purple" />
+                  <span className="text-xs font-medium text-muted-foreground">Audio Preview</span>
                 </div>
-                <audio
-                  controls
-                  className="w-full"
-                  src={selectedVersion.audio_preview_url}
-                />
+                <audio controls className="w-full h-8" src={selectedVersion.audio_preview_url} />
               </div>
             )}
 
             {/* Arrangement Timeline */}
             {trackList.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  Arrangement
-                </h3>
+              <div className="border-b border-border">
+                <div className="px-4 py-2 flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-pastel-orange" />
+                  <span className="text-xs font-medium text-muted-foreground">Arrangement</span>
+                  <span className="text-[10px] text-muted-foreground font-mono ml-auto">{trackList.length} tracks</span>
+                </div>
                 <ArrangementTimeline tracks={trackList} />
               </div>
             )}
 
             {/* Plugins */}
             {pluginList.length > 0 && (
-              <div className="rounded-lg border border-border bg-card p-4">
-                <h3 className="text-sm font-medium mb-3">Plugins</h3>
-                <div className="flex flex-wrap gap-1.5">
+              <div className="px-4 py-3 border-b border-border">
+                <span className="text-xs font-medium text-muted-foreground block mb-2">Plugins</span>
+                <div className="flex flex-wrap gap-1">
                   {pluginList.map((p) => (
-                    <Badge key={p} variant="secondary" className="font-mono text-xs">
+                    <Badge key={p} variant="secondary" className="font-mono text-[10px] bg-secondary/60 text-muted-foreground border-none py-0">
                       {p}
                     </Badge>
                   ))}
@@ -483,44 +379,40 @@ export default function ProjectPage() {
               </div>
             )}
 
-            {/* Version description */}
+            {/* Version notes */}
             {selectedVersion?.change_note && (
-              <div className="rounded-lg border border-border bg-card p-4">
-                <h3 className="text-sm font-medium mb-2">Version Notes</h3>
-                <p className="text-sm text-muted-foreground">{selectedVersion.change_note}</p>
+              <div className="px-4 py-3 border-b border-border">
+                <span className="text-xs font-medium text-muted-foreground block mb-1">Notes</span>
+                <p className="text-sm text-foreground/80">{selectedVersion.change_note}</p>
               </div>
             )}
 
             {/* Comments */}
-            <div className="rounded-lg border border-border bg-card p-4">
-              <h3 className="text-sm font-medium mb-4">
+            <div className="px-4 py-3">
+              <span className="text-xs font-medium text-muted-foreground block mb-3">
                 Comments ({comments.length})
-              </h3>
+              </span>
 
               {comments.length === 0 && (
-                <p className="text-sm text-muted-foreground mb-4">
-                  No comments yet. Be the first to leave feedback.
-                </p>
+                <p className="text-xs text-muted-foreground/60 mb-3">No comments yet. Be the first to leave feedback.</p>
               )}
 
-              <div className="space-y-3 mb-4 max-h-80 overflow-y-auto">
+              <div className="space-y-2.5 mb-3 max-h-60 overflow-y-auto">
                 {comments.map((c) => (
                   <div key={c.id} className="flex gap-2">
-                    <Avatar className="h-7 w-7 shrink-0 mt-0.5">
-                      <AvatarFallback className="text-[10px] bg-secondary text-muted-foreground">
+                    <Avatar className="h-6 w-6 shrink-0 mt-0.5">
+                      <AvatarFallback className="text-[9px] bg-secondary text-muted-foreground">
                         {(c.profile?.display_name ?? "?").slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium">
-                          {c.profile?.display_name ?? "User"}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground font-mono">
-                          {new Date(c.created_at).toLocaleString()}
+                        <span className="text-[11px] font-medium">{c.profile?.display_name ?? "User"}</span>
+                        <span className="text-[9px] text-muted-foreground font-mono">
+                          {new Date(c.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
-                      <p className="text-sm text-foreground mt-0.5">{c.body}</p>
+                      <p className="text-xs text-foreground/80 mt-0.5">{c.body}</p>
                     </div>
                   </div>
                 ))}
@@ -532,20 +424,19 @@ export default function ProjectPage() {
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder="Add a comment…"
-                  className="bg-secondary border-border text-sm"
+                  className="bg-secondary/50 border-border text-xs h-8"
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendComment();
-                    }
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendComment(); }
                   }}
                 />
                 <Button
                   size="icon"
+                  className="h-8 w-8 shrink-0 bg-pastel-blue/15 text-pastel-blue border border-pastel-blue/25 hover:bg-pastel-blue/25"
+                  variant="outline"
                   onClick={handleSendComment}
                   disabled={!newComment.trim() || sendingComment}
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
@@ -553,29 +444,21 @@ export default function ProjectPage() {
         </div>
       </main>
 
-      {/* Upload New Version Modal */}
       <UploadModal
         open={uploadOpen}
         onOpenChange={setUploadOpen}
         existingProjectId={project.id}
         existingProjectName={project.name}
         onVersionUploaded={() => {
-          // Refresh versions
           supabase
-            .from("project_versions")
-            .select("*")
-            .eq("project_id", project.id)
+            .from("project_versions").select("*").eq("project_id", project.id)
             .order("version_number", { ascending: false })
             .then(({ data }) => {
-              if (data) {
-                setVersions(data);
-                setSelectedVersion(data[0]);
-              }
+              if (data) { setVersions(data); setSelectedVersion(data[0]); }
             });
         }}
       />
 
-      {/* Add Collaborator Dialog */}
       <Dialog open={addCollabOpen} onOpenChange={setAddCollabOpen}>
         <DialogContent className="sm:max-w-sm bg-card border-border">
           <DialogHeader>
@@ -584,12 +467,7 @@ export default function ProjectPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Username or display name</label>
-              <Input
-                value={collabEmail}
-                onChange={(e) => setCollabEmail(e.target.value)}
-                placeholder="Search by name…"
-                className="bg-secondary border-border"
-              />
+              <Input value={collabEmail} onChange={(e) => setCollabEmail(e.target.value)} placeholder="Search by name…" className="bg-secondary border-border" />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Permission</label>
@@ -603,11 +481,7 @@ export default function ProjectPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button
-              className="w-full"
-              onClick={handleAddCollaborator}
-              disabled={!collabEmail.trim() || addingCollab}
-            >
+            <Button className="w-full bg-pastel-green/20 text-pastel-green border border-pastel-green/30 hover:bg-pastel-green/30" variant="outline" onClick={handleAddCollaborator} disabled={!collabEmail.trim() || addingCollab}>
               {addingCollab ? "Adding…" : "Add Collaborator"}
             </Button>
           </div>
