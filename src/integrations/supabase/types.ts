@@ -147,6 +147,7 @@ export type Database = {
           id: string
           plugin_list: Json | null
           project_id: string
+          track_list: Json | null
           uploader_id: string
           version_number: number
           zip_url: string
@@ -159,6 +160,7 @@ export type Database = {
           id?: string
           plugin_list?: Json | null
           project_id: string
+          track_list?: Json | null
           uploader_id: string
           version_number: number
           zip_url: string
@@ -171,6 +173,7 @@ export type Database = {
           id?: string
           plugin_list?: Json | null
           project_id?: string
+          track_list?: Json | null
           uploader_id?: string
           version_number?: number
           zip_url?: string
