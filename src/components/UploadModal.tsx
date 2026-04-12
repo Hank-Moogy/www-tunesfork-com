@@ -627,7 +627,9 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
             {validation && validation.errors.length === 0 && (
               <p className="text-xs text-muted-foreground">
                 {validation.allFiles.length} files ·{" "}
-                {formatBytes(validation.totalSizeBytes)}
+                {preZippedBlob
+                  ? formatBytes(preZippedBlob.size)
+                  : formatBytes(validation.totalSizeBytes)}
               </p>
             )}
 
@@ -804,7 +806,9 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
             </div>
             <Progress value={progress} className="h-2" />
             <p className="text-center text-xs text-muted-foreground">
-              {validation && formatBytes(validation.totalSizeBytes)}
+              {preZippedBlob
+                ? formatBytes(preZippedBlob.size)
+                : validation && formatBytes(validation.totalSizeBytes)}
             </p>
           </div>
         )}
