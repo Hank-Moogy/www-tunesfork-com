@@ -55,6 +55,7 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [preZippedBlob, setPreZippedBlob] = useState<Blob | null>(null);
+  const [processing, setProcessing] = useState(false);
 
   const folderInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
