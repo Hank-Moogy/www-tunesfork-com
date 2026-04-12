@@ -411,11 +411,6 @@ export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
                   Continue anyway
                 </Button>
               )}
-                  }}
-                >
-                  Continue anyway
-                </Button>
-              )}
           </div>
         )}
 
