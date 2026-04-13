@@ -61,8 +61,10 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
       if (m[1]) plugins.add(m[1]);
     }
 
-    // Extract tracks and clips
+    // Extract tracks and clips using DOMParser for accurate traversal
     const tracks: Track[] = [];
+    const doc = new DOMParser().parseFromString(xml, "text/xml");
+
     const trackTypeMap: Record<string, Track["type"]> = {
       AudioTrack: "audio",
       MidiTrack: "midi",
@@ -70,53 +72,52 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
       GroupTrack: "group",
     };
 
-    // Parse all tracks in document order using a single pass
-    const allTrackTags = Object.keys(trackTypeMap).join("|");
-    const trackStartRegex = new RegExp(`<(${allTrackTags})\\s[^>]*Id="\\d+"[^>]*>`, "g");
-    
-    // Find all track start positions
-    const trackStarts: { index: number; tag: string; matchEnd: number }[] = [];
-    let m;
-    while ((m = trackStartRegex.exec(xml)) !== null) {
-      trackStarts.push({ index: m.index, tag: m[1], matchEnd: m.index + m[0].length });
-    }
+    // Helper: get direct child element by tag name (not nested descendants)
+    const directChild = (el: Element, tag: string): Element | null => {
+      for (let i = 0; i < el.children.length; i++) {
+        if (el.children[i].tagName === tag) return el.children[i];
+      }
+      return null;
+    };
 
-    // Also find MasterTrack to use as boundary
-    const masterMatch = xml.match(/<MasterTrack\s/);
-    const masterIndex = masterMatch ? xml.indexOf(masterMatch[0]) : xml.length;
+    const parseTrackElement = (trackEl: Element, type: Track["type"]): Track => {
+      // Name: <Name><EffectiveName Value="..."/>
+      const nameEl = directChild(trackEl, "Name");
+      const effectiveName = nameEl ? directChild(nameEl, "EffectiveName") : null;
+      const name = effectiveName?.getAttribute("Value") || `${type} track`;
 
-    for (let ti = 0; ti < trackStarts.length; ti++) {
-      const { tag, matchEnd } = trackStarts[ti];
-      const type = trackTypeMap[tag];
-      
-      // Track block extends from after the opening tag to just before the next track (or MasterTrack/end)
-      const nextBoundary = ti + 1 < trackStarts.length 
-        ? trackStarts[ti + 1].index 
-        : masterIndex;
-      const trackBlock = xml.slice(matchEnd, nextBoundary);
+      // Color: <ColorIndex Value="..."/> or <Color Value="..."/>
+      const colorEl = directChild(trackEl, "ColorIndex") || directChild(trackEl, "Color");
+      const color = colorEl ? parseInt(colorEl.getAttribute("Value") || "0") : 0;
 
-      // Extract track name
-      const nameMatch = trackBlock.match(/<EffectiveName\s+Value="([^"]*)"/);
-      const name = nameMatch?.[1] || `${type} track`;
-
-      // Extract color
-      const colorMatch = trackBlock.match(/<Color\s+Value="(\d+)"/);
-      const color = colorMatch ? parseInt(colorMatch[1]) : 0;
-
-      // Extract clips
+      // Clips: find all AudioClip / MidiClip descendants
       const clips: Clip[] = [];
-      const clipRegex = /<(?:AudioClip|MidiClip)\s[^>]*>[\s\S]*?<CurrentStart\s+Value="([^"]+)"[\s\S]*?<CurrentEnd\s+Value="([^"]+)"[\s\S]*?(?:<Name\s+Value="([^"]*)")?/g;
-      let clipMatch;
-      while ((clipMatch = clipRegex.exec(trackBlock)) !== null) {
-        const start = parseFloat(clipMatch[1]);
-        const end = parseFloat(clipMatch[2]);
-        const clipName = clipMatch[3] || "";
+      const clipEls = trackEl.querySelectorAll("AudioClip, MidiClip");
+      clipEls.forEach((clipEl) => {
+        const startEl = clipEl.querySelector("CurrentStart");
+        const endEl = clipEl.querySelector("CurrentEnd");
+        const clipNameEl = clipEl.querySelector("Name > EffectiveName") || clipEl.querySelector("Name");
+        const start = startEl ? parseFloat(startEl.getAttribute("Value") || "") : NaN;
+        const end = endEl ? parseFloat(endEl.getAttribute("Value") || "") : NaN;
+        const clipName = clipNameEl?.getAttribute("Value") || "";
         if (!isNaN(start) && !isNaN(end) && end > start) {
           clips.push({ name: clipName, start, end });
         }
-      }
+      });
 
-      tracks.push({ name, type, color, clips });
+      return { name, type, color, clips };
+    };
+
+    // Find the <Tracks> container and iterate direct children
+    const tracksContainer = doc.querySelector("Tracks");
+    if (tracksContainer) {
+      for (let i = 0; i < tracksContainer.children.length; i++) {
+        const child = tracksContainer.children[i];
+        const type = trackTypeMap[child.tagName];
+        if (type) {
+          tracks.push(parseTrackElement(child, type));
+        }
+      }
     }
 
     return { projectName, bpm, plugins: Array.from(plugins), tracks };
