@@ -403,7 +403,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
     setProgressValue(0);
     setProgressLabel("Preparing archive…");
-    animateProgressTo(10, 500);
+    animateProgressTo(10, 1000);
     uploadAbortRef.current = false;
     lastLoggedUploadPercentRef.current = -1;
 
@@ -412,12 +412,12 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
       if (preZippedBlob) {
         blob = preZippedBlob;
-        animateProgressTo(33, 500);
-        await new Promise((r) => setTimeout(r, 500));
+        animateProgressTo(33, 1000);
+        await new Promise((r) => setTimeout(r, 1000));
         stopProgressAnimation();
         setProgressValue(33);
       } else {
-        await new Promise((r) => setTimeout(r, 150));
+        await new Promise((r) => setTimeout(r, 300));
         stopProgressAnimation();
         const zip = new JSZip();
         for (const file of validation.allFiles) {
