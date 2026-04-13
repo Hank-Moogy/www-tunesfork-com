@@ -213,7 +213,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
           },
           uploadDataDuringCreation: true,
           removeFingerprintOnSuccess: true,
-          chunkSize: 6 * 1024 * 1024,
+          chunkSize: 50 * 1024 * 1024,
           metadata: {
             bucketName: "project-zips",
             objectName: objectPath,
@@ -398,7 +398,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
           zip.file(path, file);
         }
         blob = await zip.generateAsync(
-          { type: "blob", compression: "DEFLATE", compressionOptions: { level: 1 } },
+          { type: "blob", compression: "STORE" },
           (meta) => setProgressValue(Math.max(10, Math.min(33, 10 + meta.percent * 0.23)))
         );
         setProgressValue(33);
