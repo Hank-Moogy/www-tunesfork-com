@@ -83,6 +83,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   }, [processing]);
 
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const alsInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const progressValueRef = useRef(0);
