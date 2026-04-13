@@ -1,90 +1,41 @@
 
 
-## Build the Project Page
+## Investigation: ALS Track Parsing Issues
 
-### Overview
-Create a full project detail page at `/project/:id` that the user lands on after upload (already navigating there). Inspired by Splice Studio's layout: version timeline on the left, main content area on the right showing the selected version's details, comments, and actions.
+### Root Cause
 
-### Layout (Splice-inspired, dark theme)
+The parser uses **regex on raw XML** to find tracks and extract names. This is fundamentally fragile for Ableton's XML structure because:
 
-```text
-┌─────────────────────────────────────────────────────┐
-│ Navbar                                              │
-├────────────┬────────────────────────────────────────┤
-│ VERSION    │  Version 1                    [⬇ Download] │
-│ TIMELINE   │  89 BPM · 5 plugins · 1.3 GB          │
-│            │                                        │
-│ V1  ●      │  ┌─ Audio Preview (if available) ─┐    │
-│ "First..." │  │  ▶ Play / waveform             │    │
-│ Apr 12     │  └────────────────────────────────┘    │
-│            │                                        │
-│            │  ┌─ Track List (future) ──────────┐    │
-│            │  │  Arrangement timeline view     │    │
-│            │  └────────────────────────────────┘    │
-│            │                                        │
-│            │  PLUGINS: Waves Tune, API-2500, ...    │
-│            │                                        │
-│            │  VERSION DESCRIPTION                   │
-│            │  "First upload by Hugo"                │
-│            │                                        │
-│ [+ Upload  │  COMMENTS (0)                          │
-│  New Ver.] │  [Add a comment...]                    │
-│            │                                        │
-├────────────┤  COLLABORATORS          [+ Add]        │
-│ Settings ⚙│  [Share link 🔗]                       │
-└────────────┴────────────────────────────────────────┘
-```
+1. **Nested tracks inside groups**: Ableton nests `<AudioTrack>` and `<MidiTrack>` tags inside `<GroupTrack>` containers. The regex finds *all* track tags at every nesting level, creating duplicate/phantom entries and wrong boundaries between tracks.
 
-### Steps
+2. **Wrong name extraction**: `<EffectiveName>` appears on many nested elements (devices, chains, sends). The regex grabs the *first* match in the block, which is often a device name or chain name — not the track name. This explains the "odd names."
 
-**1. Add `track_list` column to `project_versions`**
-- Migration: `ALTER TABLE project_versions ADD COLUMN track_list jsonb DEFAULT null;`
-- For future track/clip visualization (won't block the page build).
+3. **Boundary slicing is broken**: Each track's XML block is sliced from one `<AudioTrack>` tag to the next. With nesting, a GroupTrack's block includes all its child tracks, so boundaries overlap and names bleed across tracks.
 
-**2. Extend ALS parser with track extraction (`src/lib/als-parser.ts`)**
-- Add `Track` and `Clip` interfaces to `AlsMetadata`.
-- Parse `<AudioTrack>`, `<MidiTrack>`, `<ReturnTrack>`, `<GroupTrack>` with `<EffectiveName>` and nested clips (`<CurrentStart>`, `<CurrentEnd>`).
-- Save to `track_list` during upload.
+### The Fix: Use the Browser's DOMParser
 
-**3. Update `UploadModal.tsx`**
-- Include `metadata.tracks` in the `project_versions` insert as `track_list`.
+Instead of regex, parse the decompressed XML with `DOMParser` (built into every browser, zero dependencies). This gives us a proper DOM tree where we can:
 
-**4. Create `src/pages/ProjectPage.tsx`**
-The main page with these sections:
+- Select only **top-level** tracks under `<Tracks>` (not nested ones inside groups)
+- Navigate directly to each track's `<Name><EffectiveName Value="..."/>` path
+- Correctly handle group tracks and their children
 
-- **Header**: Project name, BPM badge, plugin count badge, settings gear icon.
-- **Left sidebar — Version Timeline**: List of all versions (newest first), each showing version number, uploader name, date, change note. Click to select. Button to upload a new version (opens UploadModal in "new version" mode).
-- **Right main area — Selected Version**:
-  - Audio preview player (if `audio_preview_url` exists).
-  - Track arrangement timeline (from `track_list` JSONB — colored clip blocks on a horizontal beat axis, grouped by track).
-  - Plugin list (from `plugin_list`).
-  - Version description (`change_note`).
-  - Comments section — fetch from `comments` table, post new comments. Each comment shows user avatar, name, timestamp.
-  - Download button — generates a signed URL from `project-zips` bucket.
-  - Share link button — copies the current URL to clipboard.
-  - Collaborators section — shows current collaborators, "Add collaborator" dialog (email input, permission level select, inserts into `collaborators` table).
+### Plan
 
-**5. Create `src/components/ArrangementTimeline.tsx`**
-- Takes `track_list` JSONB data, renders a horizontal scrollable timeline.
-- Each track row: type icon + name on left, colored clip blocks positioned proportionally.
-- Beat markers along the top axis.
-- Ableton color palette mapping (index → hex).
+**File: `src/lib/als-parser.ts`** — Rewrite the track extraction section:
 
-**6. Add route in `App.tsx`**
-- `/project/:id` → `ProjectPage` wrapped in `ProtectedRoute`.
+1. After `pako.inflate` and decoding the XML string, parse it with `new DOMParser().parseFromString(xml, "text/xml")`
+2. Find the `<Tracks>` container element
+3. Iterate its direct children (`AudioTrack`, `MidiTrack`, `ReturnTrack`, `GroupTrack`)
+4. For each track element, extract:
+   - **Name**: Navigate to the track element's direct `<Name>` child → `<EffectiveName Value="..."/>`
+   - **Color**: Direct `<ColorIndex>` or `<Color>` child → `Value` attribute
+   - **Clips**: Find `<AudioClip>` / `<MidiClip>` descendants, extract `CurrentStart`, `CurrentEnd`, `Name`
+5. Keep BPM and plugin extraction as-is (those regex patterns work fine on flat structures)
 
-**7. Support "Upload New Version" flow**
-- Pass optional `existingProjectId` prop to `UploadModal`.
-- When set, skip project creation, just insert a new `project_version` with incremented `version_number`.
-
-### Files modified
-- `src/lib/als-parser.ts` — Add track/clip extraction
-- `src/components/UploadModal.tsx` — Pass `track_list`, support new version mode
-- `src/pages/ProjectPage.tsx` — New file (main page)
-- `src/components/ArrangementTimeline.tsx` — New file (track visualization)
-- `src/App.tsx` — Add `/project/:id` route
-- Database migration — Add `track_list` column
-
-### Database changes
-One migration adding `track_list jsonb DEFAULT null` to `project_versions`. No new RLS policies needed — existing policies already cover read/write access.
+This approach will:
+- Match Ableton's actual track count and order
+- Get correct track names (not device/chain names)
+- Handle group tracks properly
+- Zero new dependencies (DOMParser is a browser API)
 
