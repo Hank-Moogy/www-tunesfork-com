@@ -342,6 +342,28 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
     []
   );
 
+  // Handle a single .als file upload
+  const handleAlsSelect = useCallback(
+    async (file: File) => {
+      setProcessing(true);
+      setPreZippedBlob(null);
+      const result: FolderValidation = {
+        alsFiles: [file],
+        hasSamplesFolder: false,
+        totalSizeBytes: file.size,
+        allFiles: [file],
+        errors: [],
+        warnings: [
+          "You uploaded a single .als file. Samples won't be included — your collaborator may get missing file errors.",
+        ],
+      };
+      setValidation(result);
+      await advanceWithAls(file);
+      setProcessing(false);
+    },
+    []
+  );
+
   // Step 1: Folder selection
   const handleFolderSelect = useCallback(
     async (files: FileList | null) => {
@@ -349,6 +371,10 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
       if (files.length === 1 && files[0].name.toLowerCase().endsWith(".zip")) {
         return handleZipSelect(files[0]);
+      }
+
+      if (files.length === 1 && files[0].name.toLowerCase().endsWith(".als")) {
+        return handleAlsSelect(files[0]);
       }
 
       setProcessing(true);
@@ -366,7 +392,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
       await advanceWithAls(als);
       setProcessing(false);
     },
-    [handleZipSelect]
+    [handleZipSelect, handleAlsSelect]
   );
 
   // Step 4: Upload
