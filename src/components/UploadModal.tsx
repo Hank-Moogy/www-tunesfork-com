@@ -656,7 +656,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
             >
               <FolderOpen className="h-10 w-10 text-muted-foreground mb-3" />
               <p className="text-sm text-foreground font-medium mb-1">
-                Drop your Ableton project folder or .zip here
+                Drop your Ableton project folder, .als, or .zip here
               </p>
               <p className="text-xs text-muted-foreground">or click to browse folders</p>
               <input
