@@ -213,7 +213,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
           },
           uploadDataDuringCreation: true,
           removeFingerprintOnSuccess: true,
-          chunkSize: 6 * 1024 * 1024,
+          chunkSize: 50 * 1024 * 1024,
           metadata: {
             bucketName: "project-zips",
             objectName: objectPath,
