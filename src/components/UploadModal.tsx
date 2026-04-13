@@ -670,13 +670,33 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
                 onChange={(e) => handleFolderSelect(e.target.files)}
               />
             </div>
-            <button
-              type="button"
-              className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
-              onClick={() => zipInputRef.current?.click()}
-            >
-              or select a .zip file
-            </button>
+            <div className="flex gap-3 justify-center">
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
+                onClick={() => alsInputRef.current?.click()}
+              >
+                select an .als file
+              </button>
+              <span className="text-xs text-muted-foreground">·</span>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
+                onClick={() => zipInputRef.current?.click()}
+              >
+                select a .zip file
+              </button>
+            </div>
+            <input
+              ref={alsInputRef}
+              type="file"
+              accept=".als"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleAlsSelect(file);
+              }}
+            />
             <input
               ref={zipInputRef}
               type="file"
