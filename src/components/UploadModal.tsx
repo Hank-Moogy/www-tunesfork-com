@@ -83,6 +83,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   }, [processing]);
 
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const alsInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const progressValueRef = useRef(0);
@@ -342,6 +343,28 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
     []
   );
 
+  // Handle a single .als file upload
+  const handleAlsSelect = useCallback(
+    async (file: File) => {
+      setProcessing(true);
+      setPreZippedBlob(null);
+      const result: FolderValidation = {
+        alsFiles: [file],
+        hasSamplesFolder: false,
+        totalSizeBytes: file.size,
+        allFiles: [file],
+        errors: [],
+        warnings: [
+          "You uploaded a single .als file. Samples won't be included — your collaborator may get missing file errors.",
+        ],
+      };
+      setValidation(result);
+      await advanceWithAls(file);
+      setProcessing(false);
+    },
+    []
+  );
+
   // Step 1: Folder selection
   const handleFolderSelect = useCallback(
     async (files: FileList | null) => {
@@ -349,6 +372,10 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
       if (files.length === 1 && files[0].name.toLowerCase().endsWith(".zip")) {
         return handleZipSelect(files[0]);
+      }
+
+      if (files.length === 1 && files[0].name.toLowerCase().endsWith(".als")) {
+        return handleAlsSelect(files[0]);
       }
 
       setProcessing(true);
@@ -366,7 +393,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
       await advanceWithAls(als);
       setProcessing(false);
     },
-    [handleZipSelect]
+    [handleZipSelect, handleAlsSelect]
   );
 
   // Step 4: Upload
@@ -629,7 +656,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
             >
               <FolderOpen className="h-10 w-10 text-muted-foreground mb-3" />
               <p className="text-sm text-foreground font-medium mb-1">
-                Drop your Ableton project folder or .zip here
+                Drop your Ableton project folder, .als, or .zip here
               </p>
               <p className="text-xs text-muted-foreground">or click to browse folders</p>
               <input
@@ -643,13 +670,33 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
                 onChange={(e) => handleFolderSelect(e.target.files)}
               />
             </div>
-            <button
-              type="button"
-              className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
-              onClick={() => zipInputRef.current?.click()}
-            >
-              or select a .zip file
-            </button>
+            <div className="flex gap-3 justify-center">
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
+                onClick={() => alsInputRef.current?.click()}
+              >
+                select an .als file
+              </button>
+              <span className="text-xs text-muted-foreground">·</span>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
+                onClick={() => zipInputRef.current?.click()}
+              >
+                select a .zip file
+              </button>
+            </div>
+            <input
+              ref={alsInputRef}
+              type="file"
+              accept=".als"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleAlsSelect(file);
+              }}
+            />
             <input
               ref={zipInputRef}
               type="file"
