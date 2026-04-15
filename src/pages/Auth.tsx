@@ -71,9 +71,9 @@ export default function Auth() {
         {/* Logo */}
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-3">
-            <img src="/logo.png" alt="cloudbleton" className="h-10 w-auto" />
+            <img src="/logo.png" alt="TuneFork" className="h-10 w-auto" />
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              cloudbleton
+              TuneFork
             </h1>
           </div>
           <p className="text-sm text-muted-foreground">
