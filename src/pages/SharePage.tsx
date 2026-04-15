@@ -68,7 +68,7 @@ export default function SharePage() {
         <h1 className="text-2xl font-bold">Project not found</h1>
         <p className="text-muted-foreground">This share link may have expired or is invalid.</p>
         <Button onClick={() => navigate("/auth")} className="mt-4 bg-pastel-blue text-white hover:bg-pastel-blue/90">
-          Join Cloudbleton
+          Join TuneFork
         </Button>
       </div>
     );
@@ -79,7 +79,7 @@ export default function SharePage() {
       {/* Minimal navbar */}
       <header className="border-b border-border bg-background/80 backdrop-blur-sm">
         <div className="mx-auto max-w-4xl flex items-center justify-between px-6 h-14">
-          <span className="font-bold text-lg tracking-tight">cloudbleton</span>
+          <span className="font-bold text-lg tracking-tight">TuneFork</span>
           <Button
             size="sm"
             className="bg-pastel-green text-white hover:bg-pastel-green/90 gap-1.5"
@@ -174,7 +174,7 @@ export default function SharePage() {
         <div className="rounded-xl border border-border bg-gradient-to-br from-pastel-blue/5 via-pastel-purple/5 to-pastel-green/5 p-8 text-center">
           <h2 className="text-xl font-bold mb-2">Want to collaborate?</h2>
           <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-            Join Cloudbleton to collaborate on this project, leave comments, upload new versions, and manage your Ableton projects with your team.
+            Join TuneFork to collaborate on this project, leave comments, upload new versions, and manage your Ableton projects with your team.
           </p>
           <div className="flex items-center justify-center gap-3">
             <Button
@@ -198,7 +198,7 @@ export default function SharePage() {
       <footer className="border-t border-border mt-16">
         <div className="mx-auto max-w-4xl px-6 py-6 text-center">
           <span className="text-xs text-muted-foreground">
-            Cloudbleton — Version control for music producers
+            TuneFork — Version control for music producers
           </span>
         </div>
       </footer>
