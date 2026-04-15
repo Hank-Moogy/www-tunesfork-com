@@ -26,8 +26,8 @@ export default function Navbar() {
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
         {/* Left */}
         <Link to="/dashboard" className="flex items-center gap-2">
-          <img src="/logo.png" alt="TuneFork" className="h-8 w-auto" />
-          <span className="text-lg font-bold tracking-tight">TuneFork</span>
+          <img src="/logo.png" alt="TunesFork" className="h-8 w-auto" />
+          <span className="text-lg font-bold tracking-tight">TunesFork</span>
         </Link>
 
         {/* Right */}
