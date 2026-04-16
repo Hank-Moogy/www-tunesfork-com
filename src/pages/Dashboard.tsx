@@ -57,12 +57,26 @@ export default function Dashboard() {
     fetchProjects();
   }, [user]);
 
-  const handleUploadComplete = (project?: Project) => {
-    fetchProjects();
-    if (isFirstUpload && project?.share_token) {
-      setLastShareUrl(`${window.location.origin}/share/${project.share_token}`);
-      setShareModalOpen(true);
-    }
+  const handleUploadComplete = () => {
+    // Re-fetch and show share modal if it was the first upload
+    const wasFirst = isFirstUpload;
+    fetchProjects().then(() => {
+      if (wasFirst) {
+        // After re-fetch, get the newest project's share token
+        supabase
+          .from("projects")
+          .select("share_token")
+          .eq("owner_id", user!.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .then(({ data }) => {
+            if (data?.[0]?.share_token) {
+              setLastShareUrl(`${window.location.origin}/share/${data[0].share_token}`);
+              setShareModalOpen(true);
+            }
+          });
+      }
+    });
   };
 
   const filterArchived = (projects: Project[]) =>
@@ -130,7 +144,7 @@ export default function Dashboard() {
           </>
         )}
 
-        <UploadModal open={uploadOpen} onOpenChange={setUploadOpen} onComplete={handleUploadComplete} />
+        <UploadModal open={uploadOpen} onOpenChange={setUploadOpen} onVersionUploaded={handleUploadComplete} />
         <ShareAfterUploadModal open={shareModalOpen} onOpenChange={setShareModalOpen} shareUrl={lastShareUrl} />
       </main>
     </div>
