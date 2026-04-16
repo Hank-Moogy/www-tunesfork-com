@@ -58,7 +58,7 @@ export default function Navbar() {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate("/dashboard")}>
                 <User className="mr-2 h-4 w-4" />
-                Profile
+                Dashboard
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleSignOut}>
                 <LogOut className="mr-2 h-4 w-4" />

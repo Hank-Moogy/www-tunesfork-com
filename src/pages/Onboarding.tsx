@@ -89,8 +89,10 @@ export default function Onboarding() {
       await supabase.from("profiles").update({ onboarding_completed: true }).eq("user_id", user.id);
       setOnboardingCompleted(true);
       navigate("/dashboard", { replace: true });
-    } catch {
+    } catch (err: any) {
       setSaving(false);
+      const { toast } = await import("sonner");
+      toast.error(err?.message || "Something went wrong. Please try again.");
     }
   };
 
