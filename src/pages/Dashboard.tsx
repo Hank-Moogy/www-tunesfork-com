@@ -4,9 +4,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, FolderOpen } from "lucide-react";
+import { Plus, FolderOpen, Upload, Sparkles } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import UploadModal from "@/components/UploadModal";
+import ShareAfterUploadModal from "@/components/ShareAfterUploadModal";
 
 type Project = Tables<"projects">;
 
@@ -17,81 +18,134 @@ export default function Dashboard() {
   const [showArchived, setShowArchived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [lastShareUrl, setLastShareUrl] = useState<string | undefined>();
+  const [isFirstUpload, setIsFirstUpload] = useState(false);
 
-  useEffect(() => {
+  const fetchProjects = async () => {
     if (!user) return;
+    setLoading(true);
 
-    const fetchProjects = async () => {
-      setLoading(true);
+    const { data: owned } = await supabase
+      .from("projects")
+      .select("*")
+      .eq("owner_id", user.id)
+      .order("updated_at", { ascending: false });
 
-      const { data: owned } = await supabase
+    const { data: collabs } = await supabase
+      .from("collaborators")
+      .select("project_id")
+      .eq("user_id", user.id);
+
+    if (collabs && collabs.length > 0) {
+      const ids = collabs.map((c) => c.project_id);
+      const { data: shared } = await supabase
         .from("projects")
         .select("*")
-        .eq("owner_id", user.id)
+        .in("id", ids)
         .order("updated_at", { ascending: false });
+      setSharedProjects(shared ?? []);
+    }
 
-      const { data: collabs } = await supabase
-        .from("collaborators")
-        .select("project_id")
-        .eq("user_id", user.id);
+    const projects = owned ?? [];
+    setMyProjects(projects);
+    setIsFirstUpload(projects.length === 0);
+    setLoading(false);
+  };
 
-      if (collabs && collabs.length > 0) {
-        const ids = collabs.map((c) => c.project_id);
-        const { data: shared } = await supabase
-          .from("projects")
-          .select("*")
-          .in("id", ids)
-          .order("updated_at", { ascending: false });
-        setSharedProjects(shared ?? []);
-      }
-
-      setMyProjects(owned ?? []);
-      setLoading(false);
-    };
-
+  useEffect(() => {
     fetchProjects();
   }, [user]);
 
+  const handleUploadComplete = () => {
+    // Re-fetch and show share modal if it was the first upload
+    const wasFirst = isFirstUpload;
+    fetchProjects().then(() => {
+      if (wasFirst) {
+        // After re-fetch, get the newest project's share token
+        supabase
+          .from("projects")
+          .select("share_token")
+          .eq("owner_id", user!.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .then(({ data }) => {
+            if (data?.[0]?.share_token) {
+              setLastShareUrl(`${window.location.origin}/share/${data[0].share_token}`);
+              setShareModalOpen(true);
+            }
+          });
+      }
+    });
+  };
+
   const filterArchived = (projects: Project[]) =>
     showArchived ? projects : projects.filter((p) => !p.archived);
+
+  const hasNoProjects = !loading && myProjects.length === 0 && sharedProjects.length === 0;
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Projects</h1>
-          <Button onClick={() => setUploadOpen(true)} className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
-            <Plus className="h-4 w-4" />
-            Upload Project
-          </Button>
-        </div>
-        <UploadModal open={uploadOpen} onOpenChange={setUploadOpen} />
-
-        <Tabs defaultValue="my" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <TabsList className="bg-secondary">
-              <TabsTrigger value="my">My Projects</TabsTrigger>
-              <TabsTrigger value="shared">Shared With Me</TabsTrigger>
-            </TabsList>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showArchived}
-                onChange={(e) => setShowArchived(e.target.checked)}
-                className="rounded"
-              />
-              Show archived
-            </label>
+        {hasNoProjects ? (
+          /* First-time empty state */
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="mb-6 rounded-full bg-primary/10 p-6">
+              <Upload className="h-12 w-12 text-primary" />
+            </div>
+            <h1 className="text-2xl font-bold mb-2">Save your first project</h1>
+            <p className="text-muted-foreground mb-8 max-w-sm">
+              Upload your Ableton project to back it up in the cloud and start collaborating.
+            </p>
+            <Button
+              onClick={() => setUploadOpen(true)}
+              size="lg"
+              className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2"
+            >
+              <Sparkles className="h-5 w-5" />
+              Upload Project
+            </Button>
           </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-2xl font-bold">Projects</h1>
+              <Button onClick={() => setUploadOpen(true)} className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
+                <Plus className="h-4 w-4" />
+                Upload Project
+              </Button>
+            </div>
 
-          <TabsContent value="my">
-            <ProjectGrid projects={filterArchived(myProjects)} loading={loading} />
-          </TabsContent>
-          <TabsContent value="shared">
-            <ProjectGrid projects={filterArchived(sharedProjects)} loading={loading} />
-          </TabsContent>
-        </Tabs>
+            <Tabs defaultValue="my" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <TabsList className="bg-secondary">
+                  <TabsTrigger value="my">My Projects</TabsTrigger>
+                  <TabsTrigger value="shared">Shared With Me</TabsTrigger>
+                </TabsList>
+                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showArchived}
+                    onChange={(e) => setShowArchived(e.target.checked)}
+                    className="rounded"
+                  />
+                  Show archived
+                </label>
+              </div>
+
+              <TabsContent value="my">
+                <ProjectGrid projects={filterArchived(myProjects)} loading={loading} />
+              </TabsContent>
+              <TabsContent value="shared">
+                <ProjectGrid projects={filterArchived(sharedProjects)} loading={loading} />
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
+
+        <UploadModal open={uploadOpen} onOpenChange={setUploadOpen} onVersionUploaded={handleUploadComplete} />
+        <ShareAfterUploadModal open={shareModalOpen} onOpenChange={setShareModalOpen} shareUrl={lastShareUrl} />
       </main>
     </div>
   );
@@ -112,9 +166,7 @@ function ProjectGrid({ projects, loading }: { projects: Project[]; loading: bool
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <FolderOpen className="h-12 w-12 text-muted-foreground mb-4" />
-        <p className="text-muted-foreground">
-          No projects yet. Upload your first Ableton project to get started.
-        </p>
+        <p className="text-muted-foreground">No projects here yet.</p>
       </div>
     );
   }
@@ -132,7 +184,6 @@ function ProjectCard({ project }: { project: Project }) {
   const statusColor = project.handoff_status === "ready" ? "bg-accent" : "bg-destructive";
   const statusLabel = project.handoff_status === "ready" ? "Ready" : "In Progress";
 
-  // Generate a gradient from the project name
   const hash = project.name.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
   const hue1 = hash % 360;
   const hue2 = (hash * 7) % 360;
@@ -142,7 +193,6 @@ function ProjectCard({ project }: { project: Project }) {
       href={`/project/${project.id}`}
       className="group block rounded-lg border border-border bg-card overflow-hidden hover:border-primary/50 transition-colors"
     >
-      {/* Cover gradient */}
       <div
         className="h-20"
         style={{

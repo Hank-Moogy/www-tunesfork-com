@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Bell, LogOut, User } from "lucide-react";
+import { Bell, LogOut, User, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,10 +9,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function Navbar() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
 
   const handleSignOut = async () => {
     await signOut();
@@ -24,14 +26,16 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-sm">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-        {/* Left */}
         <Link to="/dashboard" className="flex items-center gap-2">
           <img src="/logo.png" alt="TunesFork" className="h-8 w-auto" />
           <span className="text-lg font-bold tracking-tight">TunesFork</span>
         </Link>
 
-        {/* Right */}
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={toggleTheme}>
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
+
           <Button variant="ghost" size="icon" className="relative" asChild>
             <Link to="/dashboard">
               <Bell className="h-4 w-4" />
