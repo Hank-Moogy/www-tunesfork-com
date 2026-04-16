@@ -265,6 +265,49 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_project_by_share_token: {
+        Args: { _token: string }
+        Returns: {
+          archived: boolean
+          bpm: number | null
+          created_at: string
+          handoff_locked_by: string | null
+          handoff_status: Database["public"]["Enums"]["handoff_status"]
+          id: string
+          name: string
+          owner_id: string
+          share_token: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "projects"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      get_versions_by_share_token: {
+        Args: { _token: string }
+        Returns: {
+          audio_preview_url: string | null
+          change_note: string | null
+          created_at: string
+          file_size_bytes: number
+          id: string
+          plugin_list: Json | null
+          project_id: string
+          track_list: Json | null
+          uploader_id: string
+          version_number: number
+          zip_url: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "project_versions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       is_collaborator: { Args: { _project_id: string }; Returns: boolean }
       is_contributor: { Args: { _project_id: string }; Returns: boolean }
       is_project_owner: { Args: { _project_id: string }; Returns: boolean }

@@ -20,25 +20,19 @@ export default function SharePage() {
   useEffect(() => {
     if (!token) return;
     const load = async () => {
-      const { data: proj } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("share_token", token)
-        .single();
+      const { data: projArr } = await supabase
+        .rpc("get_project_by_share_token", { _token: token });
 
-      if (!proj) {
+      if (!projArr || projArr.length === 0) {
         setNotFound(true);
         setLoading(false);
         return;
       }
+      const proj = projArr[0];
       setProject(proj);
 
       const { data: vers } = await supabase
-        .from("project_versions")
-        .select("*")
-        .eq("project_id", proj.id)
-        .order("version_number", { ascending: false })
-        .limit(1);
+        .rpc("get_versions_by_share_token", { _token: token });
 
       if (vers && vers.length > 0) setVersion(vers[0]);
       setLoading(false);
