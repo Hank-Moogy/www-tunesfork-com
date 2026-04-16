@@ -4,6 +4,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
+const LAUNCH_OFFER = {
+  name: "Launch Offer",
+  price: "€15",
+  period: "one-time",
+  badge: "Best Offer",
+  urgency: "Only 50 spots!",
+  features: [
+    "Lifetime access to Basic plan",
+    "Early access to new features",
+    "Unlimited projects",
+    "Full version history",
+    "Up to 5 collaborators",
+    "50 GB storage",
+  ],
+};
+
 const PLANS = [
   {
     name: "Free",
@@ -15,7 +31,6 @@ const PLANS = [
       "Max 3 collaborators",
       "5 GB storage",
     ],
-    highlight: false,
   },
   {
     name: "Basic",
@@ -27,7 +42,6 @@ const PLANS = [
       "Up to 5 collaborators",
       "50 GB storage",
     ],
-    highlight: false,
   },
   {
     name: "Studio",
@@ -38,23 +52,6 @@ const PLANS = [
       "Unlimited collaborators",
       "Permissions & roles",
     ],
-    highlight: false,
-  },
-  {
-    name: "Launch Offer",
-    price: "€15",
-    period: "one-time",
-    badge: "Best Offer",
-    urgency: "Only 50 spots!",
-    features: [
-      "Lifetime access to Basic plan",
-      "Early access to new features",
-      "Unlimited projects",
-      "Full version history",
-      "Up to 5 collaborators",
-      "50 GB storage",
-    ],
-    highlight: true,
   },
 ];
 
