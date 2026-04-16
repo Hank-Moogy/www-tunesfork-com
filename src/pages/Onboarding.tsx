@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Cloud, GitFork, Users, Music, Headphones, Radio, Mic2, Drum, Piano, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Cloud, GitFork, Users, Music, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PRODUCER_LEVELS = [
