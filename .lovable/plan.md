@@ -1,41 +1,112 @@
 
 
-## Investigation: ALS Track Parsing Issues
+## Full Plan: Dark Theme + First-Time User Experience
 
-### Root Cause
+### 1. Dark Theme with Toggle
 
-The parser uses **regex on raw XML** to find tracks and extract names. This is fundamentally fragile for Ableton's XML structure because:
+**`index.html`** — Add inline script in `<head>` to read `localStorage("theme")` and set `dark` class before paint. Default to `dark`.
 
-1. **Nested tracks inside groups**: Ableton nests `<AudioTrack>` and `<MidiTrack>` tags inside `<GroupTrack>` containers. The regex finds *all* track tags at every nesting level, creating duplicate/phantom entries and wrong boundaries between tracks.
+**New: `src/hooks/use-theme.ts`** — Hook that manages theme state, toggles `.dark` class on `<html>`, persists to localStorage.
 
-2. **Wrong name extraction**: `<EffectiveName>` appears on many nested elements (devices, chains, sends). The regex grabs the *first* match in the block, which is often a device name or chain name — not the track name. This explains the "odd names."
+**`src/components/Navbar.tsx`** — Add Sun/Moon toggle button next to the bell icon.
 
-3. **Boundary slicing is broken**: Each track's XML block is sliced from one `<AudioTrack>` tag to the next. With nesting, a GroupTrack's block includes all its child tracks, so boundaries overlap and names bleed across tracks.
+---
 
-### The Fix: Use the Browser's DOMParser
+### 2. Database Migration
 
-Instead of regex, parse the decompressed XML with `DOMParser` (built into every browser, zero dependencies). This gives us a proper DOM tree where we can:
+**Add column to `profiles`:**
+- `onboarding_completed` boolean default false
 
-- Select only **top-level** tracks under `<Tracks>` (not nested ones inside groups)
-- Navigate directly to each track's `<Name><EffectiveName Value="..."/>` path
-- Correctly handle group tracks and their children
+**New table: `onboarding_responses`**
+- `id` uuid PK
+- `user_id` uuid (unique, cascade delete)
+- `producer_level` text
+- `usage_mode` text
+- `music_genres` jsonb
+- `referral_source` text
+- `completed_at` timestamptz default now()
+- RLS: users insert/select own row only
 
-### Plan
+---
 
-**File: `src/lib/als-parser.ts`** — Rewrite the track extraction section:
+### 3. New: `src/pages/Onboarding.tsx`
 
-1. After `pako.inflate` and decoding the XML string, parse it with `new DOMParser().parseFromString(xml, "text/xml")`
-2. Find the `<Tracks>` container element
-3. Iterate its direct children (`AudioTrack`, `MidiTrack`, `ReturnTrack`, `GroupTrack`)
-4. For each track element, extract:
-   - **Name**: Navigate to the track element's direct `<Name>` child → `<EffectiveName Value="..."/>`
-   - **Color**: Direct `<ColorIndex>` or `<Color>` child → `Value` attribute
-   - **Clips**: Find `<AudioClip>` / `<MidiClip>` descendants, extract `CurrentStart`, `CurrentEnd`, `Name`
-5. Keep BPM and plugin extraction as-is (those regex patterns work fine on flat structures)
+Multi-step full-screen flow with animated transitions:
 
-This approach will:
-- Match Ableton's actual track count and order
-- Get correct track names (not device/chain names)
-- Handle group tracks properly
-- Zero new dependencies (DOMParser is a browser API)
+**Survey Phase (4 steps):**
+1. "What kind of producer are you?" — 3 tappable cards: Amateur, Semi-Pro, Pro
+2. "How do you want to use TunesFork?" — 2 cards: Solo (save projects in the cloud) / Multiplayer (collaborate)
+3. "What kind of music do you make?" — Multi-select chips: Electronic, Hip-Hop, Band, Sound Design, Sound Art, Traditional, Other
+4. "How did you hear about us?" — Single-select chips: Instagram, YouTube, TikTok, Google, AI Chat, From a Friend, Other
+
+**Product Tour Phase (swipeable cards with dot indicators):**
+- Card 1 — Founder story with warm gradient background: *"I built TunesFork because I was sick of making music alone in my room and I wanted to secure my projects after I lost all my music when my computer died last year."*
+- Card 2 — *"The GitHub of music production"*
+- Card 3 — Feature highlights with icons:
+  - Automatically save all your Ableton projects in the cloud
+  - Collaborate with other artists, share projects, identify missing plugins, comment on versions, track iterations, plan releases, fork versions
+  - Open-source your music and get remixes from other producers
+- Final CTA: "Let's go" → saves onboarding responses to DB, sets `onboarding_completed = true` on profile, redirects to `/dashboard`
+
+---
+
+### 4. New: `src/components/ShareAfterUploadModal.tsx`
+
+Shown after a user's first-ever project upload:
+- Congratulations message
+- Email invite field to invite a collaborator
+- "Copy share link" button
+- "Skip" to dismiss
+
+---
+
+### 5. Modified: `src/contexts/AuthContext.tsx`
+
+- Add `onboardingCompleted: boolean` to context
+- After auth state resolves, query `profiles.onboarding_completed`
+- Expose it so routing can check it
+
+---
+
+### 6. Modified: `src/pages/Index.tsx`
+
+- If user is logged in but `onboardingCompleted` is false → redirect to `/onboarding`
+- Otherwise → redirect to `/dashboard` as before
+
+---
+
+### 7. Modified: `src/App.tsx`
+
+- Add protected route `/onboarding` pointing to `Onboarding` page
+
+---
+
+### 8. Modified: `src/pages/Dashboard.tsx`
+
+- When user has zero projects, replace the current empty state with a large centered CTA: "Save your first project" button that opens the upload modal
+- After first successful upload, trigger `ShareAfterUploadModal`
+
+---
+
+### Flow
+
+```text
+Sign Up → /onboarding
+  ├─ Survey (4 steps)
+  ├─ Product Tour (3 swipeable cards)
+  └─ "Let's go" → mark complete → /dashboard
+
+Dashboard (0 projects)
+  └─ Big centered "Save your first project" CTA
+      └─ Upload Modal → success
+          └─ Share/Invite Modal
+              └─ Dashboard with project card
+```
+
+### Design
+- Uses existing dark/light CSS variables throughout
+- Survey cards: rounded borders, subtle hover scale, gradient accents
+- Tour cards: warm gradient backgrounds, large readable text
+- Mobile-first (393px viewport), responsive up
+- Smooth fade/slide transitions between steps
 
