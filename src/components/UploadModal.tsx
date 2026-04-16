@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
   Upload,
-  FolderOpen,
+  
   AlertTriangle,
   XCircle,
   Music,
