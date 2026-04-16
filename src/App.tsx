@@ -4,7 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
-import Index from "./pages/Index";
+import LandingPage from "./pages/LandingPage";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
@@ -12,6 +12,7 @@ import ProjectPage from "./pages/ProjectPage";
 import SharePage from "./pages/SharePage";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AuthRedirect from "./components/AuthRedirect";
 
 const queryClient = new QueryClient();
 
@@ -23,7 +24,8 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<AuthRedirect />} />
+            <Route path="/welcome" element={<LandingPage />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/share/:token" element={<SharePage />} />
             <Route

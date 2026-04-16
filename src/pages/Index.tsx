@@ -7,20 +7,25 @@ export default function Index() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        navigate("/auth", { replace: true });
-      } else if (!onboardingCompleted) {
+    if (!loading && user) {
+      if (!onboardingCompleted) {
         navigate("/onboarding", { replace: true });
       } else {
         navigate("/dashboard", { replace: true });
       }
     }
+    // If not loading and no user, stay on this page (landing will show)
   }, [user, loading, onboardingCompleted, navigate]);
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-    </div>
-  );
+  // If logged in, show spinner while redirecting
+  if (loading || user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  // Not logged in: show landing page
+  return null;
 }
