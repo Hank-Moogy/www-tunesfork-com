@@ -265,6 +265,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_notification: {
+        Args: {
+          notification_message?: string
+          notification_reference_id?: string
+          notification_type: string
+          target_user_id: string
+        }
+        Returns: undefined
+      }
       get_project_by_share_token: {
         Args: { _token: string }
         Returns: {
