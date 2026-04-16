@@ -31,7 +31,7 @@ const FEATURES = [
   {
     icon: Zap,
     title: "Built for Speed",
-    desc: "Lightweight uploads, instant previews, and a UI designed for producers — not developers.",
+    desc: "Lightweight uploads, instant previews, and a UI designed for producers.",
   },
 ];
 
