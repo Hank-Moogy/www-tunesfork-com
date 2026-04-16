@@ -1,8 +1,12 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 const LAUNCH_OFFER = {
   name: "Launch Offer",
@@ -10,6 +14,7 @@ const LAUNCH_OFFER = {
   period: "one-time",
   badge: "Best Offer",
   urgency: "Only 50 spots!",
+  priceId: "launch_offer_once",
   features: [
     "Lifetime access to Basic plan",
     "Early access to new features",
@@ -25,6 +30,7 @@ const PLANS = [
     name: "Free",
     price: "€0",
     period: "forever",
+    priceId: null,
     features: [
       "3 projects",
       "3 historical versions per project",
@@ -36,6 +42,7 @@ const PLANS = [
     name: "Basic",
     price: "€7.99",
     period: "/month",
+    priceId: "basic_monthly",
     features: [
       "Unlimited projects",
       "Full version history",
@@ -47,6 +54,7 @@ const PLANS = [
     name: "Studio",
     price: "€29",
     period: "/month",
+    priceId: "studio_monthly",
     features: [
       "500 GB storage",
       "Unlimited collaborators",
@@ -55,9 +63,39 @@ const PLANS = [
   },
 ];
 
+function useLaunchOfferCount() {
+  const clientToken = import.meta.env.VITE_PAYMENTS_CLIENT_TOKEN;
+  const env = clientToken?.startsWith('pk_test_') ? 'sandbox' : 'live';
+  
+  return useQuery({
+    queryKey: ['launch-offer-count', env],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('count_launch_purchases', { check_env: env });
+      if (error) throw error;
+      return data as number;
+    },
+    refetchInterval: 30000,
+  });
+}
+
 export default function PricingPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data: launchCount = 0 } = useLaunchOfferCount();
+  const spotsLeft = Math.max(0, 50 - launchCount);
+  const soldOut = spotsLeft === 0;
+
+  const handleCheckout = (priceId: string) => {
+    if (!user) {
+      navigate(`/auth?tab=signup&redirect=/checkout?price=${priceId}`);
+      return;
+    }
+    navigate(`/checkout?price=${priceId}`);
+  };
+
   return (
     <div className="min-h-screen bg-background">
+      <PaymentTestModeBanner />
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
@@ -66,12 +104,20 @@ export default function PricingPage() {
             <span className="text-lg font-bold tracking-tight">TunesFork</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" asChild>
-              <Link to="/auth">Sign In</Link>
-            </Button>
-            <Button asChild>
-              <Link to="/auth?tab=signup">Get Started</Link>
-            </Button>
+            {user ? (
+              <Button asChild>
+                <Link to="/dashboard">Dashboard</Link>
+              </Button>
+            ) : (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link to="/auth">Sign In</Link>
+                </Button>
+                <Button asChild>
+                  <Link to="/auth?tab=signup">Get Started</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -103,7 +149,7 @@ export default function PricingPage() {
               <span className="text-sm text-muted-foreground ml-1">{LAUNCH_OFFER.period}</span>
             </div>
             <CardDescription className="text-[hsl(var(--pastel-green))] font-medium mt-1">
-              {LAUNCH_OFFER.urgency}
+              {soldOut ? "Sold out!" : `${spotsLeft} spots left!`}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col sm:flex-1 pt-0 sm:pt-6">
@@ -115,7 +161,13 @@ export default function PricingPage() {
                 </li>
               ))}
             </ul>
-            <Button disabled className="w-full">Coming Soon</Button>
+            <Button
+              className="w-full"
+              disabled={soldOut}
+              onClick={() => handleCheckout(LAUNCH_OFFER.priceId)}
+            >
+              {soldOut ? "Sold Out" : "Get Launch Offer"}
+            </Button>
           </CardContent>
         </Card>
 
@@ -139,7 +191,19 @@ export default function PricingPage() {
                     </li>
                   ))}
                 </ul>
-                <Button disabled className="w-full" variant="outline">Coming Soon</Button>
+                {plan.priceId ? (
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => handleCheckout(plan.priceId!)}
+                  >
+                    Subscribe
+                  </Button>
+                ) : (
+                  <Button className="w-full" variant="outline" asChild>
+                    <Link to="/auth?tab=signup">Get Started Free</Link>
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ))}

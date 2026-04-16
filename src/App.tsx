@@ -13,6 +13,8 @@ import SharePage from "./pages/SharePage";
 import PricingPage from "./pages/PricingPage";
 import PluginPage from "./pages/PluginPage";
 import AdminPage from "./pages/AdminPage";
+import CheckoutPage from "./pages/CheckoutPage";
+import CheckoutReturn from "./pages/CheckoutReturn";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthRedirect from "./components/AuthRedirect";
@@ -32,6 +34,8 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/share/:token" element={<SharePage />} />
             <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/checkout/return" element={<CheckoutReturn />} />
             <Route
               path="/plugin/:id"
               element={
