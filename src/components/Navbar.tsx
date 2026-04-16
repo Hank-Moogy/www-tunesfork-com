@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Bell, LogOut, User } from "lucide-react";
+import { useAdminRole } from "@/hooks/useAdminRole";
+import { Bell, LogOut, User, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function Navbar() {
   const { user, signOut } = useAuth();
+  const { isAdmin } = useAdminRole();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -57,6 +59,12 @@ export default function Navbar() {
                 <User className="mr-2 h-4 w-4" />
                 Dashboard
               </DropdownMenuItem>
+              {isAdmin && (
+                <DropdownMenuItem onClick={() => navigate("/admin")}>
+                  <Shield className="mr-2 h-4 w-4" />
+                  Backoffice
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={handleSignOut}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign Out
