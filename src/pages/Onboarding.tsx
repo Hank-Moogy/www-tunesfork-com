@@ -210,7 +210,11 @@ export default function Onboarding() {
 
           {/* Tour cards */}
           {!isSurvey && (
-            <div className={cn("flex flex-1 flex-col rounded-xl bg-gradient-to-br p-2", TOUR_CARDS[tourIndex].gradient)}>
+            <div className={cn(
+              "flex flex-1 flex-col rounded-xl bg-gradient-to-br p-2",
+              TOUR_CARDS[tourIndex].gradient,
+              TOUR_CARDS[tourIndex].body && !TOUR_CARDS[tourIndex].features && "items-center justify-center text-center"
+            )}>
               <h2 className="text-xl font-bold mb-4">{TOUR_CARDS[tourIndex].title}</h2>
               {TOUR_CARDS[tourIndex].body && (
                 <p className="text-muted-foreground leading-relaxed">{TOUR_CARDS[tourIndex].body}</p>
