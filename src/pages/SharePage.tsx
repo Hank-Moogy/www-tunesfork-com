@@ -8,6 +8,7 @@ import ArrangementTimeline from "@/components/ArrangementTimeline";
 import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
 import { Music, Users, Layers, ArrowRight } from "lucide-react";
+import PluginMatchSection from "@/components/PluginMatchSection";
 
 export default function SharePage() {
   const { token } = useParams<{ token: string }>();
@@ -133,19 +134,8 @@ export default function SharePage() {
             </div>
           )}
 
-          {/* Plugins */}
-          {pluginList.length > 0 && (
-            <div className="px-4 py-3 border-b border-border">
-              <span className="text-xs font-medium text-muted-foreground block mb-2">Plugins used</span>
-              <div className="flex flex-wrap gap-1">
-                {pluginList.map((p) => (
-                  <Badge key={p} variant="secondary" className="font-mono text-[10px] py-0">
-                    {p}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Plugins with matching */}
+          <PluginMatchSection pluginList={pluginList} />
 
           {/* Version notes */}
           {version?.change_note && (

@@ -228,6 +228,54 @@ export type Database = {
         }
         Relationships: []
       }
+      plugin_catalog: {
+        Row: {
+          aliases: Json
+          created_at: string
+          developer: string
+          id: string
+          is_free: boolean
+          logo_url: string | null
+          name: string
+          normalized_name: string
+          status: string
+          submitted_by: string | null
+          type: string
+          updated_at: string
+          website_url: string
+        }
+        Insert: {
+          aliases?: Json
+          created_at?: string
+          developer?: string
+          id?: string
+          is_free?: boolean
+          logo_url?: string | null
+          name: string
+          normalized_name?: string
+          status?: string
+          submitted_by?: string | null
+          type?: string
+          updated_at?: string
+          website_url?: string
+        }
+        Update: {
+          aliases?: Json
+          created_at?: string
+          developer?: string
+          id?: string
+          is_free?: boolean
+          logo_url?: string | null
+          name?: string
+          normalized_name?: string
+          status?: string
+          submitted_by?: string | null
+          type?: string
+          updated_at?: string
+          website_url?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -439,6 +487,20 @@ export type Database = {
       is_collaborator: { Args: { _project_id: string }; Returns: boolean }
       is_contributor: { Args: { _project_id: string }; Returns: boolean }
       is_project_owner: { Args: { _project_id: string }; Returns: boolean }
+      match_plugins: {
+        Args: { plugin_names: Json }
+        Returns: {
+          catalog_id: string
+          catalog_name: string
+          developer: string
+          input_name: string
+          is_free: boolean
+          logo_url: string
+          matched: boolean
+          type: string
+          website_url: string
+        }[]
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string
@@ -448,6 +510,7 @@ export type Database = {
         }
         Returns: number
       }
+      normalize_plugin_name: { Args: { raw_name: string }; Returns: string }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {

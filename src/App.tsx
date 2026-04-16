@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import ProjectPage from "./pages/ProjectPage";
 import SharePage from "./pages/SharePage";
 import PricingPage from "./pages/PricingPage";
+import PluginPage from "./pages/PluginPage";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthRedirect from "./components/AuthRedirect";
@@ -30,6 +31,14 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/share/:token" element={<SharePage />} />
             <Route path="/pricing" element={<PricingPage />} />
+            <Route
+              path="/plugin/:id"
+              element={
+                <ProtectedRoute>
+                  <PluginPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/onboarding"
               element={
