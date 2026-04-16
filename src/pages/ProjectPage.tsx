@@ -54,6 +54,7 @@ import {
 import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
 import type { Tables } from "@/integrations/supabase/types";
+import PluginMatchSection from "@/components/PluginMatchSection";
 
 type Project = Tables<"projects">;
 type Version = Tables<"project_versions">;
@@ -418,19 +419,8 @@ export default function ProjectPage() {
               </div>
             )}
 
-            {/* Plugins */}
-            {pluginList.length > 0 && (
-              <div className="px-4 py-3 border-b border-border">
-                <span className="text-xs font-medium text-muted-foreground block mb-2">Plugins</span>
-                <div className="flex flex-wrap gap-1">
-                  {pluginList.map((p) => (
-                    <Badge key={p} variant="secondary" className="font-mono text-[10px] bg-secondary/60 text-muted-foreground border-none py-0">
-                      {p}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Plugins with matching */}
+            <PluginMatchSection pluginList={pluginList} showSubmit />
 
             {/* Version notes */}
             {selectedVersion?.change_note && (
