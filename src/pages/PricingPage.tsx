@@ -88,37 +88,47 @@ export default function PricingPage() {
 
       {/* Plans grid */}
       <section className="mx-auto max-w-6xl px-4 pb-24">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Launch Offer - Featured */}
+        <Card className="relative flex flex-col sm:flex-row border-[hsl(var(--pastel-green))] border-2 shadow-md max-w-3xl mx-auto mb-10">
+          <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+            <Badge className="bg-[hsl(var(--pastel-green))] text-white border-0 gap-1 px-3 py-1">
+              <Sparkles className="h-3 w-3" />
+              {LAUNCH_OFFER.badge}
+            </Badge>
+          </div>
+          <CardHeader className="pb-4 sm:pb-0 sm:flex-1">
+            <CardTitle className="text-2xl">{LAUNCH_OFFER.name}</CardTitle>
+            <div className="mt-2">
+              <span className="text-4xl font-bold">{LAUNCH_OFFER.price}</span>
+              <span className="text-sm text-muted-foreground ml-1">{LAUNCH_OFFER.period}</span>
+            </div>
+            <CardDescription className="text-[hsl(var(--pastel-green))] font-medium mt-1">
+              {LAUNCH_OFFER.urgency}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col sm:flex-1 pt-0 sm:pt-6">
+            <ul className="space-y-2 mb-6">
+              {LAUNCH_OFFER.features.map((f) => (
+                <li key={f} className="flex items-start gap-2 text-sm">
+                  <Check className="h-4 w-4 mt-0.5 shrink-0 text-[hsl(var(--pastel-green))]" />
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+            <Button disabled className="w-full">Coming Soon</Button>
+          </CardContent>
+        </Card>
+
+        {/* Standard plans */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {PLANS.map((plan) => (
-            <Card
-              key={plan.name}
-              className={`relative flex flex-col ${
-                plan.highlight
-                  ? "border-[hsl(var(--pastel-green))] border-2 shadow-md scale-[1.02]"
-                  : ""
-              }`}
-            >
-              {plan.badge && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <Badge className="bg-[hsl(var(--pastel-green))] text-white border-0 gap-1 px-3 py-1">
-                    <Sparkles className="h-3 w-3" />
-                    {plan.badge}
-                  </Badge>
-                </div>
-              )}
+            <Card key={plan.name} className="relative flex flex-col">
               <CardHeader className="pb-4">
                 <CardTitle className="text-xl">{plan.name}</CardTitle>
                 <div className="mt-2">
                   <span className="text-3xl font-bold">{plan.price}</span>
-                  <span className="text-sm text-muted-foreground ml-1">
-                    {plan.period}
-                  </span>
+                  <span className="text-sm text-muted-foreground ml-1">{plan.period}</span>
                 </div>
-                {plan.urgency && (
-                  <CardDescription className="text-[hsl(var(--pastel-green))] font-medium mt-1">
-                    {plan.urgency}
-                  </CardDescription>
-                )}
               </CardHeader>
               <CardContent className="flex flex-col flex-1">
                 <ul className="space-y-3 flex-1 mb-6">
@@ -129,9 +139,7 @@ export default function PricingPage() {
                     </li>
                   ))}
                 </ul>
-                <Button disabled className="w-full" variant={plan.highlight ? "default" : "outline"}>
-                  Coming Soon
-                </Button>
+                <Button disabled className="w-full" variant="outline">Coming Soon</Button>
               </CardContent>
             </Card>
           ))}
