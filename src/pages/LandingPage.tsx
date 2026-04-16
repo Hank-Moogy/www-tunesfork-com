@@ -87,18 +87,6 @@ export default function LandingPage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-gradient-to-br from-[hsl(var(--pastel-blue)/0.08)] to-[hsl(var(--pastel-purple)/0.08)] blur-3xl pointer-events-none" />
       </section>
 
-      {/* Social proof bar */}
-      <section className="border-y border-border bg-muted/50">
-        <div className="mx-auto max-w-6xl px-4 py-6 flex flex-wrap items-center justify-center gap-8 text-sm text-muted-foreground">
-          <span className="font-medium">Trusted by producers worldwide</span>
-          <span className="hidden sm:inline text-border">|</span>
-          <span>🎧 Ableton Live support</span>
-          <span className="hidden sm:inline text-border">|</span>
-          <span>☁️ Unlimited cloud storage</span>
-          <span className="hidden sm:inline text-border">|</span>
-          <span>🔒 End-to-end encryption</span>
-        </div>
-      </section>
 
       {/* Features */}
       <section id="features" className="py-24 sm:py-32">
