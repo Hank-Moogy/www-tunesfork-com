@@ -127,7 +127,7 @@ export default function LandingPage() {
             and I wanted to secure my projects after I lost all my music when my
             computer died last year."
           </blockquote>
-          <p className="text-sm text-muted-foreground">— Founder, TunesFork</p>
+          <p className="text-sm text-muted-foreground">— Samori Osei, Founder, TunesFork</p>
         </div>
       </section>
 
