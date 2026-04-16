@@ -70,13 +70,11 @@ export default function Auth() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-8">
         {/* Logo */}
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center gap-3">
-            <img src="/logo.png" alt="TunesFork" className="h-10 w-auto" />
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              TunesFork
-            </h1>
-          </div>
+        <div className="text-center space-y-4">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            TunesFork
+          </h1>
+          <img src="/logo.png" alt="TunesFork" className="h-16 w-auto mx-auto" />
           <p className="text-sm text-muted-foreground">
             your ableton collaborative workspace
           </p>
