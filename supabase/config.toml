@@ -5,3 +5,11 @@ project_id = "zkzupvjqyltvxrgixrpx"
     verify_jwt = false
   [functions.process-email-queue]
     verify_jwt = true
+  [functions.get-stripe-price]
+    verify_jwt = false
+  [functions.create-checkout]
+    verify_jwt = false
+  [functions.payments-webhook]
+    verify_jwt = false
+  [functions.create-portal-session]
+    verify_jwt = false
