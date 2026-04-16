@@ -50,7 +50,7 @@ export default function LandingPage() {
               <Link to="/auth">Sign In</Link>
             </Button>
             <Button asChild>
-              <Link to="/auth">Get Started</Link>
+              <Link to="/auth?tab=signup">Get Started</Link>
             </Button>
           </div>
         </div>
@@ -138,7 +138,7 @@ export default function LandingPage() {
             Join thousands of producers who trust TunesFork to protect and evolve their music.
           </p>
           <Button size="lg" className="gap-2 text-base px-8" asChild>
-            <Link to="/auth">
+            <Link to="/auth?tab=signup">
               Get started — it's free
               <ArrowRight className="h-4 w-4" />
             </Link>
