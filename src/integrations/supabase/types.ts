@@ -111,12 +111,43 @@ export type Database = {
         }
         Relationships: []
       }
+      onboarding_responses: {
+        Row: {
+          completed_at: string
+          id: string
+          music_genres: Json | null
+          producer_level: string | null
+          referral_source: string | null
+          usage_mode: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          id?: string
+          music_genres?: Json | null
+          producer_level?: string | null
+          referral_source?: string | null
+          usage_mode?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          id?: string
+          music_genres?: Json | null
+          producer_level?: string | null
+          referral_source?: string | null
+          usage_mode?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
           created_at: string
           display_name: string | null
           id: string
+          onboarding_completed: boolean
           updated_at: string
           user_id: string
         }
@@ -125,6 +156,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          onboarding_completed?: boolean
           updated_at?: string
           user_id: string
         }
@@ -133,6 +165,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          onboarding_completed?: boolean
           updated_at?: string
           user_id?: string
         }
