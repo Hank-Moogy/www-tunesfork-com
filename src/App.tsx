@@ -10,6 +10,7 @@ import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import ProjectPage from "./pages/ProjectPage";
 import SharePage from "./pages/SharePage";
+import PricingPage from "./pages/PricingPage";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthRedirect from "./components/AuthRedirect";
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/welcome" element={<LandingPage />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/share/:token" element={<SharePage />} />
+            <Route path="/pricing" element={<PricingPage />} />
             <Route
               path="/onboarding"
               element={
