@@ -29,12 +29,12 @@ const TOUR_CARDS = [
   {
     title: "Hey 👋",
     body: "I built TunesFork because I was sick of making music alone in my room and I wanted to secure my projects after I lost all my music when my computer died last year.",
-    gradient: "from-orange-900/60 to-amber-900/40",
+    gradient: "from-primary/10 to-accent/10",
   },
   {
     title: "The GitHub of music production",
     body: "Version-control your sessions, collaborate in real time, and never lose a beat.",
-    gradient: "from-blue-900/60 to-indigo-900/40",
+    gradient: "from-primary/15 to-primary/5",
   },
   {
     title: "What you can do",
@@ -44,7 +44,7 @@ const TOUR_CARDS = [
       { icon: GitFork, text: "Collaborate, comment on versions, track iterations, plan releases, and fork to other versions" },
       { icon: Music, text: "Open-source your music and get remixes by other producers" },
     ],
-    gradient: "from-emerald-900/60 to-teal-900/40",
+    gradient: "from-accent/10 to-primary/10",
   },
 ];
 
