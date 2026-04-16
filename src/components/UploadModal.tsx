@@ -82,9 +82,8 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
     return () => clearInterval(interval);
   }, [processing]);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
-  const alsInputRef = useRef<HTMLInputElement>(null);
-  const zipInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const progressValueRef = useRef(0);
   const progressAnimationRef = useRef<number | null>(null);
@@ -642,7 +641,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
                   ? "border-primary bg-primary/5"
                   : "border-border hover:border-muted-foreground"
               }`}
-              onClick={() => folderInputRef.current?.click()}
+              onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => {
                 e.preventDefault();
                 setDragOver(true);
@@ -654,58 +653,35 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
                 handleFolderSelect(e.dataTransfer.files);
               }}
             >
-              <FolderOpen className="h-10 w-10 text-muted-foreground mb-3" />
+              <Upload className="h-10 w-10 text-muted-foreground mb-3" />
               <p className="text-sm text-foreground font-medium mb-1">
-                Drop your Ableton project folder, .als, or .zip here
+                Drop your Ableton project here
               </p>
-              <p className="text-xs text-muted-foreground">or click to browse folders</p>
+              <p className="text-xs text-muted-foreground">.als, .zip, or folder</p>
               <input
-                ref={folderInputRef}
+                ref={fileInputRef}
                 type="file"
-                /* @ts-expect-error webkitdirectory is not standard */
-                webkitdirectory=""
-                directory=""
-                multiple
+                accept=".als,.zip"
                 className="hidden"
                 onChange={(e) => handleFolderSelect(e.target.files)}
               />
             </div>
-            <div className="flex gap-3 justify-center">
-              <button
-                type="button"
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
-                onClick={() => alsInputRef.current?.click()}
-              >
-                select an .als file
-              </button>
-              <span className="text-xs text-muted-foreground">·</span>
-              <button
-                type="button"
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
-                onClick={() => zipInputRef.current?.click()}
-              >
-                select a .zip file
-              </button>
-            </div>
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
+              onClick={() => folderInputRef.current?.click()}
+            >
+              or select a folder
+            </button>
             <input
-              ref={alsInputRef}
+              ref={folderInputRef}
               type="file"
-              accept=".als"
+              /* @ts-expect-error webkitdirectory is not standard */
+              webkitdirectory=""
+              directory=""
+              multiple
               className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleAlsSelect(file);
-              }}
-            />
-            <input
-              ref={zipInputRef}
-              type="file"
-              accept=".zip"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleZipSelect(file);
-              }}
+              onChange={(e) => handleFolderSelect(e.target.files)}
             />
 
             {validation?.errors.map((err, i) => (
