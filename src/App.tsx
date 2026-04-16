@@ -12,6 +12,7 @@ import ProjectPage from "./pages/ProjectPage";
 import SharePage from "./pages/SharePage";
 import PricingPage from "./pages/PricingPage";
 import PluginPage from "./pages/PluginPage";
+import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthRedirect from "./components/AuthRedirect";
@@ -60,6 +61,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <ProjectPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <AdminPage />
                 </ProtectedRoute>
               }
             />
