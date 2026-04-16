@@ -1,57 +1,37 @@
 
 
-## Project Review: Suggested Improvements
+## Plan: Pricing Page + Memory Fix
 
-After reviewing the full codebase, here are the improvements I'd recommend, grouped by priority:
+### Memory correction
+Update `mem://index.md` and `mem://design/tokens` to remove all "dark theme" references. The app uses a light theme.
 
----
+### What we're building
+A `/pricing` page showing 4 plan tiers with "Coming Soon" buttons (no payment CTAs). The pricing section will be accessible from both the landing page and the authenticated app.
 
-### High Priority — Bugs and UX Issues
+### Implementation
 
-**1. Auth page redirects to `/dashboard` instead of respecting onboarding state**
-In `Auth.tsx` line 26, after login it navigates to `/dashboard` directly, bypassing the onboarding check. New users who sign up, verify email, then sign in will skip onboarding entirely. Fix: navigate to `/` (Index) which already handles the routing logic.
+1. **Create `src/pages/PricingPage.tsx`**
+   - 4-card responsive grid (1 col mobile, 2 col tablet, 4 col desktop)
+   - Plans: Free (EUR 0), Basic (EUR 7.99/mo), Studio (EUR 29/mo), Launch Offer (EUR 15 one-time)
+   - Launch Offer highlighted with green border, "Best Offer" badge, "Only 50 spots!" urgency text
+   - All CTA buttons say **"Coming Soon"** and are disabled
+   - Uses existing Card, Button, Badge components and pastel color tokens
 
-**2. Email invite in ShareAfterUploadModal is fake**
-The "Send invite" button just shows a toast — it doesn't actually send an email or create a collaborator record. This should either be wired up to a backend function or the UI should be changed to "Copy link" only.
+2. **Add `/pricing` route in `src/App.tsx`**
+   - Public route, no ProtectedRoute wrapper
 
-**3. ProtectedRoute doesn't redirect un-onboarded users**
-A user who hasn't completed onboarding can manually navigate to `/dashboard` or `/project/:id`. The `ProtectedRoute` only checks for authentication, not onboarding status. Consider redirecting to `/onboarding` when `onboardingCompleted` is false.
+3. **Add "Pricing" link to LandingPage nav** (`src/pages/LandingPage.tsx`)
+   - Add link between existing nav items
 
-**4. No landing page**
-The `/` route is just a redirect router. There's no public-facing page explaining what TunesFork is. New visitors go straight to the auth page with no context.
+4. **Add "Pricing" link to authenticated Navbar** (`src/components/Navbar.tsx`)
+   - Add link visible to logged-in users
 
----
+5. **Fix project memory**
+   - Remove all "dark theme" references from `mem://index.md` and `mem://design/tokens`
+   - Update to reflect light theme with current color tokens
 
-### Medium Priority — Polish and Consistency
-
-**5. Profile "Create on signup" trigger is missing**
-The code queries `profiles.onboarding_completed` on login, but there's no visible trigger or edge function to auto-create a profile row when a user signs up. If a profile doesn't exist, `onboarding_completed` defaults to `undefined`/null, which could cause issues.
-
-**6. Navbar "Profile" link goes to `/dashboard`**
-The user dropdown has a "Profile" option that navigates to `/dashboard` — there's no actual profile/settings page. Either add one or remove the misleading menu item.
-
-**7. Theme toggle not on Auth/Onboarding pages**
-The theme toggle lives in the Navbar, which only appears on Dashboard and ProjectPage. The Auth and Onboarding pages have no way to switch theme.
-
-**8. Missing `logo.png`**
-Both Auth and Navbar reference `/logo.png` but this file isn't in the `public/` directory. This will show a broken image.
-
----
-
-### Lower Priority — Code Quality
-
-**9. Duplicated comment-fetching logic in ProjectPage**
-The comment-fetch logic (with profile resolution) appears in both `useEffect` and `handleSendComment`. Extract to a shared function.
-
-**10. `any` types in SharePage**
-`project` and `version` are typed as `any`. Should use the generated Supabase types.
-
-**11. No error handling on onboarding save failure**
-In `Onboarding.tsx`, if the insert fails the user is stuck — no toast or retry option.
-
----
-
-### Recommended Next Steps
-
-I'd suggest tackling items 1-4 first as they directly impact user experience. Want me to implement any or all of these?
+### Technical notes
+- No database changes needed
+- No payment processing — display only
+- All prices in EUR
 
