@@ -26,9 +26,11 @@ export default function Dashboard() {
     if (!user) return;
     setLoading(true);
 
+    const projectCols = "id,name,bpm,owner_id,handoff_status,handoff_locked_by,created_at,updated_at,archived";
+
     const { data: owned } = await supabase
       .from("projects")
-      .select("*")
+      .select(projectCols)
       .eq("owner_id", user.id)
       .order("updated_at", { ascending: false });
 
@@ -41,7 +43,7 @@ export default function Dashboard() {
       const ids = collabs.map((c) => c.project_id);
       const { data: shared } = await supabase
         .from("projects")
-        .select("*")
+        .select(projectCols)
         .in("id", ids)
         .order("updated_at", { ascending: false });
       setSharedProjects(shared ?? []);
@@ -65,13 +67,16 @@ export default function Dashboard() {
         // After re-fetch, get the newest project's share token
         supabase
           .from("projects")
-          .select("share_token")
+          .select("id")
           .eq("owner_id", user!.id)
           .order("created_at", { ascending: false })
           .limit(1)
-          .then(({ data }) => {
-            if (data?.[0]?.share_token) {
-              setLastShareUrl(`${window.location.origin}/share/${data[0].share_token}`);
+          .then(async ({ data }) => {
+            const projectId = data?.[0]?.id;
+            if (!projectId) return;
+            const { data: token } = await supabase.rpc("get_project_share_token", { _project_id: projectId });
+            if (token) {
+              setLastShareUrl(`${window.location.origin}/share/${token}`);
               setShareModalOpen(true);
             }
           });

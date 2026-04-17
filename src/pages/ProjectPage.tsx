@@ -104,7 +104,7 @@ export default function ProjectPage() {
     if (!id || !user) return;
     const fetchAll = async () => {
       setLoading(true);
-      const { data: proj } = await supabase.from("projects").select("*").eq("id", id).single();
+      const { data: proj } = await supabase.from("projects").select("id,name,bpm,owner_id,handoff_status,handoff_locked_by,created_at,updated_at,archived").eq("id", id).single();
       if (!proj) { navigate("/dashboard"); return; }
       setProject(proj);
 
@@ -172,8 +172,13 @@ export default function ProjectPage() {
     setDownloading(false);
   };
 
-  const handleShare = () => {
-    const shareToken = (project as any)?.share_token;
+  const handleShare = async () => {
+    if (!project) {
+      navigator.clipboard.writeText(window.location.href);
+      toast({ title: "Link copied", description: "Project link copied to clipboard." });
+      return;
+    }
+    const { data: shareToken } = await supabase.rpc("get_project_share_token", { _project_id: project.id });
     if (shareToken) {
       const shareUrl = `${window.location.origin}/share/${shareToken}`;
       navigator.clipboard.writeText(shareUrl);
