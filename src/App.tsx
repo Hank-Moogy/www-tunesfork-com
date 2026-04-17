@@ -32,7 +32,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<AuthRedirect />} />
             <Route path="/welcome" element={<LandingPage />} />
-            <Route path="/welcome/github" element={<LandingPageGithub />} />
+            <Route path="/welcome/gitsound" element={<LandingPageGithub />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/share/:token" element={<SharePage />} />
             <Route path="/pricing" element={<PricingPage />} />
