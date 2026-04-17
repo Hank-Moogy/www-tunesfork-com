@@ -575,6 +575,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_project_share_token: {
+        Args: { _project_id: string }
+        Returns: string
+      }
       get_versions_by_share_token: {
         Args: { _token: string }
         Returns: {
