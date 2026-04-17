@@ -524,8 +524,9 @@ export default function ProjectPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Username or display name</label>
-              <Input value={collabEmail} onChange={(e) => setCollabEmail(e.target.value)} placeholder="Search by name…" className="bg-secondary border-border" />
+              <label className="text-sm font-medium">Email address</label>
+              <Input type="email" value={collabEmail} onChange={(e) => setCollabEmail(e.target.value)} placeholder="name@example.com" className="bg-secondary border-border" autoComplete="off" />
+              <p className="text-[11px] text-muted-foreground">Exact match — they must already have an account.</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Permission</label>
