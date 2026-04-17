@@ -1,26 +1,36 @@
 
+## Goal
+Create a new producer-focused landing page as the default at `/welcome`, and move the current GitHub-themed landing page to `/welcome/producers-github` (or similar) so it stays accessible via direct URL.
 
-## Plan: Install Amplitude Analytics + Session Replay
+## Approach
 
-### Overview
-Add Amplitude unified SDK to track all user interactions with autocapture and session replay, initialized once at app startup.
+**1. Rename existing file**
+- Copy `src/pages/LandingPage.tsx` → `src/pages/LandingPageGithub.tsx` (unchanged content — keeps the "GitHub of music production" angle for technical users).
 
-### Steps
+**2. Create new default landing page**
+- New file: `src/pages/LandingPage.tsx` (replaces current).
+- Keep the **exact same structure**: nav, hero, features grid, founder quote, final CTA, footer.
+- Only change the **hero copy** to speak directly to music producers (no GitHub/version-control jargon in the headline).
+- Keep features, quote, and CTA sections identical (they already read well for producers).
 
-**1. Install package**
-- `npm install @amplitude/unified`
+**Proposed new hero copy:**
+- Eyebrow chip: "Built by producers, for producers" (unchanged)
+- Headline: **"Never lose a beat. Never lose a project."**
+  - With gradient accent on "Never lose a project."
+- Subhead: "Back up your Ableton sessions to the cloud, collaborate with other artists, and pick up exactly where you left off — on any machine. TunesFork is the safety net every producer needs."
+- CTAs unchanged ("Start for free" / "See how it works")
 
-**2. Initialize Amplitude in `src/main.tsx`**
-- Import `@amplitude/unified`
-- Call `amplitude.initAll('65f72e75c1b338c180eaf8954f63104e', { analytics: { autocapture: true }, sessionReplay: { sampleRate: 1 } })` before `createRoot`
-- This captures all page views, clicks, form submissions, and sessions automatically with zero additional instrumentation needed
+**3. Wire up routes in `src/App.tsx`**
+- `/welcome` → new `LandingPage` (producer-focused, default)
+- `/welcome/github` → `LandingPageGithub` (preserves the original for direct-URL access)
 
-**3. Verify**
-- After deployment, fire a few events (visit pages, click buttons) and confirm data appears in your Amplitude dashboard
+## Files touched
+- `src/pages/LandingPage.tsx` — rewritten hero, rest kept
+- `src/pages/LandingPageGithub.tsx` — new file, copy of current landing page
+- `src/App.tsx` — add one route for `/welcome/github`
 
-### Technical Notes
-- Autocapture handles all click, navigation, and form events automatically — no manual event calls needed for baseline tracking
-- Session Replay at `sampleRate: 1` records 100% of sessions
-- Single initialization in `main.tsx` ensures it runs once, client-side only
-- The API key (`65f72e75c1b338c180eaf8954f63104e`) is a publishable client key, safe to include in source code
-
+## Out of scope
+- No design token changes
+- No new components
+- No backend changes
+- Pricing CTAs stay "Coming Soon" (per previous instruction)
