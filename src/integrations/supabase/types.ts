@@ -553,6 +553,14 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      find_user_by_email: {
+        Args: { _email: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          user_id: string
+        }[]
+      }
       get_admin_metrics: { Args: never; Returns: Json }
       get_project_by_share_token: {
         Args: { _token: string }
@@ -582,24 +590,16 @@ export type Database = {
       get_versions_by_share_token: {
         Args: { _token: string }
         Returns: {
-          audio_preview_url: string | null
-          change_note: string | null
+          audio_preview_url: string
+          change_note: string
           created_at: string
           file_size_bytes: number
           id: string
-          plugin_list: Json | null
+          plugin_list: Json
           project_id: string
-          track_list: Json | null
-          uploader_id: string
+          track_list: Json
           version_number: number
-          zip_url: string
         }[]
-        SetofOptions: {
-          from: "*"
-          to: "project_versions"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
       has_active_subscription: {
         Args: { check_env?: string; user_uuid: string }
