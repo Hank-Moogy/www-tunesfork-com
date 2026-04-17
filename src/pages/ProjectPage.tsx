@@ -190,13 +190,23 @@ export default function ProjectPage() {
   };
 
   const handleAddCollaborator = async () => {
-    if (!collabEmail.trim() || !project) return;
+    const email = collabEmail.trim().toLowerCase();
+    if (!email || !project) return;
+    // Basic email shape check
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({ title: "Invalid email", description: "Please enter a valid email address.", variant: "destructive" });
+      return;
+    }
     setAddingCollab(true);
-    const { data: profiles } = await supabase.from("profiles").select("user_id, display_name").ilike("display_name", `%${collabEmail.trim()}%`);
-    let targetUserId: string | null = null;
-    if (profiles && profiles.length > 0) targetUserId = profiles[0].user_id;
+    const { data: matches, error: lookupErr } = await supabase.rpc("find_user_by_email", { _email: email });
+    if (lookupErr) {
+      toast({ title: "Error", description: lookupErr.message, variant: "destructive" });
+      setAddingCollab(false);
+      return;
+    }
+    const targetUserId = matches && matches.length > 0 ? matches[0].user_id : null;
     if (!targetUserId) {
-      toast({ title: "User not found", description: "No user found with that name. They need to sign up first.", variant: "destructive" });
+      toast({ title: "User not found", description: "No account uses that email. Ask them to sign up first.", variant: "destructive" });
       setAddingCollab(false);
       return;
     }
