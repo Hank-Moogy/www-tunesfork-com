@@ -46,10 +46,10 @@ export default function Dashboard() {
         .select(projectCols)
         .in("id", ids)
         .order("updated_at", { ascending: false });
-      setSharedProjects(shared ?? []);
+      setSharedProjects((shared ?? []) as unknown as Project[]);
     }
 
-    const projects = owned ?? [];
+    const projects = (owned ?? []) as unknown as Project[];
     setMyProjects(projects);
     setIsFirstUpload(projects.length === 0);
     setLoading(false);

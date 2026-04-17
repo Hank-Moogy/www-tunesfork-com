@@ -106,7 +106,7 @@ export default function ProjectPage() {
       setLoading(true);
       const { data: proj } = await supabase.from("projects").select("id,name,bpm,owner_id,handoff_status,handoff_locked_by,created_at,updated_at,archived").eq("id", id).single();
       if (!proj) { navigate("/dashboard"); return; }
-      setProject(proj);
+      setProject(proj as unknown as Project);
 
       const { data: vers } = await supabase
         .from("project_versions").select("*").eq("project_id", id)
