@@ -67,12 +67,13 @@ export default function LandingPage() {
             Built by producers, for producers
           </div>
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1] mb-6">
-            The <span className="text-transparent bg-clip-text bg-gradient-to-r from-[hsl(var(--pastel-blue))] to-[hsl(var(--pastel-purple))]">GitHub</span> of<br />
-            music production
+            Never lose a beat.<br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[hsl(var(--pastel-blue))] to-[hsl(var(--pastel-purple))]">Never lose a project.</span>
           </h1>
           <p className="mx-auto max-w-2xl text-lg sm:text-xl text-muted-foreground mb-10 leading-relaxed">
-            Version-control your Ableton sessions, collaborate with other artists,
-            and never lose a project again. TunesFork is the workspace music producers deserve.
+            Back up your Ableton sessions to the cloud, collaborate with other artists,
+            and pick up exactly where you left off — on any machine. TunesFork is the
+            safety net every producer needs.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button size="lg" className="gap-2 text-base px-8" asChild>
