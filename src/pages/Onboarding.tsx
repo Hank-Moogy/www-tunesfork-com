@@ -5,6 +5,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Cloud, GitFork, Users, Music, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePageView } from "@/hooks/usePageView";
+import { trackButtonClick } from "@/lib/analytics";
 
 const PRODUCER_LEVELS = [
   { value: "amateur", label: "Amateur", desc: "Just getting started with music production" },
@@ -49,6 +51,7 @@ const TOUR_CARDS = [
 ];
 
 export default function Onboarding() {
+  usePageView("onboarding");
   const { user, setOnboardingCompleted } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(0); // 0-3 survey, 4-6 tour
@@ -77,6 +80,7 @@ export default function Onboarding() {
 
   const handleFinish = async () => {
     if (!user) return;
+    trackButtonClick("onboarding_complete", "onboarding", { producer_level: producerLevel, usage_mode: usageMode });
     setSaving(true);
     try {
       await supabase.from("onboarding_responses").insert({

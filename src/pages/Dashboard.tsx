@@ -8,10 +8,13 @@ import { Plus, FolderOpen, Upload, Sparkles } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import UploadModal from "@/components/UploadModal";
 import ShareAfterUploadModal from "@/components/ShareAfterUploadModal";
+import { usePageView } from "@/hooks/usePageView";
+import { trackButtonClick } from "@/lib/analytics";
 
 type Project = Tables<"projects">;
 
 export default function Dashboard() {
+  usePageView("dashboard");
   const { user } = useAuth();
   const [myProjects, setMyProjects] = useState<Project[]>([]);
   const [sharedProjects, setSharedProjects] = useState<Project[]>([]);
@@ -104,7 +107,10 @@ export default function Dashboard() {
               Upload your Ableton project to back it up in the cloud and start collaborating.
             </p>
             <Button
-              onClick={() => setUploadOpen(true)}
+              onClick={() => {
+                trackButtonClick("dashboard_first_upload", "dashboard_empty");
+                setUploadOpen(true);
+              }}
               size="lg"
               className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2"
             >
@@ -116,7 +122,7 @@ export default function Dashboard() {
           <>
             <div className="flex items-center justify-between mb-6">
               <h1 className="text-2xl font-bold">Projects</h1>
-              <Button onClick={() => setUploadOpen(true)} className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
+              <Button onClick={() => { trackButtonClick("dashboard_new_project", "dashboard"); setUploadOpen(true); }} className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
                 <Plus className="h-4 w-4" />
                 Upload Project
               </Button>
@@ -196,6 +202,7 @@ function ProjectCard({ project }: { project: Project }) {
   return (
     <a
       href={`/project/${project.id}`}
+      onClick={() => trackButtonClick("dashboard_open_project", "dashboard_card", { project_id: project.id })}
       className="group block rounded-lg border border-border bg-card overflow-hidden hover:border-primary/50 transition-colors"
     >
       <div
