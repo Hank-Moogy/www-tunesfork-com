@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { trackButtonClick } from "@/lib/analytics";
 
 export default function Navbar() {
   const { user, signOut } = useAuth();
@@ -17,6 +18,7 @@ export default function Navbar() {
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
+    trackButtonClick("nav_signout", "navbar");
     await signOut();
     navigate("/auth");
   };
@@ -33,10 +35,10 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/pricing">Pricing</Link>
+            <Link to="/pricing" onClick={() => trackButtonClick("nav_pricing", "navbar")}>Pricing</Link>
           </Button>
           <Button variant="ghost" size="icon" className="relative" asChild>
-            <Link to="/dashboard">
+            <Link to="/dashboard" onClick={() => trackButtonClick("nav_notifications", "navbar")}>
               <Bell className="h-4 w-4" />
             </Link>
           </Button>
@@ -55,12 +57,12 @@ export default function Navbar() {
               <DropdownMenuItem className="text-muted-foreground text-xs" disabled>
                 {user?.email}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/dashboard")}>
+              <DropdownMenuItem onClick={() => { trackButtonClick("nav_dashboard", "navbar_menu"); navigate("/dashboard"); }}>
                 <User className="mr-2 h-4 w-4" />
                 Dashboard
               </DropdownMenuItem>
               {isAdmin && (
-                <DropdownMenuItem onClick={() => navigate("/admin")}>
+                <DropdownMenuItem onClick={() => { trackButtonClick("nav_admin", "navbar_menu"); navigate("/admin"); }}>
                   <Shield className="mr-2 h-4 w-4" />
                   Backoffice
                 </DropdownMenuItem>

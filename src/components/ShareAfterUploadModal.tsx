@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, Send, PartyPopper } from "lucide-react";
 import { toast } from "sonner";
+import { trackButtonClick } from "@/lib/analytics";
 
 interface ShareAfterUploadModalProps {
   open: boolean;
@@ -17,6 +18,7 @@ export default function ShareAfterUploadModal({ open, onOpenChange, shareUrl }: 
 
   const handleCopy = async () => {
     if (!shareUrl) return;
+    trackButtonClick("share_after_upload_copy_link", "share_after_upload_modal");
     await navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     toast.success("Link copied!");
@@ -25,6 +27,7 @@ export default function ShareAfterUploadModal({ open, onOpenChange, shareUrl }: 
 
   const handleInvite = () => {
     if (!email) return;
+    trackButtonClick("share_after_upload_invite", "share_after_upload_modal");
     toast.success(`Invitation sent to ${email}`);
     setEmail("");
   };
@@ -63,7 +66,7 @@ export default function ShareAfterUploadModal({ open, onOpenChange, shareUrl }: 
             </Button>
           )}
 
-          <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => { trackButtonClick("share_after_upload_dismiss", "share_after_upload_modal"); onOpenChange(false); }}>
             Skip for now
           </Button>
         </div>
