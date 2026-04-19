@@ -1,59 +1,73 @@
 
 
-## Status check
+## Goal
+Add consistent Amplitude event tracking across the app for **page views** and **button clicks**, using a clear naming convention.
 
-**Product**: TunesFork — Ableton backup + collaboration on Lovable Cloud. Core flows (auth, dashboard, upload, project page, sharing, pricing) are built. Payments infrastructure is in place but CTAs are intentionally "Coming Soon" until you test and claim Stripe live. A new producer-focused landing page is now the default at `/welcome`, with the technical "GitSound" version preserved at `/welcome/gitsound`.
+## Naming convention
 
-**Open security findings** (from the security view):
-1. ⚠️ `agent_security` — `zip_url_anon_rpc`: `get_versions_by_share_token` returns `pv.*`, leaking uploader UUIDs and storage paths to anonymous share-link visitors.
-2. ⚠️ `agent_security` — `notif_unrestricted_send`: `create_notification` lets any authenticated user spam any other user's feed; no type allowlist, no length limit, no relationship check.
-3. ⚠️ `agent_security` — `collab_lookup_by_name`: collaborator add uses partial `display_name` `ilike` match and silently picks the first hit → impersonation risk.
-4. ⚠️ `supabase` — Leaked password protection disabled (Auth setting toggle).
-5. ⚠️ `supabase` — Function search_path mutable (likely the `pgmq` helper functions without `SET search_path`).
+- **Page views**: `Page Viewed` with property `page_name` (e.g. `landing`, `landing_gitsound`, `auth`, `dashboard`, `project`, `share`, `pricing`, `checkout`, `checkout_return`, `onboarding`, `plugin`, `admin`, `not_found`).
+- **Button clicks**: `Button Clicked` with properties `button_name` (snake_case), and `location` (page/component context).
+- Use `Object Action` past-tense style consistently (Amplitude best practice).
 
-The two finished items (`project_zips_broken_select_policy` and `projects_share_token_exposure`) still appear in the current snapshot but were addressed in the last two migrations — they should clear on the next scan.
+Autocapture is already on, but explicit named events give clean, reportable funnels.
 
-## Recommendation: clear the security backlog before opening payments
+## Approach
 
-You said you want to test flows and claim Stripe before flipping CTAs live. The right pre-launch sequence is: lock down security → end-to-end test → flip CTAs. Here's the order I'd tackle the remaining findings, grouped so each plan is a tight, reviewable change.
+**1. Create a tiny tracking helper** — `src/lib/analytics.ts`
+- `trackPageView(page_name, props?)` → wraps `amplitude.track('Page Viewed', { page_name, ...props })`
+- `trackButtonClick(button_name, location, props?)` → wraps `amplitude.track('Button Clicked', { button_name, location, ...props })`
+- Centralizes event names so we don't typo them across files.
 
-### Next plan (proposed): fix the 3 high-signal app-layer findings together
+**2. Add a `usePageView` hook** — fires `Page Viewed` once per route mount.
+- Drop one `usePageView('dashboard')` line at the top of every page component.
 
-These are related (all about who can do what across users) and small enough to ship as one migration + one frontend change:
+**3. Instrument page views** in all 13 pages:
+- `LandingPage` → `landing`
+- `LandingPageGithub` → `landing_gitsound`
+- `Auth` → `auth`
+- `Onboarding` → `onboarding`
+- `Dashboard` → `dashboard`
+- `ProjectPage` → `project`
+- `SharePage` → `share`
+- `PricingPage` → `pricing`
+- `CheckoutPage` → `checkout`
+- `CheckoutReturn` → `checkout_return`
+- `PluginPage` → `plugin`
+- `AdminPage` → `admin`
+- `NotFound` → `not_found`
 
-**A. Share-page info leak (`zip_url_anon_rpc`)**
-- Rewrite `get_versions_by_share_token` to return an explicit column list excluding `zip_url` and `uploader_id`.
-- Update `SharePage.tsx` types/usage if needed (it already only uses `track_list`, `plugin_list`, `audio_preview_url`, `change_note`, `file_size_bytes`).
+**4. Instrument key button clicks** (high-signal only — not every UI button). Naming examples:
 
-**B. Notification spam (`notif_unrestricted_send`)**
-- Add an allowlist of `notification_type` values inside `create_notification` (e.g. `new_version`, `new_collaborator`, `comment`, `share_accepted` — confirm the list with you).
-- Cap `notification_message` at 500 chars.
-- Add a relationship check: only allow if caller and target share at least one project (owner or collaborator on the same `project_id`).
+| Location | button_name |
+|---|---|
+| `LandingPage` hero | `landing_hero_signup`, `landing_hero_see_how` |
+| `LandingPage` nav | `landing_nav_signin`, `landing_nav_signup` |
+| `LandingPage` final CTA | `landing_final_cta_signup` |
+| `LandingPageGithub` (same set) | `landing_gitsound_*` mirror |
+| `Auth` | `auth_submit_signin`, `auth_submit_signup`, `auth_google_continue`, `auth_toggle_mode` |
+| `Onboarding` | `onboarding_complete`, `onboarding_skip` (if present) |
+| `Dashboard` | `dashboard_new_project`, `dashboard_open_project`, `dashboard_upload_version` |
+| `ProjectPage` | `project_upload_version`, `project_share_copy_link`, `project_add_collaborator`, `project_download_zip`, `project_delete` |
+| `SharePage` | `share_download_zip`, `share_signup_cta` |
+| `PricingPage` | `pricing_plan_selected` (with `plan` prop), `pricing_coming_soon_clicked` |
+| `CheckoutPage` | `checkout_submit` |
+| `Navbar` | `nav_pricing`, `nav_dashboard`, `nav_admin`, `nav_signout`, `nav_avatar_open` |
+| `UploadModal` | `upload_modal_submit`, `upload_modal_cancel` |
+| `ShareAfterUploadModal` | `share_after_upload_copy_link`, `share_after_upload_dismiss` |
+| `SubmitPluginDialog` | `plugin_submit` |
 
-**C. Collaborator impersonation (`collab_lookup_by_name`)**
-- Add a `find_user_by_email(_email text)` SECURITY DEFINER RPC that returns `{ user_id, display_name, avatar_url }` for an exact email match, reading from `auth.users` server-side.
-- Update `ProjectPage.tsx` `handleAddCollaborator`: switch the input to "email", call the RPC, show a confirmation card (avatar + display name + masked email) before inserting into `collaborators`.
+**5. Optional identify call** — when a user signs in, call `amplitude.setUserId(user.id)` from `AuthContext` so events tie to the user. (Small add, big analytics value.)
 
-### Then (separate, smaller follow-ups)
+## Files touched
 
-**D. Supabase Auth — Leaked password protection**
-- Enable via `cloud--configure_auth` (one toggle, no code).
+- **New**: `src/lib/analytics.ts`, `src/hooks/usePageView.ts`
+- **Edited (page view only, 1 line each)**: all 13 page files in `src/pages/`
+- **Edited (button clicks)**: `LandingPage.tsx`, `LandingPageGithub.tsx`, `Auth.tsx`, `Dashboard.tsx`, `ProjectPage.tsx`, `SharePage.tsx`, `PricingPage.tsx`, `CheckoutPage.tsx`, `Onboarding.tsx`, `Navbar.tsx`, `UploadModal.tsx`, `ShareAfterUploadModal.tsx`, `SubmitPluginDialog.tsx`
+- **Edited**: `src/contexts/AuthContext.tsx` (setUserId on auth state change)
 
-**E. Function search_path mutable**
-- Add `SET search_path = public` (or `''` for SECURITY DEFINER) to the helper functions still missing it (`enqueue_email`, `read_email_batch`, `delete_email`, `move_to_dlq`).
+## Out of scope
 
-### After security is clean
-
-**F. End-to-end QA pass** before going live: signup → onboarding → upload `.als` → project page → invite collaborator → share link (incognito) → notifications → pricing.
-
-**G. Stripe go-live + flip CTAs** from "Coming Soon" to live checkout (your earlier instruction was to wait until after testing and claiming the account — this is the moment).
-
-## My pick for the next loop
-
-Tackle **A + B + C in one go** — same theme (cross-user authorization), single migration, one frontend touch in `ProjectPage.tsx`, and it clears 3 of the 5 remaining findings.
-
-If you'd rather, I can instead:
-- Just do **A** (smallest, anonymous-data leak — arguably highest priority since it touches unauthenticated users), or
-- Skip security and jump to **G** (go-live), or
-- Do **D + E** first (one-click Supabase fixes).
+- No new dashboards in Amplitude — naming only.
+- No tracking of low-value UI buttons (dropdown toggles, accordion expands, etc.) — autocapture already covers those.
+- No event-property schema beyond `page_name`, `button_name`, `location`, and a few contextual props (`plan`, `project_id` where relevant — never PII).
 
