@@ -31,6 +31,7 @@ import {
   type AlsMetadata,
   type FolderValidation,
 } from "@/lib/als-parser";
+import { trackButtonClick } from "@/lib/analytics";
 
 interface UploadModalProps {
   open: boolean;
@@ -159,6 +160,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   };
 
   const handleClose = () => {
+    trackButtonClick("upload_modal_cancel", "upload_modal", { step });
     reset();
     onOpenChange(false);
   };
@@ -398,6 +400,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   // Step 4: Upload
   const handleUpload = async () => {
     if (!validation || !user) return;
+    trackButtonClick("upload_modal_submit", "upload_modal", { is_new_version: !!existingProjectId });
     setStep(4);
 
     setProgressValue(0);

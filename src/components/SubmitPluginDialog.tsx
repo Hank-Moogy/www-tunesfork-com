@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { trackButtonClick } from "@/lib/analytics";
 
 interface Props {
   open: boolean;
@@ -31,6 +32,7 @@ export default function SubmitPluginDialog({ open, onOpenChange, defaultName, on
 
   const handleSubmit = async () => {
     if (!name.trim() || !user) return;
+    trackButtonClick("plugin_submit", "submit_plugin_dialog");
     setSubmitting(true);
 
     // Normalize: lowercase, strip special chars

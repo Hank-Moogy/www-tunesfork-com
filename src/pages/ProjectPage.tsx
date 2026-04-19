@@ -55,6 +55,8 @@ import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
 import type { Tables } from "@/integrations/supabase/types";
 import PluginMatchSection from "@/components/PluginMatchSection";
+import { usePageView } from "@/hooks/usePageView";
+import { trackButtonClick } from "@/lib/analytics";
 
 type Project = Tables<"projects">;
 type Version = Tables<"project_versions">;
@@ -77,6 +79,7 @@ interface Collaborator {
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
+  usePageView("project", { project_id: id });
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -161,6 +164,7 @@ export default function ProjectPage() {
 
   const handleDownload = async () => {
     if (!selectedVersion) return;
+    trackButtonClick("project_download_zip", "project", { project_id: project?.id, version_id: selectedVersion.id });
     setDownloading(true);
     try {
       const { data, error } = await supabase.storage.from("project-zips").createSignedUrl(selectedVersion.zip_url, 300);
@@ -173,6 +177,7 @@ export default function ProjectPage() {
   };
 
   const handleShare = async () => {
+    trackButtonClick("project_share_copy_link", "project", { project_id: project?.id });
     if (!project) {
       navigator.clipboard.writeText(window.location.href);
       toast({ title: "Link copied", description: "Project link copied to clipboard." });
@@ -192,6 +197,7 @@ export default function ProjectPage() {
   const handleAddCollaborator = async () => {
     const email = collabEmail.trim().toLowerCase();
     if (!email || !project) return;
+    trackButtonClick("project_add_collaborator", "project", { project_id: project.id, role: collabRole });
     // Basic email shape check
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast({ title: "Invalid email", description: "Please enter a valid email address.", variant: "destructive" });
@@ -230,6 +236,7 @@ export default function ProjectPage() {
 
   const handleDeleteProject = async () => {
     if (!project) return;
+    trackButtonClick("project_delete", "project", { project_id: project.id });
     setDeleting(true);
     const { error } = await supabase.from("projects").delete().eq("id", project.id);
     if (error) {
@@ -336,7 +343,10 @@ export default function ProjectPage() {
                   size="sm"
                   variant="ghost"
                   className="h-6 px-2 text-[10px] gap-1 text-pastel-orange hover:text-pastel-orange hover:bg-pastel-orange/10"
-                  onClick={() => setUploadOpen(true)}
+                  onClick={() => {
+                    trackButtonClick("project_upload_version", "project_versions_panel", { project_id: project?.id });
+                    setUploadOpen(true);
+                  }}
                 >
                   <Plus className="h-3 w-3" /> New
                 </Button>

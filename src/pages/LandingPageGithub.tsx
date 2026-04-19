@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Cloud, GitFork, Users, Music, ArrowRight, Shield, Zap } from "lucide-react";
+import { usePageView } from "@/hooks/usePageView";
+import { trackButtonClick } from "@/lib/analytics";
 
 const FEATURES = [
   {
@@ -36,6 +38,7 @@ const FEATURES = [
 ];
 
 export default function LandingPage() {
+  usePageView("landing_gitsound");
   return (
     <div className="min-h-screen bg-background">
       {/* Nav */}
@@ -47,13 +50,13 @@ export default function LandingPage() {
           </Link>
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild>
-              <Link to="/pricing">Pricing</Link>
+              <Link to="/pricing" onClick={() => trackButtonClick("landing_gitsound_nav_pricing", "landing_gitsound_nav")}>Pricing</Link>
             </Button>
             <Button variant="ghost" asChild>
-              <Link to="/auth">Sign In</Link>
+              <Link to="/auth" onClick={() => trackButtonClick("landing_gitsound_nav_signin", "landing_gitsound_nav")}>Sign In</Link>
             </Button>
             <Button asChild>
-              <Link to="/auth?tab=signup">Get Started</Link>
+              <Link to="/auth?tab=signup" onClick={() => trackButtonClick("landing_gitsound_nav_signup", "landing_gitsound_nav")}>Get Started</Link>
             </Button>
           </div>
         </div>
@@ -76,13 +79,13 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button size="lg" className="gap-2 text-base px-8" asChild>
-              <Link to="/auth">
+              <Link to="/auth" onClick={() => trackButtonClick("landing_gitsound_hero_signup", "landing_gitsound_hero")}>
                 Start for free
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
             <Button size="lg" variant="outline" className="gap-2 text-base px-8" asChild>
-              <a href="#features">See how it works</a>
+              <a href="#features" onClick={() => trackButtonClick("landing_gitsound_hero_see_how", "landing_gitsound_hero")}>See how it works</a>
             </Button>
           </div>
         </div>
@@ -141,7 +144,7 @@ export default function LandingPage() {
             Join thousands of producers who trust TunesFork to protect and evolve their music.
           </p>
           <Button size="lg" className="gap-2 text-base px-8" asChild>
-            <Link to="/auth?tab=signup">
+            <Link to="/auth?tab=signup" onClick={() => trackButtonClick("landing_gitsound_final_cta_signup", "landing_gitsound_final_cta")}>
               Get started — it's free
               <ArrowRight className="h-4 w-4" />
             </Link>

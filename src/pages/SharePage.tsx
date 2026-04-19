@@ -9,9 +9,12 @@ import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
 import { Music, Users, Layers, ArrowRight } from "lucide-react";
 import PluginMatchSection from "@/components/PluginMatchSection";
+import { usePageView } from "@/hooks/usePageView";
+import { trackButtonClick } from "@/lib/analytics";
 
 export default function SharePage() {
   const { token } = useParams<{ token: string }>();
+  usePageView("share");
   const navigate = useNavigate();
   const [project, setProject] = useState<any>(null);
   const [version, setVersion] = useState<any>(null);
@@ -78,7 +81,10 @@ export default function SharePage() {
           <Button
             size="sm"
             className="bg-pastel-green text-white hover:bg-pastel-green/90 gap-1.5"
-            onClick={() => navigate("/auth")}
+            onClick={() => {
+              trackButtonClick("share_nav_signup", "share_nav");
+              navigate("/auth");
+            }}
           >
             Join for free <ArrowRight className="h-3.5 w-3.5" />
           </Button>
@@ -163,14 +169,14 @@ export default function SharePage() {
           <div className="flex items-center justify-center gap-3">
             <Button
               className="bg-pastel-green text-white hover:bg-pastel-green/90 gap-1.5 px-6"
-              onClick={() => navigate("/auth")}
+              onClick={() => { trackButtonClick("share_signup_cta", "share_cta"); navigate("/auth"); }}
             >
               Sign up for free <ArrowRight className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
               className="border-pastel-blue/30 text-pastel-blue hover:bg-pastel-blue/10"
-              onClick={() => navigate("/auth")}
+              onClick={() => { trackButtonClick("share_signin_cta", "share_cta"); navigate("/auth"); }}
             >
               Sign in
             </Button>
