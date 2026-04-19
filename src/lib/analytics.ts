@@ -1,4 +1,5 @@
 import * as amplitude from "@amplitude/unified";
+import { getUtmProps } from "./utm";
 
 /**
  * Centralized Amplitude event tracking.
@@ -22,7 +23,7 @@ export type PageName =
 
 export function trackPageView(page_name: PageName, props?: Record<string, unknown>) {
   try {
-    amplitude.track("Page Viewed", { page_name, ...(props ?? {}) });
+    amplitude.track("Page Viewed", { page_name, ...getUtmProps(), ...(props ?? {}) });
   } catch (e) {
     console.warn("[analytics] trackPageView failed", e);
   }
@@ -34,7 +35,12 @@ export function trackButtonClick(
   props?: Record<string, unknown>
 ) {
   try {
-    amplitude.track("Button Clicked", { button_name, location, ...(props ?? {}) });
+    amplitude.track("Button Clicked", {
+      button_name,
+      location,
+      ...getUtmProps(),
+      ...(props ?? {}),
+    });
   } catch (e) {
     console.warn("[analytics] trackButtonClick failed", e);
   }
