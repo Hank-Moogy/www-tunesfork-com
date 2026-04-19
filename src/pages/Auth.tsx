@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { usePageView } from "@/hooks/usePageView";
+import { trackButtonClick } from "@/lib/analytics";
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
@@ -15,9 +17,11 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  usePageView("auth");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    trackButtonClick(isLogin ? "auth_submit_signin" : "auth_submit_signup", "auth");
     setLoading(true);
 
     try {
@@ -49,6 +53,7 @@ export default function Auth() {
   };
 
   const handleGoogleSignIn = async () => {
+    trackButtonClick("auth_google_continue", "auth");
     setLoading(true);
     try {
       const result = await lovable.auth.signInWithOAuth("google", {
@@ -155,7 +160,10 @@ export default function Auth() {
           {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
           <button
             type="button"
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => {
+              trackButtonClick("auth_toggle_mode", "auth", { to: isLogin ? "signup" : "signin" });
+              setIsLogin(!isLogin);
+            }}
             className="text-primary hover:underline font-medium"
           >
             {isLogin ? "Sign Up" : "Sign In"}
