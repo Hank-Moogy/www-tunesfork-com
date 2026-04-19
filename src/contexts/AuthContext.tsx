@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { identifyUser } from "@/lib/analytics";
+import { identifyUser, trackSignupCompleted, trackSigninCompleted } from "@/lib/analytics";
 import type { User, Session } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -23,6 +23,22 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
+function fireAuthLifecycle(user: User) {
+  try {
+    const flagKey = `tf_signup_fired_${user.id}`;
+    if (sessionStorage.getItem(flagKey) === "1") return;
+    const provider = (user.app_metadata?.provider as string) ?? "email";
+    const method: "email" | "google" = provider === "google" ? "google" : "email";
+    const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
+    const isNewUser = createdAt > 0 && Date.now() - createdAt < 60_000;
+    if (isNewUser) trackSignupCompleted(method);
+    else trackSigninCompleted(method);
+    sessionStorage.setItem(flagKey, "1");
+  } catch (e) {
+    console.warn("[auth] fireAuthLifecycle failed", e);
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -30,10 +46,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       identifyUser(session?.user?.id ?? null);
+      if (session?.user && event === "SIGNED_IN") {
+        fireAuthLifecycle(session.user);
+      }
       if (!session?.user) {
         setOnboardingCompleted(false);
         setLoading(false);

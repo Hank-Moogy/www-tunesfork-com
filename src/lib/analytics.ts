@@ -46,6 +46,22 @@ export function trackButtonClick(
   }
 }
 
+export function trackSignupCompleted(method: "email" | "google", props?: Record<string, unknown>) {
+  try {
+    amplitude.track("Signup Completed", { method, ...getUtmProps(), ...(props ?? {}) });
+  } catch (e) {
+    console.warn("[analytics] trackSignupCompleted failed", e);
+  }
+}
+
+export function trackSigninCompleted(method: "email" | "google", props?: Record<string, unknown>) {
+  try {
+    amplitude.track("Signin Completed", { method, ...getUtmProps(), ...(props ?? {}) });
+  } catch (e) {
+    console.warn("[analytics] trackSigninCompleted failed", e);
+  }
+}
+
 export function identifyUser(userId: string | null) {
   try {
     if (userId) {
