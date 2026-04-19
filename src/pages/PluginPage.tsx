@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ExternalLink, Music } from "lucide-react";
+import { usePageView } from "@/hooks/usePageView";
 
 interface PluginEntry {
   id: string;
@@ -18,6 +19,7 @@ interface PluginEntry {
 
 export default function PluginPage() {
   const { id } = useParams<{ id: string }>();
+  usePageView("plugin", { plugin_id: id });
   const navigate = useNavigate();
   const [plugin, setPlugin] = useState<PluginEntry | null>(null);
   const [loading, setLoading] = useState(true);

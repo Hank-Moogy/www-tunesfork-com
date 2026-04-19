@@ -1,10 +1,12 @@
 import { useSearchParams, Link } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePageView } from "@/hooks/usePageView";
 
 export default function CheckoutReturn() {
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get("session_id");
+  usePageView("checkout_return", { success: !!sessionId });
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">

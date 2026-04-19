@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePageView } from "@/hooks/usePageView";
+import { trackButtonClick } from "@/lib/analytics";
 
 const LAUNCH_OFFER = {
   name: "Launch Offer",
@@ -57,6 +59,7 @@ const PLANS = [
 ];
 
 export default function PricingPage() {
+  usePageView("pricing");
   const { user } = useAuth();
 
   return (
@@ -126,7 +129,7 @@ export default function PricingPage() {
                 </li>
               ))}
             </ul>
-            <Button className="w-full" disabled>
+            <Button className="w-full" disabled onClick={() => trackButtonClick("pricing_coming_soon_clicked", "pricing", { plan: "launch_offer" })}>
               Coming Soon
             </Button>
           </CardContent>
@@ -154,10 +157,10 @@ export default function PricingPage() {
                 </ul>
                 {plan.name === "Free" ? (
                   <Button className="w-full" variant="outline" asChild>
-                    <Link to="/auth?tab=signup">Get Started Free</Link>
+                    <Link to="/auth?tab=signup" onClick={() => trackButtonClick("pricing_plan_selected", "pricing", { plan: plan.name })}>Get Started Free</Link>
                   </Button>
                 ) : (
-                  <Button className="w-full" variant="outline" disabled>
+                  <Button className="w-full" variant="outline" disabled onClick={() => trackButtonClick("pricing_coming_soon_clicked", "pricing", { plan: plan.name })}>
                     Coming Soon
                   </Button>
                 )}

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { Users, FolderGit2, UserCheck, Loader2, ShieldAlert } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import { usePageView } from "@/hooks/usePageView";
 
 interface AdminMetrics {
   total_users: number;
@@ -12,6 +13,7 @@ interface AdminMetrics {
 }
 
 export default function AdminPage() {
+  usePageView("admin");
   const { isAdmin, isLoading: roleLoading } = useAdminRole();
 
   const { data: metrics, isLoading } = useQuery({

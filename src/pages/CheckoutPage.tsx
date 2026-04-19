@@ -6,8 +6,11 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams } from "react-router-dom";
+import { usePageView } from "@/hooks/usePageView";
+import { trackButtonClick } from "@/lib/analytics";
 
 export default function CheckoutPage() {
+  usePageView("checkout");
   const navigate = useNavigate();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
@@ -22,7 +25,7 @@ export default function CheckoutPage() {
     <div className="min-h-screen bg-background">
       <PaymentTestModeBanner />
       <div className="mx-auto max-w-2xl px-4 py-8">
-        <Button variant="ghost" className="mb-6" onClick={() => navigate("/pricing")}>
+        <Button variant="ghost" className="mb-6" onClick={() => { trackButtonClick("checkout_back_to_pricing", "checkout"); navigate("/pricing"); }}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Back to Pricing
         </Button>
         <StripeEmbeddedCheckout
