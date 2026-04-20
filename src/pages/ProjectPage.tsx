@@ -8,7 +8,7 @@ import ArrangementTimeline from "@/components/ArrangementTimeline";
 import UploadModal from "@/components/UploadModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+// Badge import removed (no longer used in new layout)
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
@@ -68,6 +68,53 @@ interface Comment {
   created_at: string;
   timestamp_seconds: number | null;
   profile?: { display_name: string | null; avatar_url: string | null } | null;
+}
+
+function formatRelative(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffSec = Math.max(1, Math.round((now - then) / 1000));
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function CollaboratorRow({
+  initials,
+  name,
+  role,
+  online,
+}: {
+  initials: string;
+  name: string;
+  role: string;
+  online: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-secondary/50 transition-colors">
+      <div className="relative shrink-0">
+        <Avatar className="h-9 w-9">
+          <AvatarFallback className="text-[11px] font-semibold bg-secondary text-foreground/80">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        {online && (
+          <span className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-card" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold truncate">{name}</p>
+        <p className="text-[11px] text-muted-foreground truncate">
+          {role} {online ? "• Online" : ""}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 interface Collaborator {
