@@ -219,7 +219,7 @@ export default function Dashboard() {
         .then(async ({ data }) => {
           const projectId = data?.[0]?.id;
           if (!projectId) return;
-          const { data: token } = await supabase.rpc("get_project_share_token", {
+          const { data: token } = await supabase.rpc("ensure_project_share_token", {
             _project_id: projectId,
           });
           if (token) {
