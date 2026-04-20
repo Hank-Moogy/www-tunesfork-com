@@ -29,7 +29,7 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 bg-white border-b border-border">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6 lg:px-10">
         <Link to="/dashboard" className="flex items-center gap-2">
-          <img src="/logo.png" alt="TunesFork" className="h-8 w-auto" />
+          <img src="/logo.png" alt="TunesFork" className="h-5 w-auto" />
           <span className="text-lg font-bold tracking-tight">TunesFork</span>
         </Link>
 
