@@ -631,6 +631,7 @@ export default function ProjectPage() {
         <DialogContent className="sm:max-w-sm bg-card border-border">
           <DialogHeader>
             <DialogTitle>Add Collaborator</DialogTitle>
+            <DialogDescription>Invite someone to view or contribute to this project.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
