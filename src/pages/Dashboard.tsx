@@ -138,37 +138,55 @@ export default function Dashboard() {
     const missing = projectIds.filter((id) => !collabsByProject[id]);
     if (missing.length === 0) return;
 
+    // Build owner map from currently-loaded projects
+    const ownerByProject = new Map<string, string>();
+    setProjects((prev) => {
+      prev.forEach((p) => {
+        if (missing.includes(p.id)) ownerByProject.set(p.id, p.owner_id);
+      });
+      return prev;
+    });
+
     const { data: collabRows } = await supabase
       .from("collaborators")
       .select("project_id,user_id")
       .in("project_id", missing);
 
-    if (!collabRows || collabRows.length === 0) {
-      setCollabsByProject((prev) => {
-        const next = { ...prev };
-        missing.forEach((id) => {
-          if (!next[id]) next[id] = [];
-        });
-        return next;
-      });
-      return;
+    // Combine owners + collaborators
+    const userIds = new Set<string>();
+    ownerByProject.forEach((uid) => userIds.add(uid));
+    (collabRows ?? []).forEach((c) => userIds.add(c.user_id));
+
+    let profileMap = new Map<string, ProjectCardCollaborator>();
+    if (userIds.size > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id,display_name,avatar_url")
+        .in("user_id", Array.from(userIds));
+      profileMap = new Map(
+        (profiles ?? []).map((p) => [p.user_id, p as ProjectCardCollaborator])
+      );
     }
 
-    const userIds = Array.from(new Set(collabRows.map((c) => c.user_id)));
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("user_id,display_name,avatar_url")
-      .in("user_id", userIds);
-
-    const profileMap = new Map(
-      (profiles ?? []).map((p) => [p.user_id, p as ProjectCardCollaborator])
-    );
-
     const grouped: Record<string, ProjectCardCollaborator[]> = {};
-    missing.forEach((id) => (grouped[id] = []));
-    collabRows.forEach((c) => {
-      const profile = profileMap.get(c.user_id);
-      if (profile) grouped[c.project_id].push(profile);
+    missing.forEach((id) => {
+      const seen = new Set<string>();
+      const list: ProjectCardCollaborator[] = [];
+      const ownerId = ownerByProject.get(id);
+      if (ownerId) {
+        const op = profileMap.get(ownerId) ?? { user_id: ownerId, display_name: null, avatar_url: null };
+        list.push(op);
+        seen.add(ownerId);
+      }
+      (collabRows ?? [])
+        .filter((c) => c.project_id === id)
+        .forEach((c) => {
+          if (seen.has(c.user_id)) return;
+          const p = profileMap.get(c.user_id) ?? { user_id: c.user_id, display_name: null, avatar_url: null };
+          list.push(p);
+          seen.add(c.user_id);
+        });
+      grouped[id] = list;
     });
 
     setCollabsByProject((prev) => ({ ...prev, ...grouped }));
