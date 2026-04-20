@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -226,19 +227,24 @@ export default function ProjectPage() {
   const handleShare = async () => {
     trackButtonClick("project_share_copy_link", "project", { project_id: project?.id });
     if (!project) {
-      navigator.clipboard.writeText(window.location.href);
-      toast({ title: "Link copied", description: "Project link copied to clipboard." });
+      toast({ title: "Share unavailable", description: "Project is still loading.", variant: "destructive" });
       return;
     }
+
     const { data: shareToken, error: tokenErr } = await supabase.rpc("ensure_project_share_token", { _project_id: project.id });
+
     if (shareToken && !tokenErr) {
       const shareUrl = `${window.location.origin}/share/${shareToken}`;
       await navigator.clipboard.writeText(shareUrl);
       toast({ title: "Share link copied", description: "Anyone with this link can preview the project." });
-    } else {
-      await navigator.clipboard.writeText(window.location.href);
-      toast({ title: "Link copied", description: "Project link copied to clipboard." });
+      return;
     }
+
+    toast({
+      title: "Could not create share link",
+      description: "Please try again in a moment.",
+      variant: "destructive",
+    });
   };
 
   const handleAddCollaborator = async () => {
@@ -625,6 +631,7 @@ export default function ProjectPage() {
         <DialogContent className="sm:max-w-sm bg-card border-border">
           <DialogHeader>
             <DialogTitle>Add Collaborator</DialogTitle>
+            <DialogDescription>Invite someone to view or contribute to this project.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
