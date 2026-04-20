@@ -3,11 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import ArrangementTimeline from "@/components/ArrangementTimeline";
 import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
-import { Music, Users, Layers, ArrowRight } from "lucide-react";
+import { Music, Users, Layers, ArrowRight, Sparkles } from "lucide-react";
 import PluginMatchSection from "@/components/PluginMatchSection";
 import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick } from "@/lib/analytics";
@@ -18,8 +18,15 @@ export default function SharePage() {
   const navigate = useNavigate();
   const [project, setProject] = useState<any>(null);
   const [version, setVersion] = useState<any>(null);
+  const [owner, setOwner] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  const goToSignup = (source: string) => {
+    trackButtonClick(source, "share_page");
+    const inviteParam = token ? `?invite=${token}` : "";
+    navigate(`/auth${inviteParam}`);
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -35,14 +42,24 @@ export default function SharePage() {
       const proj = projArr[0];
       setProject(proj);
 
-      const { data: vers } = await supabase
-        .rpc("get_versions_by_share_token", { _token: token });
+      const [{ data: vers }, { data: ownerProfile }] = await Promise.all([
+        supabase.rpc("get_versions_by_share_token", { _token: token }),
+        supabase
+          .from("profiles")
+          .select("display_name,avatar_url")
+          .eq("user_id", proj.owner_id)
+          .maybeSingle(),
+      ]);
 
       if (vers && vers.length > 0) setVersion(vers[0]);
+      if (ownerProfile) setOwner(ownerProfile);
       setLoading(false);
     };
     load();
   }, [token]);
+
+  const ownerName = owner?.display_name?.trim() || "A producer";
+  const ownerInitials = ownerName.slice(0, 2).toUpperCase();
 
   const trackList: Track[] = version?.track_list
     ? (version.track_list as unknown as Track[])
