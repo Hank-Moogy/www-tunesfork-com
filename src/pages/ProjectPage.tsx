@@ -264,168 +264,211 @@ export default function ProjectPage() {
 
   if (!project) return null;
 
+  const currentVersionLabel = selectedVersion
+    ? `V${selectedVersion.version_number}${selectedVersion.change_note ? ` - ${selectedVersion.change_note}` : ""}`
+    : "";
+
+  const ownerInitials = "OW";
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="mx-auto max-w-6xl px-4 py-4">
-        {/* Compact header */}
-        <div className="flex items-center gap-2 mb-4">
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigate("/dashboard")}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-xl font-bold truncate flex-1">{project.name}</h1>
-          <div className="flex items-center gap-1.5">
-            {project.bpm && (
-              <Badge variant="outline" className="font-mono text-[10px] border-pastel-blue/30 text-pastel-blue">
-                {project.bpm} BPM
-              </Badge>
-            )}
-            {pluginList.length > 0 && (
-              <Badge variant="outline" className="text-[10px] border-pastel-purple/30 text-pastel-purple">
-                {pluginList.length} plugins
-              </Badge>
-            )}
-            {selectedVersion && (
-              <Badge variant="outline" className="text-[10px] font-mono border-border">
-                {formatBytes(selectedVersion.file_size_bytes)}
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-1 ml-2">
-            <Button
-              size="sm"
-              className="h-7 text-xs gap-1 bg-pastel-green/15 text-pastel-green border border-pastel-green/25 hover:bg-pastel-green/25"
-              variant="outline"
-              onClick={handleShare}
-            >
-              <Share2 className="h-3 w-3" /> Share
-            </Button>
-            <Button
-              size="sm"
-              className="h-7 text-xs gap-1 bg-pastel-blue/15 text-pastel-blue border border-pastel-blue/25 hover:bg-pastel-blue/25"
-              variant="outline"
-              onClick={handleDownload}
-              disabled={downloading || !selectedVersion}
-            >
-              <Download className="h-3 w-3" /> Download
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
-                  <Settings className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {project.owner_id === user?.id && (
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive gap-2"
-                    onClick={() => setDeleteOpen(true)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete project
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Unified content area */}
-        <div className="flex gap-4">
-          {/* Left: Versions + Collaborators */}
-          <div className="w-56 shrink-0 space-y-3">
-            {/* Versions */}
-            <div className="rounded-lg border border-border bg-card/60 backdrop-blur-sm">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <main className="mx-auto max-w-7xl px-6 py-6">
+        <div className="flex gap-6">
+          {/* ============ LEFT SIDEBAR ============ */}
+          <aside className="w-72 shrink-0 space-y-4">
+            {/* Versions panel */}
+            <div className="glass-card rounded-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 pt-4 pb-3">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   Versions
                 </span>
                 <Button
-                  size="sm"
+                  size="icon"
                   variant="ghost"
-                  className="h-6 px-2 text-[10px] gap-1 text-pastel-orange hover:text-pastel-orange hover:bg-pastel-orange/10"
+                  className="h-7 w-7 rounded-full text-muted-foreground hover:text-foreground"
                   onClick={() => {
                     trackButtonClick("project_upload_version", "project_versions_panel", { project_id: project?.id });
                     setUploadOpen(true);
                   }}
                 >
-                  <Plus className="h-3 w-3" /> New
+                  <Plus className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="p-1.5 space-y-0.5 max-h-64 overflow-y-auto">
-                {versions.map((v) => (
-                  <button
-                    key={v.id}
-                    onClick={() => setSelectedVersion(v)}
-                    className={`w-full text-left rounded-md px-2.5 py-1.5 transition-all text-xs ${
-                      selectedVersion?.id === v.id
-                        ? "bg-primary/10 border border-primary/20"
-                        : "hover:bg-secondary border border-transparent"
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${selectedVersion?.id === v.id ? "bg-primary" : "bg-muted-foreground/30"}`} />
-                      <span className="font-medium">V{v.version_number}</span>
-                      <span className="text-[10px] text-muted-foreground font-mono ml-auto">
-                        {new Date(v.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                      </span>
-                    </div>
-                    {v.change_note && (
-                      <p className="text-[10px] text-muted-foreground mt-0.5 pl-3 truncate">{v.change_note}</p>
-                    )}
-                  </button>
-                ))}
+              <div className="px-2 pb-2 space-y-1 max-h-[420px] overflow-y-auto">
+                {versions.map((v, i) => {
+                  const isSelected = selectedVersion?.id === v.id;
+                  const isCurrent = i === 0;
+                  const title = v.change_note?.split("\n")[0] || `Version ${v.version_number}`;
+                  const subtitle = isCurrent
+                    ? `Modified ${formatRelative(v.created_at)}`
+                    : i === versions.length - 1
+                      ? "Initial upload"
+                      : `Modified ${formatRelative(v.created_at)}`;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => setSelectedVersion(v)}
+                      className={`w-full text-left rounded-xl px-3 py-2.5 transition-all border ${
+                        isSelected
+                          ? "bg-primary/10 border-primary/25"
+                          : "bg-transparent border-transparent hover:bg-secondary/60"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-semibold truncate ${isSelected ? "text-foreground" : "text-foreground/90"}`}>
+                              V{v.version_number} - {title}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>
+                        </div>
+                        {isCurrent ? (
+                          <span className="shrink-0 rounded-full bg-accent/15 text-accent text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5">
+                            Current
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-[10px] text-muted-foreground font-mono mt-0.5">
+                            {new Date(v.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
                 {versions.length === 0 && (
-                  <p className="text-[10px] text-muted-foreground text-center py-3">No versions yet.</p>
+                  <p className="text-xs text-muted-foreground text-center py-6">No versions yet.</p>
                 )}
               </div>
             </div>
 
-            {/* Collaborators */}
-            <div className="rounded-lg border border-border bg-card/60 backdrop-blur-sm">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Team
+            {/* Collaborators panel */}
+            <div className="glass-card rounded-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 pt-4 pb-3">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Collaborators
                 </span>
                 {project.owner_id === user?.id && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 px-2 text-[10px] gap-1 text-pastel-pink hover:text-pastel-pink hover:bg-pastel-pink/10"
+                  <button
+                    className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
                     onClick={() => setAddCollabOpen(true)}
                   >
-                    <UserPlus className="h-3 w-3" /> Add
-                  </Button>
+                    Manage
+                  </button>
                 )}
               </div>
-              <div className="p-2 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Avatar className="h-5 w-5">
-                    <AvatarFallback className="text-[8px] bg-pastel-blue/20 text-pastel-blue">OW</AvatarFallback>
-                  </Avatar>
-                  <span className="text-[11px] text-muted-foreground">Owner</span>
-                </div>
+              <div className="px-3 pb-3 space-y-2">
+                {/* Owner row */}
+                <CollaboratorRow
+                  initials={ownerInitials}
+                  name="Owner"
+                  role="Owner"
+                  online
+                />
                 {collaborators.map((c) => (
-                  <div key={c.id} className="flex items-center gap-2">
-                    <Avatar className="h-5 w-5">
-                      <AvatarFallback className="text-[8px] bg-secondary text-muted-foreground">
-                        {(c.profile?.display_name ?? "?").slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-[11px] truncate">{c.profile?.display_name ?? "User"}</span>
-                    <span className="text-[9px] text-muted-foreground capitalize ml-auto">{c.permission_level}</span>
-                  </div>
+                  <CollaboratorRow
+                    key={c.id}
+                    initials={(c.profile?.display_name ?? "?").slice(0, 2).toUpperCase()}
+                    name={c.profile?.display_name ?? "User"}
+                    role={c.permission_level === "contributor" ? "Contributor" : "Viewer"}
+                    online={false}
+                  />
                 ))}
               </div>
+              {project.owner_id === user?.id && (
+                <div className="px-3 pb-3">
+                  <Button
+                    variant="outline"
+                    className="w-full h-9 rounded-xl border-dashed border-border/70 text-xs gap-2 bg-transparent hover:bg-secondary/50"
+                    onClick={() => setAddCollabOpen(true)}
+                  >
+                    <UserPlus className="h-3.5 w-3.5" /> Invite Collaborator
+                  </Button>
+                </div>
+              )}
             </div>
-          </div>
+          </aside>
 
-          {/* Right: Main content */}
-          <div className="flex-1 min-w-0 rounded-lg border border-border bg-card/40 backdrop-blur-sm overflow-hidden">
+          {/* ============ MAIN COLUMN ============ */}
+          <div className="flex-1 min-w-0 space-y-4">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3 min-w-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 rounded-full"
+                  onClick={() => navigate("/dashboard")}
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <div className="min-w-0">
+                  <div className="flex items-baseline gap-3 flex-wrap">
+                    <h1 className="text-2xl font-bold truncate">{project.name}</h1>
+                    {selectedVersion && (
+                      <span className="text-base text-muted-foreground truncate">{currentVersionLabel}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    {project.bpm && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border px-2.5 py-1 text-[11px] font-mono">
+                        <Clock className="h-3 w-3 text-muted-foreground" /> {project.bpm} BPM
+                      </span>
+                    )}
+                    {selectedVersion && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border px-2.5 py-1 text-[11px] font-mono">
+                        <Music className="h-3 w-3 text-muted-foreground" /> {formatBytes(selectedVersion.file_size_bytes)}
+                      </span>
+                    )}
+                    {pluginList.length > 0 && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border px-2.5 py-1 text-[11px] font-mono">
+                        {pluginList.length} plugins
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  className="h-9 gap-2 rounded-xl bg-card/50 backdrop-blur-sm"
+                  onClick={handleShare}
+                >
+                  <Share2 className="h-4 w-4" /> Share
+                </Button>
+                <Button
+                  className="h-9 gap-2 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+                  onClick={handleDownload}
+                  disabled={downloading || !selectedVersion}
+                >
+                  <Download className="h-4 w-4" /> Export
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl bg-card/50 backdrop-blur-sm">
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {project.owner_id === user?.id && (
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive gap-2"
+                        onClick={() => setDeleteOpen(true)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Delete project
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+
             {/* Audio preview */}
             {selectedVersion?.audio_preview_url && (
-              <div className="px-4 py-3 border-b border-border">
+              <div className="glass-card rounded-2xl px-4 py-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <Music className="h-3.5 w-3.5 text-pastel-purple" />
+                  <Music className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs font-medium text-muted-foreground">Audio Preview</span>
                 </div>
                 <audio controls className="w-full h-8" src={selectedVersion.audio_preview_url} />
@@ -434,9 +477,9 @@ export default function ProjectPage() {
 
             {/* Arrangement Timeline */}
             {trackList.length > 0 && (
-              <div className="border-b border-border">
-                <div className="px-4 py-2 flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 text-pastel-orange" />
+              <div className="glass-card rounded-2xl overflow-hidden">
+                <div className="px-4 py-2.5 flex items-center gap-2 border-b border-border/60">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs font-medium text-muted-foreground">Arrangement</span>
                   <span className="text-[10px] text-muted-foreground font-mono ml-auto">{trackList.length} tracks</span>
                 </div>
@@ -444,43 +487,48 @@ export default function ProjectPage() {
               </div>
             )}
 
-            {/* Plugins with matching */}
-            <PluginMatchSection pluginList={pluginList} showSubmit />
+            {/* Plugins */}
+            <div className="glass-card rounded-2xl overflow-hidden">
+              <PluginMatchSection pluginList={pluginList} showSubmit />
+            </div>
 
-            {/* Version notes */}
-            {selectedVersion?.change_note && (
-              <div className="px-4 py-3 border-b border-border">
-                <span className="text-xs font-medium text-muted-foreground block mb-1">Notes</span>
-                <p className="text-sm text-foreground/80">{selectedVersion.change_note}</p>
+            {/* Discussion */}
+            <div className="glass-card rounded-2xl px-5 py-4">
+              <div className="flex items-center gap-2 mb-4">
+                <h2 className="text-base font-semibold">Discussion</h2>
+                <span className="inline-flex items-center justify-center rounded-full bg-secondary text-[10px] font-mono text-muted-foreground h-5 min-w-[20px] px-1.5">
+                  {comments.length}
+                </span>
               </div>
-            )}
-
-            {/* Comments */}
-            <div className="px-4 py-3">
-              <span className="text-xs font-medium text-muted-foreground block mb-3">
-                Comments ({comments.length})
-              </span>
 
               {comments.length === 0 && (
-                <p className="text-xs text-muted-foreground/60 mb-3">No comments yet. Be the first to leave feedback.</p>
+                <p className="text-sm text-muted-foreground/70 mb-4">No comments yet. Be the first to leave feedback.</p>
               )}
 
-              <div className="space-y-2.5 mb-3 max-h-60 overflow-y-auto">
+              <div className="space-y-4 mb-4 max-h-[420px] overflow-y-auto pr-1">
                 {comments.map((c) => (
-                  <div key={c.id} className="flex gap-2">
-                    <Avatar className="h-6 w-6 shrink-0 mt-0.5">
-                      <AvatarFallback className="text-[9px] bg-secondary text-muted-foreground">
+                  <div key={c.id} className="flex gap-3">
+                    <Avatar className="h-9 w-9 shrink-0">
+                      <AvatarFallback className="text-[11px] font-semibold bg-secondary text-muted-foreground">
                         {(c.profile?.display_name ?? "?").slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-medium">{c.profile?.display_name ?? "User"}</span>
-                        <span className="text-[9px] text-muted-foreground font-mono">
-                          {new Date(c.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        <span className="text-sm font-semibold">{c.profile?.display_name ?? "User"}</span>
+                        <span className="text-[11px] text-muted-foreground ml-auto font-mono">
+                          {formatRelative(c.created_at)}
                         </span>
                       </div>
-                      <p className="text-xs text-foreground/80 mt-0.5">{c.body}</p>
+                      <p className="text-sm text-foreground/85 mt-1 leading-relaxed">{c.body}</p>
+                      <div className="flex items-center gap-4 mt-2">
+                        <button className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors">
+                          Reply
+                        </button>
+                        <button className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors">
+                          Like
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -492,19 +540,18 @@ export default function ProjectPage() {
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder="Add a comment…"
-                  className="bg-secondary/50 border-border text-xs h-8"
+                  className="glass-input h-10 text-sm"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendComment(); }
                   }}
                 />
                 <Button
                   size="icon"
-                  className="h-8 w-8 shrink-0 bg-pastel-blue/15 text-pastel-blue border border-pastel-blue/25 hover:bg-pastel-blue/25"
-                  variant="outline"
+                  className="h-10 w-10 shrink-0 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
                   onClick={handleSendComment}
                   disabled={!newComment.trim() || sendingComment}
                 >
-                  <Send className="h-3.5 w-3.5" />
+                  <Send className="h-4 w-4" />
                 </Button>
               </div>
             </div>
