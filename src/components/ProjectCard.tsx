@@ -56,12 +56,12 @@ export default function ProjectCard({ project, collaborators = [] }: ProjectCard
         trackButtonClick("dashboard_open_project", "dashboard_card", { project_id: project.id })
       }
       className={cn(
-        "group glass-card overflow-hidden flex flex-col transition-all duration-200",
+        "group glass-card overflow-hidden flex flex-col aspect-square transition-all duration-200",
         "hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-12px_hsl(222_25%_20%_/_0.18)]"
       )}
     >
       <div
-        className="relative h-36 w-full"
+        className="relative w-full aspect-[16/10] shrink-0"
         style={{ background: gradientFor(project.name, project.archived) }}
       >
         {project.archived && (
