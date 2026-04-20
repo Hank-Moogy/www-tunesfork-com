@@ -82,7 +82,7 @@ export default function SharePage() {
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <h1 className="text-2xl font-bold">Project not found</h1>
         <p className="text-muted-foreground">This share link may have expired or is invalid.</p>
-        <Button onClick={() => navigate("/auth")} className="mt-4 bg-pastel-blue text-white hover:bg-pastel-blue/90">
+        <Button onClick={() => goToSignup("share_notfound_signup")} className="mt-4 bg-pastel-purple text-white hover:bg-pastel-purple/90">
           Join TunesFork
         </Button>
       </div>
@@ -92,16 +92,13 @@ export default function SharePage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Minimal navbar */}
-      <header className="border-b border-border bg-background/80 backdrop-blur-sm">
+      <header className="border-b border-border bg-white">
         <div className="mx-auto max-w-4xl flex items-center justify-between px-6 h-14">
           <span className="font-bold text-lg tracking-tight">TunesFork</span>
           <Button
             size="sm"
-            className="bg-pastel-green text-white hover:bg-pastel-green/90 gap-1.5"
-            onClick={() => {
-              trackButtonClick("share_nav_signup", "share_nav");
-              navigate("/auth");
-            }}
+            className="bg-pastel-purple text-white hover:bg-pastel-purple/90 gap-1.5"
+            onClick={() => goToSignup("share_nav_signup")}
           >
             Join for free <ArrowRight className="h-3.5 w-3.5" />
           </Button>
@@ -109,16 +106,57 @@ export default function SharePage() {
       </header>
 
       <main className="mx-auto max-w-4xl px-6 py-10">
-        {/* Project hero */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-3">
-            <Avatar className="h-10 w-10">
+        {/* Invite hero */}
+        <div className="text-center mb-10">
+          <Badge
+            variant="outline"
+            className="mb-5 border-pastel-purple/30 text-pastel-purple bg-pastel-purple/5 gap-1.5 py-1 px-3"
+          >
+            <Sparkles className="h-3 w-3" />
+            You've been invited to collaborate
+          </Badge>
+
+          <div className="flex items-center justify-center gap-3 mb-5">
+            <Avatar className="h-12 w-12 ring-2 ring-pastel-purple/20">
+              {owner?.avatar_url && <AvatarImage src={owner.avatar_url} alt={ownerName} />}
               <AvatarFallback className="bg-pastel-purple/15 text-pastel-purple font-bold text-sm">
+                {ownerInitials}
+              </AvatarFallback>
+            </Avatar>
+            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            <Avatar className="h-12 w-12 ring-2 ring-pastel-blue/20">
+              <AvatarFallback className="bg-pastel-blue/15 text-pastel-blue font-bold text-sm">
                 {project.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
           </div>
-          <h1 className="text-3xl font-bold mb-2">{project.name}</h1>
+
+          <h1 className="text-3xl md:text-4xl font-bold mb-3 tracking-tight">
+            <span className="text-pastel-purple">{ownerName}</span> invited you to collaborate on{" "}
+            <span className="text-pastel-blue">{project.name}</span>
+          </h1>
+          <p className="text-base text-muted-foreground max-w-xl mx-auto mb-5">
+            Sign up free to leave comments, upload new versions, and keep this Ableton project in sync with the rest of the team.
+          </p>
+
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <Button
+              size="lg"
+              className="bg-pastel-purple text-white hover:bg-pastel-purple/90 gap-1.5 px-6"
+              onClick={() => goToSignup("share_hero_signup_cta")}
+            >
+              Sign up to accept invite <ArrowRight className="h-4 w-4" />
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="border-border"
+              onClick={() => goToSignup("share_hero_signin_cta")}
+            >
+              I already have an account
+            </Button>
+          </div>
+
           <div className="flex items-center justify-center gap-2 flex-wrap">
             {project.bpm && (
               <Badge variant="outline" className="font-mono text-xs border-pastel-blue/30 text-pastel-blue">
@@ -136,10 +174,12 @@ export default function SharePage() {
                 {formatBytes(version.file_size_bytes)}
               </Badge>
             )}
-            <Badge variant="outline" className="text-xs border-pastel-orange/30 text-pastel-orange">
-              <Users className="h-3 w-3 mr-1" />
-              Shared with you
-            </Badge>
+            {trackList.length > 0 && (
+              <Badge variant="outline" className="text-xs border-pastel-orange/30 text-pastel-orange">
+                <Users className="h-3 w-3 mr-1" />
+                {trackList.length} tracks
+              </Badge>
+            )}
           </div>
         </div>
 
