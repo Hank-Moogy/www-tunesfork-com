@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
@@ -52,7 +52,7 @@ export default function Dashboard() {
   >({});
 
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
+  const [, setPendingFiles] = useState<FileList | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [lastShareUrl, setLastShareUrl] = useState<string | undefined>();
   const [hasAnyProjectsEver, setHasAnyProjectsEver] = useState<boolean | null>(null);
@@ -336,7 +336,6 @@ export default function Dashboard() {
             if (!o) setPendingFiles(null);
           }}
           onVersionUploaded={handleUploadComplete}
-          initialFiles={pendingFiles ?? undefined}
         />
         <ShareAfterUploadModal
           open={shareModalOpen}
