@@ -217,23 +217,23 @@ export default function SharePage() {
           )}
         </div>
 
-        {/* CTA */}
-        <div className="rounded-xl border border-border bg-gradient-to-br from-pastel-blue/5 via-pastel-purple/5 to-pastel-green/5 p-8 text-center">
-          <h2 className="text-xl font-bold mb-2">Want to collaborate?</h2>
+        {/* Bottom CTA */}
+        <div className="rounded-xl border border-border bg-gradient-to-br from-pastel-purple/10 via-pastel-blue/5 to-pastel-purple/5 p-8 text-center">
+          <h2 className="text-xl font-bold mb-2">Ready to jump in?</h2>
           <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-            Join TunesFork to collaborate on this project, leave comments, upload new versions, and manage your Ableton projects with your team.
+            Create a free TunesFork account to accept {ownerName}'s invite and start collaborating on {project.name}.
           </p>
           <div className="flex items-center justify-center gap-3">
             <Button
-              className="bg-pastel-green text-white hover:bg-pastel-green/90 gap-1.5 px-6"
-              onClick={() => { trackButtonClick("share_signup_cta", "share_cta"); navigate("/auth"); }}
+              className="bg-pastel-purple text-white hover:bg-pastel-purple/90 gap-1.5 px-6"
+              onClick={() => goToSignup("share_bottom_signup_cta")}
             >
               Sign up for free <ArrowRight className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
-              className="border-pastel-blue/30 text-pastel-blue hover:bg-pastel-blue/10"
-              onClick={() => { trackButtonClick("share_signin_cta", "share_cta"); navigate("/auth"); }}
+              className="border-border"
+              onClick={() => goToSignup("share_bottom_signin_cta")}
             >
               Sign in
             </Button>
