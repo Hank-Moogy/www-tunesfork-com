@@ -101,27 +101,24 @@ export default function ProjectCard({ project, collaborators = [] }: ProjectCard
 
         {(visible.length > 0 || extra > 0) && (
           <div className="flex items-center -space-x-2 mt-auto">
-            {visible.map((c, i) => (
-              <div
-                key={c.user_id}
-                className="h-7 w-7 rounded-full ring-2 ring-white/80 bg-secondary text-secondary-foreground text-[10px] font-semibold flex items-center justify-center overflow-hidden"
-                style={{
-                  background: c.avatar_url
-                    ? undefined
-                    : `linear-gradient(135deg, hsl(${(i * 80) % 360} 70% 60%), hsl(${(i * 80 + 60) % 360} 70% 50%))`,
-                  color: c.avatar_url ? undefined : "white",
-                }}
-                title={c.display_name ?? "Collaborator"}
-              >
-                {c.avatar_url ? (
-                  <img src={c.avatar_url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  initials(c.display_name, "?")
-                )}
-              </div>
-            ))}
+            {visible.map((c) => {
+              const initialsText = initials(c.display_name, c.user_id);
+              return (
+                <div
+                  key={c.user_id}
+                  className="h-7 w-7 rounded-full ring-2 ring-white overflow-hidden bg-primary/20 text-primary text-xs font-semibold flex items-center justify-center"
+                  title={c.display_name ?? "Collaborator"}
+                >
+                  {c.avatar_url ? (
+                    <img src={c.avatar_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    initialsText
+                  )}
+                </div>
+              );
+            })}
             {extra > 0 && (
-              <div className="h-7 w-7 rounded-full ring-2 ring-white/80 bg-white/80 text-[10px] font-semibold flex items-center justify-center text-muted-foreground">
+              <div className="h-7 w-7 rounded-full ring-2 ring-white bg-muted text-[10px] font-semibold flex items-center justify-center text-muted-foreground">
                 +{extra}
               </div>
             )}
