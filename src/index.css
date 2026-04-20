@@ -23,8 +23,8 @@
     --muted: 220 25% 94%;
     --muted-foreground: 222 12% 45%;
 
-    /* Keep accent = brand electric green for CTAs (per user preference) */
-    --accent: 142 70% 45%;
+    /* Accent = pastel purple for primary CTAs */
+    --accent: 264 60% 65%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
