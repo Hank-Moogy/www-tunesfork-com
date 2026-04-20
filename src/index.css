@@ -4,39 +4,56 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 9%;
+    /* Light VisionOS / Glassmorphism base */
+    --background: 220 30% 97%;
+    --foreground: 222 25% 12%;
+
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 9%;
+    --card-foreground: 222 25% 12%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 9%;
-    --primary: 0 0% 12%;
-    --primary-foreground: 0 0% 97%;
-    --secondary: 0 0% 95%;
-    --secondary-foreground: 0 0% 12%;
-    --muted: 0 0% 95%;
-    --muted-foreground: 0 0% 40%;
-    --accent: 0 0% 95%;
-    --accent-foreground: 0 0% 12%;
+    --popover-foreground: 222 25% 12%;
+
+    --primary: 222 25% 14%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 25% 94%;
+    --secondary-foreground: 222 25% 14%;
+
+    --muted: 220 25% 94%;
+    --muted-foreground: 222 12% 45%;
+
+    /* Keep accent = brand electric green for CTAs (per user preference) */
+    --accent: 142 70% 45%;
+    --accent-foreground: 0 0% 100%;
+
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 89%;
-    --input: 0 0% 89%;
-    --ring: 0 0% 55%;
+
+    --border: 220 20% 88%;
+    --input: 220 20% 88%;
+    --ring: 222 25% 60%;
+
     --chart-1: 252 60% 60%;
     --chart-2: 260 60% 50%;
     --chart-3: 263 65% 45%;
     --chart-4: 264 65% 40%;
     --chart-5: 266 55% 35%;
-    --sidebar-background: 0 0% 97%;
-    --sidebar-foreground: 0 0% 9%;
-    --sidebar-primary: 0 0% 12%;
-    --sidebar-primary-foreground: 0 0% 97%;
-    --sidebar-accent: 0 0% 95%;
-    --sidebar-accent-foreground: 0 0% 12%;
-    --sidebar-border: 0 0% 89%;
-    --sidebar-ring: 0 0% 55%;
-    --radius: 0.625rem;
+
+    --sidebar-background: 220 30% 97%;
+    --sidebar-foreground: 222 25% 12%;
+    --sidebar-primary: 222 25% 14%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 25% 94%;
+    --sidebar-accent-foreground: 222 25% 14%;
+    --sidebar-border: 220 20% 88%;
+    --sidebar-ring: 222 25% 60%;
+
+    --radius: 1rem;
+
+    /* Glass tokens */
+    --glass-bg: 0 0% 100%;
+    --glass-border: 220 30% 92%;
 
     /* Pastel action colors */
     --pastel-blue: 217 70% 55%;
@@ -44,13 +61,47 @@
     --pastel-purple: 264 50% 55%;
     --pastel-orange: 30 70% 52%;
     --pastel-pink: 340 55% 55%;
-  }
 
+    /* Status colors */
+    --status-ready: 142 70% 42%;
+    --status-progress: 38 92% 50%;
+    --status-archived: 220 10% 60%;
+  }
 
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(at 0% 0%, hsl(217 90% 85% / 0.35) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsl(264 80% 85% / 0.3) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, hsl(142 70% 85% / 0.25) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-2xl border border-white/50 bg-white/60 backdrop-blur-xl;
+    box-shadow:
+      0 8px 32px -8px hsl(222 25% 20% / 0.08),
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.6);
+  }
+
+  .glass-panel {
+    @apply border border-white/40 bg-white/55 backdrop-blur-2xl;
+    box-shadow:
+      0 10px 40px -12px hsl(222 25% 20% / 0.12),
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.6);
+  }
+
+  .glass-input {
+    @apply bg-white/60 border border-white/60 backdrop-blur-md;
+  }
+
+  .glass-pill {
+    @apply rounded-full bg-white/60 backdrop-blur-md border border-white/60;
   }
 }
