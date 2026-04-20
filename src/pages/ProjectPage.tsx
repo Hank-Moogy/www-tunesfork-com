@@ -230,13 +230,13 @@ export default function ProjectPage() {
       toast({ title: "Link copied", description: "Project link copied to clipboard." });
       return;
     }
-    const { data: shareToken } = await supabase.rpc("get_project_share_token", { _project_id: project.id });
-    if (shareToken) {
+    const { data: shareToken, error: tokenErr } = await supabase.rpc("ensure_project_share_token", { _project_id: project.id });
+    if (shareToken && !tokenErr) {
       const shareUrl = `${window.location.origin}/share/${shareToken}`;
-      navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(shareUrl);
       toast({ title: "Share link copied", description: "Anyone with this link can preview the project." });
     } else {
-      navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(window.location.href);
       toast({ title: "Link copied", description: "Project link copied to clipboard." });
     }
   };

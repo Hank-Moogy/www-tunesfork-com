@@ -553,6 +553,10 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      ensure_project_share_token: {
+        Args: { _project_id: string }
+        Returns: string
+      }
       find_user_by_email: {
         Args: { _email: string }
         Returns: {
