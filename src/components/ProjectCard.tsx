@@ -82,7 +82,7 @@ export default function ProjectCard({ project, collaborators = [] }: ProjectCard
       </div>
 
       <div className="p-4 flex flex-col gap-3 flex-1">
-        <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+        <h3 className="text-lg font-semibold text-foreground truncate group-hover:text-primary transition-colors">
           {project.name}
         </h3>
 
