@@ -62,7 +62,28 @@ export function trackSigninCompleted(method: "email" | "google", props?: Record<
   }
 }
 
+export function trackShareCompleted(props: {
+  project_id: string;
+  share_method: "copy_link" | "email_invite";
+}) {
+  try {
+    amplitude.track("Share Completed", { ...props, ...getUtmProps() });
+  } catch (e) {
+    console.warn("[analytics] trackShareCompleted failed", e);
+  }
+}
+
 export function trackUploadCompleted(props: {
+  project_id: string;
+  version_number: number;
+  file_size_bytes?: number;
+}) {
+  try {
+    amplitude.track("Upload Completed", { ...props, ...getUtmProps() });
+  } catch (e) {
+    console.warn("[analytics] trackUploadCompleted failed", e);
+  }
+}
   project_id: string;
   version_number: number;
   file_size_bytes?: number;
