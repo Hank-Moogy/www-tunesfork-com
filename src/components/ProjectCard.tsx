@@ -56,7 +56,7 @@ export default function ProjectCard({ project, collaborators = [] }: ProjectCard
         trackButtonClick("dashboard_open_project", "dashboard_card", { project_id: project.id })
       }
       className={cn(
-        "group glass-card overflow-hidden flex flex-col aspect-square max-w-[220px] transition-all duration-200",
+        "group glass-card overflow-hidden flex flex-col aspect-square transition-all duration-200",
         "hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-12px_hsl(222_25%_20%_/_0.18)]"
       )}
     >
@@ -82,7 +82,7 @@ export default function ProjectCard({ project, collaborators = [] }: ProjectCard
       </div>
 
       <div className="p-4 flex flex-col gap-3 flex-1">
-        <h3 className="text-lg font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+        <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
           {project.name}
         </h3>
 
