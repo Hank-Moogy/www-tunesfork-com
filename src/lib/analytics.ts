@@ -62,10 +62,15 @@ export function trackSigninCompleted(method: "email" | "google", props?: Record<
   }
 }
 
-export function identifyUser(userId: string | null) {
+export function identifyUser(userId: string | null, email?: string | null) {
   try {
     if (userId) {
       amplitude.setUserId(userId);
+      if (email) {
+        const identifyObj = new amplitude.Identify();
+        identifyObj.set("email", email);
+        amplitude.identify(identifyObj);
+      }
     } else {
       amplitude.reset();
     }
