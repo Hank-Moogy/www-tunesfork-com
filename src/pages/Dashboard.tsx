@@ -55,6 +55,7 @@ export default function Dashboard() {
   const [, setPendingFiles] = useState<FileList | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [lastShareUrl, setLastShareUrl] = useState<string | undefined>();
+  const [lastShareProjectId, setLastShareProjectId] = useState<string | undefined>();
   const [hasAnyProjectsEver, setHasAnyProjectsEver] = useState<boolean | null>(null);
 
   const sharedIdsRef = useRef<string[] | null>(null);
@@ -241,6 +242,7 @@ export default function Dashboard() {
             _project_id: projectId,
           });
           if (token) {
+            setLastShareProjectId(projectId);
             setLastShareUrl(`${window.location.origin}/share/${token}`);
             setShareModalOpen(true);
           }
@@ -359,6 +361,7 @@ export default function Dashboard() {
           open={shareModalOpen}
           onOpenChange={setShareModalOpen}
           shareUrl={lastShareUrl}
+          projectId={lastShareProjectId}
         />
       </PageContainer>
     </div>

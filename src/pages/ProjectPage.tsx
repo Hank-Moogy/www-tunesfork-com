@@ -57,7 +57,7 @@ import type { Track } from "@/lib/als-parser";
 import type { Tables } from "@/integrations/supabase/types";
 import PluginMatchSection from "@/components/PluginMatchSection";
 import { usePageView } from "@/hooks/usePageView";
-import { trackButtonClick } from "@/lib/analytics";
+import { trackButtonClick, trackShareCompleted } from "@/lib/analytics";
 
 type Project = Tables<"projects">;
 type Version = Tables<"project_versions">;
@@ -236,6 +236,7 @@ export default function ProjectPage() {
     if (shareToken && !tokenErr) {
       const shareUrl = `${window.location.origin}/share/${shareToken}`;
       await navigator.clipboard.writeText(shareUrl);
+      trackShareCompleted({ project_id: project.id, share_method: "copy_link" });
       toast({ title: "Share link copied", description: "Anyone with this link can preview the project." });
       return;
     }
