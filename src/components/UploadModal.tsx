@@ -31,7 +31,7 @@ import {
   type AlsMetadata,
   type FolderValidation,
 } from "@/lib/als-parser";
-import { trackButtonClick } from "@/lib/analytics";
+import { trackButtonClick, trackUploadCompleted } from "@/lib/analytics";
 
 interface UploadModalProps {
   open: boolean;
@@ -569,6 +569,12 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
       });
 
       if (uploadAbortRef.current) return;
+
+      trackUploadCompleted({
+        project_id: projectId,
+        version_number: versionNumber,
+        file_size_bytes: blob.size,
+      });
 
       setProgressValue(100);
       setProgressLabel("Upload complete!");

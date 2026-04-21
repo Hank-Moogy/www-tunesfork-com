@@ -62,6 +62,18 @@ export function trackSigninCompleted(method: "email" | "google", props?: Record<
   }
 }
 
+export function trackUploadCompleted(props: {
+  project_id: string;
+  version_number: number;
+  file_size_bytes?: number;
+}) {
+  try {
+    amplitude.track("Upload Completed", { ...props, ...getUtmProps() });
+  } catch (e) {
+    console.warn("[analytics] trackUploadCompleted failed", e);
+  }
+}
+
 export function identifyUser(userId: string | null, email?: string | null) {
   try {
     if (userId) {
