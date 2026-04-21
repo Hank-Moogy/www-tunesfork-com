@@ -34,7 +34,7 @@ export default function NewProjectCard({ onClick, onFilesDropped }: NewProjectCa
       className={cn(
         "group rounded-2xl border-2 border-dashed bg-white/40 backdrop-blur-xl",
         "flex flex-col items-center justify-center gap-3 p-6 text-center",
-        "aspect-square transition-all duration-200",
+        "min-h-[260px] transition-all duration-200",
         over
           ? "border-accent bg-accent/10 -translate-y-0.5"
           : "border-white/70 hover:border-accent/60 hover:bg-white/60 hover:-translate-y-0.5"
