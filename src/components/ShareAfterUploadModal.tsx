@@ -10,15 +10,17 @@ interface ShareAfterUploadModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   shareUrl?: string;
+  projectId?: string;
 }
 
-export default function ShareAfterUploadModal({ open, onOpenChange, shareUrl }: ShareAfterUploadModalProps) {
+export default function ShareAfterUploadModal({ open, onOpenChange, shareUrl, projectId }: ShareAfterUploadModalProps) {
   const [email, setEmail] = useState("");
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     if (!shareUrl) return;
     trackButtonClick("share_after_upload_copy_link", "share_after_upload_modal");
+    if (projectId) trackShareCompleted({ project_id: projectId, share_method: "copy_link" });
     await navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     toast.success("Link copied!");
@@ -28,6 +30,7 @@ export default function ShareAfterUploadModal({ open, onOpenChange, shareUrl }: 
   const handleInvite = () => {
     if (!email) return;
     trackButtonClick("share_after_upload_invite", "share_after_upload_modal");
+    if (projectId) trackShareCompleted({ project_id: projectId, share_method: "email_invite" });
     toast.success(`Invitation sent to ${email}`);
     setEmail("");
   };
