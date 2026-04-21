@@ -1,26 +1,25 @@
 
+## Restore Project Card Size and Increase Title Font
 
-## Updates to plan
+### Objective
+Revert the project cards from square back to their previous rectangular aspect ratio, while keeping only the larger title font size.
 
-**1. Keep existing accent color for "Upload Project" button** — no color change. Will continue to use current `bg-accent` (electric green) variant on the primary CTA in Dashboard, "+ New Project" tile, and empty-state CTA. Glass/VisionOS restyle still applies to surfaces, but CTA color is preserved.
+### Changes Required
 
-**2. Backend search instead of client-side filter**
+**File: `src/components/ProjectCard.tsx`**
 
-Move project search to Supabase queries so it scales beyond what's loaded.
+1. **Line 59**: Remove `aspect-square` class to restore the previous rectangular card shape  
+   - Replace: `"group glass-card overflow-hidden flex flex-col aspect-square transition-all duration-200"`  
+   - With: `"group glass-card overflow-hidden flex flex-col rounded-xl transition-all duration-200"`
 
-- Add a debounced (250ms) search input. On change, refetch:
-  - **My Projects**: `supabase.from('projects').select(...).eq('owner_id', user.id).ilike('name', '%query%')`
-  - **Shared with me**: same `ilike` filter applied to the second query (`.in('id', sharedIds).ilike('name', '%query%')`)
-- Empty query → no `ilike`, just normal list.
-- Pagination: switch to `.range(from, to)` with `pageSize = 12`. "Show more" appends next page (uses `count: 'exact'` head request to know if more exist).
-- Active tab determines which query runs (don't fetch both on every keystroke).
-- Loading skeleton during search.
-- Archived toggle stays a query param (`.eq('archived', false)` unless toggled).
+2. **Line 85**: Title font size is already `text-lg`, which will remain
 
-### Files touched (delta only)
-- `src/pages/Dashboard.tsx` — replace single fetch with paginated + searchable fetch per tab; debounce hook inline.
-- Everything else from the prior plan unchanged (glass tokens, `PageContainer`, `ProjectCard`, project-wide glass styling, Navbar, modals, memory updates).
+**File: `src/components/NewProjectCard.tsx`**
 
-### Analytics addition
-- `dashboard_search` button event already planned; now also includes `query_length` (not the query itself — avoid PII).
+1. Remove `aspect-square` to revert the "New Project" tile to match the project cards' previous shape
 
+### Technical Details
+- Cards were originally rectangular with `min-h-[260px]` on the New Project card
+- The square constraint was added via `aspect-square` in the last change
+- Removing this restores the natural flow-based height that was there before
+- Title font remains `text-lg` as requested
