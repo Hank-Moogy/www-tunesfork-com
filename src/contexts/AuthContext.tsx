@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      identifyUser(session?.user?.id ?? null);
+      identifyUser(session?.user?.id ?? null, session?.user?.email);
       if (session?.user && event === "SIGNED_IN") {
         fireAuthLifecycle(session.user);
       }
