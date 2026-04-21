@@ -91,6 +91,14 @@ Fires from `AuthContext` on `SIGNED_IN` for returning users (account older than 
 - `method` — `"email"` or `"google"`
 - Auto-attached UTM props
 
+### `Share Completed`
+Fires when a user successfully shares a project (copies link or sends email invite) from either the project page or the post-upload share modal.
+
+**Properties**:
+- `project_id` — UUID of the shared project
+- `share_method` — `"copy_link"` or `"email_invite"`
+- Auto-attached UTM props
+
 ---
 
 ## Funnel examples
