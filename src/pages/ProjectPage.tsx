@@ -57,7 +57,7 @@ import type { Track } from "@/lib/als-parser";
 import type { Tables } from "@/integrations/supabase/types";
 import PluginMatchSection from "@/components/PluginMatchSection";
 import { usePageView } from "@/hooks/usePageView";
-import { trackButtonClick } from "@/lib/analytics";
+import { trackButtonClick, trackShareCompleted } from "@/lib/analytics";
 
 type Project = Tables<"projects">;
 type Version = Tables<"project_versions">;
