@@ -242,6 +242,7 @@ export default function Dashboard() {
             _project_id: projectId,
           });
           if (token) {
+            setLastShareProjectId(projectId);
             setLastShareUrl(`${window.location.origin}/share/${token}`);
             setShareModalOpen(true);
           }
@@ -360,6 +361,7 @@ export default function Dashboard() {
           open={shareModalOpen}
           onOpenChange={setShareModalOpen}
           shareUrl={lastShareUrl}
+          projectId={lastShareProjectId}
         />
       </PageContainer>
     </div>
