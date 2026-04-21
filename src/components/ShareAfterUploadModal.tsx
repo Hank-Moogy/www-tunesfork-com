@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, Send, PartyPopper } from "lucide-react";
 import { toast } from "sonner";
-import { trackButtonClick } from "@/lib/analytics";
+import { trackButtonClick, trackShareCompleted } from "@/lib/analytics";
 
 interface ShareAfterUploadModalProps {
   open: boolean;

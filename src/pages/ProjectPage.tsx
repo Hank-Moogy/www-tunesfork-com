@@ -236,6 +236,7 @@ export default function ProjectPage() {
     if (shareToken && !tokenErr) {
       const shareUrl = `${window.location.origin}/share/${shareToken}`;
       await navigator.clipboard.writeText(shareUrl);
+      trackShareCompleted({ project_id: project.id, share_method: "copy_link" });
       toast({ title: "Share link copied", description: "Anyone with this link can preview the project." });
       return;
     }
