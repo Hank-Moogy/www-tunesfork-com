@@ -566,6 +566,16 @@ export type Database = {
         }[]
       }
       get_admin_metrics: { Args: never; Returns: Json }
+      get_admin_user_list: {
+        Args: never
+        Returns: {
+          collaborator_count: number
+          created_at: string
+          display_name: string
+          project_count: number
+          user_email: string
+        }[]
+      }
       get_project_by_share_token: {
         Args: { _token: string }
         Returns: {

@@ -4,12 +4,28 @@ import { useAdminRole } from "@/hooks/useAdminRole";
 import { Users, FolderGit2, UserCheck, Loader2, ShieldAlert } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { usePageView } from "@/hooks/usePageView";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface AdminMetrics {
   total_users: number;
   total_projects: number;
   users_with_collaborators: number;
   collaboration_percentage: number;
+}
+
+interface AdminUser {
+  user_email: string;
+  display_name: string | null;
+  project_count: number;
+  collaborator_count: number;
+  created_at: string;
 }
 
 export default function AdminPage() {
@@ -22,6 +38,17 @@ export default function AdminPage() {
       const { data, error } = await supabase.rpc("get_admin_metrics");
       if (error) throw error;
       return data as unknown as AdminMetrics;
+    },
+    enabled: isAdmin,
+    refetchInterval: 30_000,
+  });
+
+  const { data: users, isLoading: usersLoading } = useQuery({
+    queryKey: ["admin-user-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_admin_user_list");
+      if (error) throw error;
+      return data as unknown as AdminUser[];
     },
     enabled: isAdmin,
     refetchInterval: 30_000,
@@ -100,6 +127,48 @@ export default function AdminPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        <h2 className="text-xl font-bold mt-10 mb-4">Users</h2>
+        {usersLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Display Name</TableHead>
+                  <TableHead className="text-right">Projects</TableHead>
+                  <TableHead className="text-right">Collaborators</TableHead>
+                  <TableHead>Joined</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users && users.length > 0 ? (
+                  users.map((u) => (
+                    <TableRow key={u.user_email}>
+                      <TableCell className="font-medium">{u.user_email}</TableCell>
+                      <TableCell>{u.display_name ?? "—"}</TableCell>
+                      <TableCell className="text-right">{u.project_count}</TableCell>
+                      <TableCell className="text-right">{u.collaborator_count}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(u.created_at).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      No users found
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
