@@ -117,7 +117,6 @@ export default function ProfilePage() {
               <GearCard stats={stats} />
             </div>
             <Milestones stats={stats} />
-            <RecentSaves recent={stats.recent} />
           </>
         )}
       </PageContainer>
