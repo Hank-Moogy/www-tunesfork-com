@@ -76,13 +76,30 @@ Deno.serve(async (req) => {
       projectId = proj.id;
     } else {
       const projectName = String(body.project_name ?? "Untitled").slice(0, 200);
-      const { data: created, error: cErr } = await admin
+
+      // Try to find an existing project owned by this user with the same name.
+      // This makes repeated saves of the same .als append as new versions instead
+      // of creating duplicate projects on every save.
+      const { data: existing } = await admin
         .from("projects")
-        .insert({ name: projectName, bpm: body.bpm ?? null, owner_id: userId })
-        .select()
-        .single();
-      if (cErr) throw cErr;
-      projectId = created.id;
+        .select("id")
+        .eq("owner_id", userId)
+        .eq("name", projectName)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        projectId = existing.id;
+      } else {
+        const { data: created, error: cErr } = await admin
+          .from("projects")
+          .insert({ name: projectName, bpm: body.bpm ?? null, owner_id: userId })
+          .select()
+          .single();
+        if (cErr) throw cErr;
+        projectId = created.id;
+      }
     }
 
     // Next version number
