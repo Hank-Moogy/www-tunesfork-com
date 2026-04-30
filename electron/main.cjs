@@ -62,7 +62,7 @@ function createTrayWindow() {
     frame: false,
     resizable: false,
     skipTaskbar: true,
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     fullscreenable: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
