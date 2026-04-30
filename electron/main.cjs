@@ -4,6 +4,7 @@ const { app, Tray, Menu, BrowserWindow, shell, ipcMain, dialog, nativeImage } = 
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
+const { parseAlsFile } = require("./als-parser.cjs");
 
 const TUNESFORK_URL = process.env.TUNESFORK_URL || "https://tunesfork.com";
 const FUNCTIONS_URL = process.env.TUNESFORK_FUNCTIONS_URL
