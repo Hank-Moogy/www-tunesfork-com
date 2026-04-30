@@ -323,6 +323,10 @@ async function processAlsSave(alsPath, archiver) {
 }
 
 // ---------- app lifecycle ----------
+// Ensure native notifications show "Tunesfork Sync" instead of "Electron"
+app.setName("Tunesfork Sync");
+if (process.platform === "win32") app.setAppUserModelId("com.tunesfork.sync");
+
 app.whenReady().then(() => {
   if (!app.requestSingleInstanceLock()) { app.quit(); return; }
 
