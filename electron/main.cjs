@@ -318,6 +318,12 @@ app.whenReady().then(() => {
 
   tray = new Tray(trayImage);
   tray.setToolTip("Tunesfork Sync");
+  if (process.platform === "darwin") {
+    // Text makes the menu-bar item easy to find even when macOS hides/dims
+    // low-contrast template icons or the menu bar is crowded.
+    tray.setTitle("TF");
+    tray.setIgnoreDoubleClickEvents(true);
+  }
   tray.on("click", toggleTrayWindow);
   tray.on("right-click", () => {
     tray.popUpContextMenu(Menu.buildFromTemplate([
