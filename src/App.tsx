@@ -17,6 +17,8 @@ import AdminPage from "./pages/AdminPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import CheckoutReturn from "./pages/CheckoutReturn";
 import NotFound from "./pages/NotFound";
+import DesktopAppPage from "./pages/DesktopAppPage";
+import DesktopPairPage from "./pages/DesktopPairPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthRedirect from "./components/AuthRedirect";
 
@@ -38,6 +40,15 @@ const App = () => (
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/checkout/return" element={<CheckoutReturn />} />
+            <Route path="/desktop-app" element={<DesktopAppPage />} />
+            <Route
+              path="/desktop-pair"
+              element={
+                <ProtectedRoute>
+                  <DesktopPairPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/plugin/:id"
               element={

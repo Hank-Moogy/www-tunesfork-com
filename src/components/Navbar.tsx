@@ -34,6 +34,12 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" asChild className="relative">
+            <Link to="/desktop-app" onClick={() => trackButtonClick("nav_desktop_app", "navbar")}>
+              Desktop app
+              <span className="ml-1.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">NEW</span>
+            </Link>
+          </Button>
           <Button variant="ghost" size="sm" asChild>
             <Link to="/pricing" onClick={() => trackButtonClick("nav_pricing", "navbar")}>Pricing</Link>
           </Button>
