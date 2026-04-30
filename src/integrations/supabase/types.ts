@@ -699,6 +699,7 @@ export type Database = {
         Args: { _project_id: string }
         Returns: string
       }
+      get_user_stats: { Args: { p_user_id?: string }; Returns: Json }
       get_versions_by_share_token: {
         Args: { _token: string }
         Returns: {
