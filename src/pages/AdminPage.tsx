@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminRole } from "@/hooks/useAdminRole";
-import { Users, FolderGit2, UserCheck, Loader2, ShieldAlert } from "lucide-react";
+import { Users, FolderGit2, UserCheck, Loader2, ShieldAlert, Mail } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { usePageView } from "@/hooks/usePageView";
 import {
@@ -49,6 +49,20 @@ export default function AdminPage() {
       const { data, error } = await supabase.rpc("get_admin_user_list");
       if (error) throw error;
       return data as unknown as AdminUser[];
+    },
+    enabled: isAdmin,
+    refetchInterval: 30_000,
+  });
+
+  const { data: waitlist, isLoading: waitlistLoading } = useQuery({
+    queryKey: ["admin-sync-waitlist"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sync_waitlist")
+        .select("id, email, platform, user_id, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
     },
     enabled: isAdmin,
     refetchInterval: 30_000,
@@ -164,6 +178,62 @@ export default function AdminPage() {
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                       No users found
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        <div className="mt-10 mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Mail className="h-5 w-5 text-primary" />
+            Tunesfork Sync waitlist
+            {waitlist && (
+              <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
+                {waitlist.length}
+              </span>
+            )}
+          </h2>
+        </div>
+        {waitlistLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Platform</TableHead>
+                  <TableHead>Existing user</TableHead>
+                  <TableHead>Joined</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {waitlist && waitlist.length > 0 ? (
+                  waitlist.map((w) => (
+                    <TableRow key={w.id}>
+                      <TableCell className="font-medium">{w.email}</TableCell>
+                      <TableCell className="capitalize">{w.platform ?? "—"}</TableCell>
+                      <TableCell>
+                        {w.user_id ? (
+                          <span className="text-xs text-[hsl(var(--pastel-green))]">Yes</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(w.created_at).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      No signups yet
                     </TableCell>
                   </TableRow>
                 )}
