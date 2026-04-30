@@ -364,6 +364,14 @@ app.whenReady().then(() => {
   });
 
   createTrayWindow();
+
+  // Auto-resume sync on launch if the user is already paired and has folders.
+  // Without this the watcher only starts after the user manually toggles
+  // Pause → Resume in the tray UI, which made saves silently get missed.
+  const s = readState();
+  if (s.paired && s.folders.length > 0) {
+    startSync().catch((e) => log("err", `Auto-start failed: ${e.message}`));
+  }
 });
 
 app.on("window-all-closed", (e) => e.preventDefault());
