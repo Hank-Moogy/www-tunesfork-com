@@ -7,7 +7,7 @@
     "dev:ui": "vite",
     "dev": "VITE_DEV_SERVER_URL=http://localhost:5180 electron .",
     "dev:win": "set VITE_DEV_SERVER_URL=http://localhost:5180&& electron .",
-    "dev:all": "concurrently -k \"npm:dev:ui\" \"wait-on http://localhost:5180 && npm:dev\"",
+    "dev:all": "concurrently -k -n ui,electron -c blue,green \"npm run dev:ui\" \"wait-on http://localhost:5180 && npm run dev\"",
     "build:ui": "vite build",
     "build:mac": "npm run build:ui && electron-packager . \"Tunesfork Sync\" --platform=darwin --arch=universal --out=release --overwrite",
     "build:win": "npm run build:ui && electron-packager . \"Tunesfork Sync\" --platform=win32 --arch=x64 --out=release --overwrite"
