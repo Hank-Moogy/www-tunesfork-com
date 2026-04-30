@@ -1,6 +1,6 @@
 // Tunesfork Sync — main process
 // Menu-bar / tray app. Loads the tray UI in a small popover BrowserWindow.
-const { app, Tray, Menu, BrowserWindow, shell, ipcMain, dialog, nativeImage } = require("electron");
+const { app, Tray, Menu, BrowserWindow, shell, ipcMain, dialog, nativeImage, Notification } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
