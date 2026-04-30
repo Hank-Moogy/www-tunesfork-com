@@ -55,7 +55,6 @@ export default function ProfilePage() {
     (async () => {
       setLoading(true);
       const [statsRes, profRes] = await Promise.all([
-        // @ts-expect-error – RPC type generation lags behind migration
         supabase.rpc("get_user_stats", { p_user_id: user.id }),
         supabase.from("profiles").select("display_name, avatar_url").eq("user_id", user.id).maybeSingle(),
       ]);
