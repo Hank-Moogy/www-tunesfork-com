@@ -267,13 +267,19 @@ async function processAlsSave(alsPath, archiver) {
 app.whenReady().then(() => {
   if (!app.requestSingleInstanceLock()) { app.quit(); return; }
 
-  // Generate placeholder tray icon if missing
+  // Build a tray icon from a real PNG file if present, otherwise from an
+  // in-memory 22×22 template image so macOS doesn't reject it.
   const iconPath = path.join(__dirname, "assets", "tray-icon.png");
-  if (!fs.existsSync(iconPath)) {
-    fs.mkdirSync(path.dirname(iconPath), { recursive: true });
-    // 1×1 transparent png as fallback so the app doesn't crash. Replace with a real icon later.
-    const blank = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c63600100000005000159e9f6e30000000049454e44ae426082", "hex");
-    fs.writeFileSync(iconPath, blank);
+  let trayImage;
+  if (fs.existsSync(iconPath)) {
+    trayImage = nativeImage.createFromPath(iconPath);
+  }
+  if (!trayImage || trayImage.isEmpty()) {
+    // 22×22 black circle PNG — works as a macOS template image.
+    const fallbackB64 =
+      "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAAaklEQVR4Ae3UsQ2AMAxE0e9sgJiAERiBERiBERiBETICIzACI3hCKVKkSJEiufud5HOu7K6qIiL+Q0RsQAesQA/MQAvUwACMwAR0wALMwAq0wAQMwAi0wAxMwAJ0wAS0wAyMwAJ0wAQ0wAyMwAJUAFkfDcjK4M2pAAAAAElFTkSuQmCC";
+    trayImage = nativeImage.createFromBuffer(Buffer.from(fallbackB64, "base64"));
+    trayImage.setTemplateImage(true);
   }
 
   tray = new Tray(iconPath);
