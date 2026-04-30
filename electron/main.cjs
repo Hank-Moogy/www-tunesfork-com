@@ -279,7 +279,8 @@ async function processAlsSave(alsPath, archiver) {
   // Failure is non-fatal — the version still uploads, just without refreshed metadata.
   const meta = parseAlsFile(alsPath);
   if (meta) {
-    log("info", `Parsed ${meta.tracks.length} tracks, ${meta.plugins.length} plugins${meta.bpm ? `, ${meta.bpm} BPM` : ""}`);
+    const clipCount = meta.tracks.reduce((sum, track) => sum + (track.clips?.length || 0), 0);
+    log("info", `Parsed ${meta.tracks.length} tracks, ${clipCount} clips, ${meta.plugins.length} plugins${meta.bpm ? `, ${meta.bpm} BPM` : ""}`);
   }
 
   const cv = await fetch(`${FUNCTIONS_URL}/create-version-from-desktop`, {
