@@ -73,7 +73,7 @@ function createTrayWindow() {
   if (DEV_URL) {
     console.log("[tfsync] Loading dev URL:", DEV_URL);
     trayWindow.loadURL(DEV_URL);
-    trayWindow.webContents.openDevTools({ mode: "detach" });
+    // DevTools disabled by default — open manually with Cmd+Opt+I if needed
   } else {
     trayWindow.loadFile(path.join(__dirname, "dist", "index.html"));
   }
