@@ -127,6 +127,12 @@ Deno.serve(async (req) => {
       .single();
     if (vErr) throw vErr;
 
+    // Bump the project's updated_at (and refresh BPM if we got one) so the
+    // dashboard card and project page reflect the latest save.
+    const projectUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (body.bpm != null) projectUpdate.bpm = body.bpm;
+    await admin.from("projects").update(projectUpdate).eq("id", projectId);
+
     await admin.from("device_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tokenRow.id);
 
     return new Response(
