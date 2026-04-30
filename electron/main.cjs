@@ -319,12 +319,14 @@ app.whenReady().then(() => {
   tray = new Tray(trayImage);
   tray.setToolTip("Tunesfork Sync");
   tray.on("click", toggleTrayWindow);
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "Open Tunesfork Sync", click: toggleTrayWindow },
-    { label: "Open tunesfork.com", click: () => shell.openExternal(TUNESFORK_URL) },
-    { type: "separator" },
-    { label: "Quit", role: "quit" },
-  ]));
+  tray.on("right-click", () => {
+    tray.popUpContextMenu(Menu.buildFromTemplate([
+      { label: "Open Tunesfork Sync", click: toggleTrayWindow },
+      { label: "Open tunesfork.com", click: () => shell.openExternal(TUNESFORK_URL) },
+      { type: "separator" },
+      { label: "Quit", role: "quit" },
+    ]));
+  });
 
   createTrayWindow();
 });
