@@ -242,34 +242,36 @@ async function processAlsSave(alsPath, archiver) {
   const fileSize = fs.statSync(tmpZip).size;
   log("busy", `Zipped ${(fileSize / 1e6).toFixed(1)} MB`);
 
-  // Upload to project-zips bucket using TUS (via fetch — keep it dep-light for alpha)
-  // Simpler: use the resumable HTTP API directly. For alpha we use a single PUT
-  // since most projects are <50MB. Swap to tus-js-client in v0.2 for big projects.
-  const state = readState();
-  const objectPath = `${state.userId}/${Date.now()}.zip`;
-  const SUPABASE_PROJECT_ID = "zkzupvjqyltvxrgixrpx";
-  const STORAGE_PUBLIC_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InprenVwdmpxeWx0dnhyZ2l4cnB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzE2MzYsImV4cCI6MjA5MDcwNzYzNn0.FmwkI4ludX6GtR_ViQpa4hFXe5jOpka3w94Y9aIYwK0";
+  // Upload via a one-time signed URL minted for this paired desktop token.
+  const token = readToken();
+  if (!token) throw new Error("Not paired — pair this Mac again before uploading");
+  const signedUploadRes = await fetch(`${FUNCTIONS_URL}/mint-storage-upload-url`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ content_type: "application/zip" }),
+  });
+  if (!signedUploadRes.ok) {
+    const t = await signedUploadRes.text();
+    throw new Error(`Upload auth failed ${signedUploadRes.status}: ${t}`);
+  }
+  const { objectPath, signedUrl } = await signedUploadRes.json();
 
   log("busy", `Uploading to ${objectPath}…`);
-  const uploadRes = await fetch(
-    `https://${SUPABASE_PROJECT_ID}.supabase.co/storage/v1/object/project-zips/${objectPath}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${STORAGE_PUBLIC_KEY}`,
-        "Content-Type": "application/zip",
-        "x-upsert": "false",
-      },
-      body: fs.readFileSync(tmpZip),
+  const uploadRes = await fetch(signedUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/zip",
+      "cache-control": "max-age=3600",
+      "x-upsert": "false",
     },
-  );
+    body: fs.readFileSync(tmpZip),
+  });
   if (!uploadRes.ok) {
     const t = await uploadRes.text();
     throw new Error(`Upload failed ${uploadRes.status}: ${t}`);
   }
 
   // Register version
-  const token = readToken();
   const projectName = path.basename(projectFolder).replace(/ Project$/i, "");
   const cv = await fetch(`${FUNCTIONS_URL}/create-version-from-desktop`, {
     method: "POST",
