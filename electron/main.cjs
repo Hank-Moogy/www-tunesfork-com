@@ -274,6 +274,14 @@ async function processAlsSave(alsPath, archiver) {
 
   // Register version
   const projectName = path.basename(projectFolder).replace(/ Project$/i, "");
+
+  // Parse the .als so we can ship updated bpm/tracks/plugins with this version.
+  // Failure is non-fatal — the version still uploads, just without refreshed metadata.
+  const meta = parseAlsFile(alsPath);
+  if (meta) {
+    log("info", `Parsed ${meta.tracks.length} tracks, ${meta.plugins.length} plugins${meta.bpm ? `, ${meta.bpm} BPM` : ""}`);
+  }
+
   const cv = await fetch(`${FUNCTIONS_URL}/create-version-from-desktop`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -282,6 +290,9 @@ async function processAlsSave(alsPath, archiver) {
       zip_storage_path: objectPath,
       file_size_bytes: fileSize,
       change_note: "Auto-saved from Tunesfork Sync",
+      bpm: meta?.bpm ?? null,
+      plugin_list: meta?.plugins ?? null,
+      track_list: meta?.tracks ?? null,
     }),
   });
   if (!cv.ok) {
