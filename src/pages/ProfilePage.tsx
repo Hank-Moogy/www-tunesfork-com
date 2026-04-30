@@ -9,7 +9,6 @@ import ContributionHeatmap from "@/components/profile/ContributionHeatmap";
 import RhythmCard from "@/components/profile/RhythmCard";
 import GearCard from "@/components/profile/GearCard";
 import Milestones from "@/components/profile/Milestones";
-import RecentSaves from "@/components/profile/RecentSaves";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Flame } from "lucide-react";
@@ -118,7 +117,6 @@ export default function ProfilePage() {
               <GearCard stats={stats} />
             </div>
             <Milestones stats={stats} />
-            <RecentSaves recent={stats.recent} />
           </>
         )}
       </PageContainer>
