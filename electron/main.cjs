@@ -62,25 +62,59 @@ function createTrayWindow() {
     frame: false,
     resizable: false,
     skipTaskbar: true,
+    alwaysOnTop: true,
+    fullscreenable: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
-  if (DEV_URL) trayWindow.loadURL(DEV_URL);
-  else trayWindow.loadFile(path.join(__dirname, "dist", "index.html"));
+  if (DEV_URL) {
+    console.log("[tfsync] Loading dev URL:", DEV_URL);
+    trayWindow.loadURL(DEV_URL);
+    trayWindow.webContents.openDevTools({ mode: "detach" });
+  } else {
+    trayWindow.loadFile(path.join(__dirname, "dist", "index.html"));
+  }
+  trayWindow.webContents.on("did-fail-load", (_e, code, desc) => {
+    console.error("[tfsync] did-fail-load", code, desc);
+  });
+  trayWindow.webContents.on("did-finish-load", () => {
+    console.log("[tfsync] did-finish-load");
+  });
   trayWindow.on("blur", () => { if (!DEV_URL) trayWindow?.hide(); });
 }
 
 function toggleTrayWindow() {
+  console.log("[tfsync] tray clicked. window?", !!trayWindow);
   if (!trayWindow) return;
-  if (trayWindow.isVisible()) return trayWindow.hide();
+  if (trayWindow.isVisible()) {
+    console.log("[tfsync] hiding window");
+    return trayWindow.hide();
+  }
   const bounds = tray.getBounds();
   const wb = trayWindow.getBounds();
-  const x = Math.round(bounds.x + bounds.width / 2 - wb.width / 2);
-  const y = process.platform === "darwin" ? bounds.y + bounds.height : bounds.y - wb.height;
-  trayWindow.setBounds({ ...wb, x, y });
+  console.log("[tfsync] tray bounds", bounds, "win", wb);
+
+  // Get the display containing the tray; clamp x so the window stays on screen.
+  const { screen } = require("electron");
+  const display = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y });
+  const workArea = display.workArea;
+
+  let x = Math.round(bounds.x + bounds.width / 2 - wb.width / 2);
+  // Clamp horizontally
+  x = Math.max(workArea.x + 4, Math.min(x, workArea.x + workArea.width - wb.width - 4));
+
+  let y;
+  if (process.platform === "darwin") {
+    // Tray is in top menubar; place window just below it
+    y = Math.round(bounds.y + bounds.height + 4);
+  } else {
+    y = Math.round(bounds.y - wb.height - 4);
+  }
+  console.log("[tfsync] showing at", x, y);
+  trayWindow.setBounds({ x, y, width: wb.width, height: wb.height });
   trayWindow.show();
   trayWindow.focus();
 }
