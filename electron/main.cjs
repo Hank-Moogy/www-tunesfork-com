@@ -282,7 +282,7 @@ app.whenReady().then(() => {
     trayImage.setTemplateImage(true);
   }
 
-  tray = new Tray(iconPath);
+  tray = new Tray(trayImage);
   tray.setToolTip("Tunesfork Sync");
   tray.on("click", toggleTrayWindow);
   tray.setContextMenu(Menu.buildFromTemplate([
