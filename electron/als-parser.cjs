@@ -88,16 +88,18 @@ function parseClips(trackEl) {
   collectAll(trackEl, "MidiClip", midi);
 
   for (const clip of [...audio, ...midi]) {
-    const start = parseFloat(attrValue(clip.CurrentStart, "Value"));
-    const end = parseFloat(attrValue(clip.CurrentEnd, "Value"));
-    let name = "";
-    if (clip.Name) {
-      // Some clips store name as <Name Value="…"/>, others as
-      // <Name><EffectiveName Value="…"/></Name>.
-      name = attrValue(clip.Name, "Value")
-          || attrValue(clip.Name?.EffectiveName, "Value")
-          || "";
-    }
+    // In Ableton XML these fields are not always direct children of the clip.
+    // The web parser uses querySelector(), so mirror that by finding them at
+    // any depth inside the AudioClip/MidiClip node.
+    const startNode = findFirst(clip, "CurrentStart");
+    const endNode = findFirst(clip, "CurrentEnd");
+    const start = parseFloat(attrValue(startNode, "Value"));
+    const end = parseFloat(attrValue(endNode, "Value"));
+
+    const nameNode = findFirst(clip, "Name");
+    const effectiveNameNode = findFirst(nameNode, "EffectiveName") || findFirst(clip, "EffectiveName");
+    const name = attrValue(effectiveNameNode, "Value") || attrValue(nameNode, "Value") || "";
+
     if (!isNaN(start) && !isNaN(end) && end > start) {
       clips.push({ name, start, end });
     }
