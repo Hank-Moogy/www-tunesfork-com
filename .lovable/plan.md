@@ -1,134 +1,88 @@
+# Producer Activity Profile
 
-# Tunesfork Sync — Auto-upload Ableton projects on save
+A gamified stats page (`/profile` or `/u/:handle`) that turns every Ableton save into a data point — like GitHub's contribution graph meets Strava's year-in-review.
 
-A small desktop app that lives in the menu bar (Mac) / system tray (Windows). The user points it at a folder containing Ableton projects, and every time they save in Ableton, the corresponding Project folder is zipped and uploaded as a new version to Tunesfork.
+## What we can mine (zero new tracking needed)
 
-## How it will feel for the user
+Every `project_versions` row is already a "save". From that one table we can derive:
 
-1. Download **Tunesfork Sync** from a new "Desktop App" page in the Tunesfork web app
-2. Install, open it — menu-bar icon appears
-3. Click "Sign in" → browser opens Tunesfork → confirms → app gets a token
-4. Click "Add folder to watch" → pick `~/Music/Ableton/User Library/Projects` (or any parent folder)
-5. App scans for `.als` files and lists each Project folder it found
-6. For each Project folder, user picks: **link to existing Tunesfork project** or **create new**
-7. Done. From now on:
-   - Save in Ableton → menu-bar icon spins → "Uploading v4 of *MyTrack*…" toast → ✅
-   - Click the icon to see recent syncs, pause sync, or open the project on tunesfork.com
+| Datapoint | Source |
+|---|---|
+| Total saves (all-time / year / 30d / 7d) | `count(*)` |
+| Total projects worked on | `count(distinct project_id)` |
+| Daily save heatmap (GitHub-style) | `date_trunc('day', created_at)` |
+| Current streak / longest streak | gaps in daily activity |
+| Most productive day-of-week & hour-of-day | extract dow / hour |
+| Total MB synced to the cloud | `sum(file_size_bytes)` |
+| Avg / median session length | gap analysis between consecutive saves |
+| BPM distribution (which tempos you live in) | `projects.bpm` per save |
+| Average track count per project | `jsonb_array_length(track_list)` |
+| Top 10 plugins used | unnest `plugin_list` jsonb, group, count |
+| Plugin diversity score | distinct plugins / total saves |
+| Collab vs solo ratio | join `collaborators` |
+| Versions per project (iteration depth) | avg / max |
+| Biggest single save (MB) | `max(file_size_bytes)` |
+| First-save anniversary | `min(created_at)` |
 
-## Why a desktop app (recap)
-
-A web app cannot watch the local filesystem in the background. Browser folder-watch (File System Access API) only works while a Chrome tab is open and focused — which producers won't do. Desktop is the only path to "every Ableton save just works."
-
-## Architecture
+## Page layout (`/profile`)
 
 ```text
-┌─────────────────────────────────────────┐
-│  Ableton Live (user saves a set)        │
-│         writes MyTrack.als              │
-└──────────────────┬──────────────────────┘
-                   │ fs change event
-                   ▼
-┌─────────────────────────────────────────┐
-│  Tunesfork Sync (Electron, background)  │
-│  - chokidar watches *.als files         │
-│  - debounce 5s (Ableton writes twice)   │
-│  - zip the Project folder (skip Backup/)│
-│  - resolve which Tunesfork project      │
-│  - upload via TUS resumable             │
-│  - call edge function to create version │
-└──────────────────┬──────────────────────┘
-                   │ HTTPS
-                   ▼
-┌─────────────────────────────────────────┐
-│  Tunesfork backend (existing)           │
-│  - project-zips storage bucket          │
-│  - project_versions row                 │
-│  - same data the web upload writes      │
-└─────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│  [Avatar]  Display Name              [Share profile]       │
+│            Producing since Jan 2026 · 47 day streak 🔥     │
+├────────────────────────────────────────────────────────────┤
+│  HERO STATS (4 glass cards)                                │
+│  [ 312 saves ] [ 8 projects ] [ 4.2 GB ] [ 47d streak ]    │
+├────────────────────────────────────────────────────────────┤
+│  CONTRIBUTION HEATMAP — last 365 days                      │
+│  GitHub-style grid, hover = "3 saves on Apr 14"            │
+│  Year selector ◀ 2026 ▶                                    │
+├────────────────────────────────────────────────────────────┤
+│  RHYTHM OF WORK   |   GEAR & SOUND                         │
+│  • Best day: Sat  |   Top plugins: Serum, Pro-Q3, OTT…     │
+│  • Peak hour: 11pm|   Favorite BPM: 128 (32% of projects)  │
+│  • Avg session 47m|   Avg tracks: 24                       │
+├────────────────────────────────────────────────────────────┤
+│  MILESTONES (badges)                                       │
+│  🌱 First save · 🎚 100 saves · 🔁 30-day streak · 💾 1GB  │
+│  🎹 10 projects · 🤝 First collab · 🦉 Night owl           │
+├────────────────────────────────────────────────────────────┤
+│  RECENT ACTIVITY (last 10 saves with project names)        │
+└────────────────────────────────────────────────────────────┘
 ```
 
-The desktop app talks to the same Supabase-managed backend the web app uses. No new database, no schema migrations beyond one small additions described below.
+## Tech approach
 
-## What gets built — three workstreams
+**One Postgres view + one RPC** does most of the work — no new tables, no extra tracking.
 
-### A. Web app changes (small, ~1 day)
+1. **Migration**: create a `get_user_stats(p_user_id uuid)` SQL function returning a single JSONB blob with all aggregates (hero numbers, heatmap array, top plugins, BPM histogram, etc.). One round-trip per page load. Security: `security definer`, only allow `auth.uid() = p_user_id` OR future "public profile" toggle.
+2. **Badges**: derived client-side from the same blob (pure thresholds — no badge table needed yet).
+3. **Streak math**: done in SQL with a window function over distinct save-days.
 
-1. **New page `/desktop-app`** — download links for Mac (Apple Silicon, Intel) and Windows, install instructions, "What is Tunesfork Sync" copy
-2. **New Settings tab "Desktop sync"** — shows linked devices, lets user revoke a device's token
-3. **New nav item "Get the desktop app"** — pill in the navbar with a "New" badge
-4. **OAuth-style device-pairing flow:**
-   - Desktop app opens `https://tunesfork.com/desktop-pair?code=ABC123`
-   - User confirms in the browser ("Pair Tunesfork Sync on MacBook Pro?")
-   - On confirm, the page calls a new edge function `pair-device` that exchanges the short code for a long-lived API token, displays "Return to the app — you're paired"
-   - Desktop app polls a `device-token-exchange` endpoint with the code, gets the token, stores it in OS keychain
-5. **One small DB addition: `device_tokens` table** (`id`, `user_id`, `name`, `token_hash`, `last_used_at`, `created_at`, `revoked_at`) + RLS so users only see/revoke their own
-6. **One new edge function: `create-version-from-desktop`** — accepts a token (Bearer), validates against `device_tokens`, takes `{project_id, zip_storage_path, change_note, metadata}`, writes a `project_versions` row exactly like the web flow does today
+## Components to build
 
-### B. Desktop app (Electron, the bulk of the work)
+- `src/pages/ProfilePage.tsx` — route `/profile`, fetches `get_user_stats` via supabase rpc
+- `src/components/profile/HeroStats.tsx` — 4 glass cards
+- `src/components/profile/ContributionHeatmap.tsx` — 53×7 grid, accent-green intensity scale (matches existing CTA color), tooltip on hover, year switcher
+- `src/components/profile/RhythmCard.tsx` — best day / peak hour / avg session
+- `src/components/profile/GearCard.tsx` — top plugins (with bar bars), favorite BPM, avg tracks
+- `src/components/profile/Milestones.tsx` — badge grid (locked = greyscale, unlocked = colored + tooltip with unlock date)
+- `src/components/profile/RecentSaves.tsx` — last 10 saves, links to project pages
 
-**Stack:** Electron + React (reuse Tunesfork's design tokens for menu) + TypeScript. Use `@electron/packager` for builds.
+Add a "Profile" entry to the `Navbar` user menu.
 
-**Key modules:**
-- `main.cjs` — menu-bar/tray, lifecycle, single-instance lock, deep-link handler for `tunesfork://` URLs (used during pairing)
-- `watcher.ts` — `chokidar` watching configured folders, filters to `*.als`, ignores `**/Backup/**` and `**/Samples/Processed/Crop/**`
-- `debouncer.ts` — when an `.als` change fires, wait 5 seconds of quiet (Ableton actually writes the file 2-3 times per save)
-- `zipper.ts` — given the `.als` path, walk up to find the **Project folder** (the folder containing `Ableton Project Info/`), zip the whole folder excluding `Backup/`. Use streaming zip (`archiver`) to avoid loading 2GB projects into memory
-- `uploader.ts` — TUS resumable upload (same `tus-js-client` lib the web uses) to the same `project-zips` bucket. Gets a short-lived storage token from the new `create-version-from-desktop` edge function so we never embed Supabase keys
-- `linker.ts` — for each detected Project folder, store a mapping `{local_path → tunesfork_project_id}` in a local SQLite/JSON file. First time a Project is seen, prompt the user to pick "Link to existing project" (dropdown of their projects) or "Create new"
-- `tray-ui.tsx` — menu showing watched folders, recent uploads (last 10), pause/resume toggle, "Open Tunesfork" link, sign out
+## Phasing
 
-**Auth storage:** OS keychain via `keytar` (Mac Keychain, Windows Credential Manager). Never plain-text on disk.
+**Phase 1 (this round)** — everything above, private to the logged-in user only. Strava-quality visuals, all real data.
 
-**Crash safety:** if a save event fires and the upload is interrupted (network drop, app crash), TUS resumes on next launch. Mark each Project folder with a `last_uploaded_hash` so we don't re-upload identical state.
+**Phase 2 (later, ask first)** — public/shareable profiles at `/u/:handle` (needs handle field on `profiles` + visibility toggle), weekly recap email, year-in-review modal, leaderboards.
 
-### C. Distribution & code-signing (the painful part)
+## On the Anthropic / Opus request
 
-- **Mac:** need an Apple Developer account ($99/yr), code-sign with `electron-osx-sign`, notarize with `notarytool`. Without this, users get scary "unidentified developer" warning on first open. Ship `.dmg` and `.zip` for Mac (Apple Silicon + Intel)
-- **Windows:** need an EV code-signing cert (~$300/yr from Sectigo/Digicert) to avoid SmartScreen warnings. Ship `.exe` installer (NSIS via `electron-builder` once we move off the sandbox) or `.zip` portable
-- **Auto-update:** integrate `electron-updater` pointing at a hosted update feed (can be a static JSON in Supabase Storage describing the latest version + download URLs)
-- **Initial release:** ship without auto-update if needed; user manually downloads new versions from `/desktop-app` page. Add auto-update in v1.1
+Lovable AI doesn't proxy Claude/Opus — we have GPT-5/5.2 and Gemini 3. **None of this feature needs an LLM** — it's all SQL aggregation and React. If you later want an *AI-written weekly recap* ("You leveled up your low-end this week — 4 new bass-focused saves…"), I'd use `google/gemini-3-flash-preview` (fast, cheap, perfect for short generative blurbs). Happy to add that as Phase 1.5 if you want flavor text on the profile.
 
-## What we will NOT do in v1 (explicit non-goals)
+## Open questions before I build
 
-- ❌ **Smart sample diffing.** v1 always re-zips the whole Project folder. A 500MB project re-uploads 500MB on every save. Acceptable because most projects are <100MB and TUS is fast on resume. Sample-level diffing is a v2 optimization (per-file content hashing, only re-upload changed files, server reassembles)
-- ❌ **Watching outside a configured root folder.** User must point the app at one or more folders; no full-disk scan
-- ❌ **Real-time collaboration.** This is async backup/versioning, not Google-Docs-style live sync
-- ❌ **Tauri.** I considered Tauri (smaller binaries, Rust) but Electron has a much bigger ecosystem for the modules we need (`chokidar`, `archiver`, `keytar`, `tus-js-client`, `electron-updater`) and you already have it scaffolded-friendly in Lovable
-- ❌ **Linux build.** Defer until requested. Producers are >95% Mac/Windows
-- ❌ **Per-folder upload settings** (e.g. "always confirm before upload"). v1 = silent auto-upload. Adds toggle in v1.1 if needed
-
-## Suggested rollout order
-
-To avoid spending weeks before validating, I recommend three shippable milestones:
-
-| Milestone | What ships | Validates |
-|---|---|---|
-| **M1 — Web side only (~1-2 days)** | `/desktop-app` page (still showing "coming soon"), `device_tokens` table, pairing flow, `create-version-from-desktop` edge function. Test end-to-end with `curl` from your terminal pretending to be the desktop app | Backend is ready, you can `curl` an upload through and see a new version appear |
-| **M2 — Desktop app MVP (~1-2 weeks)** | Unsigned Mac + Windows builds. Sign-in, watch one folder, link projects manually, upload on save, basic tray UI. Distribute manually to 3-5 test users (you said all are reachable). Skip code-signing initially — testers click through "open anyway" | Real producers actually find this useful; reveals edge cases (project folder structure variants, save-while-uploading, huge projects) |
-| **M3 — Polish & ship (~1 week + ongoing signing setup)** | Code-signing & notarization, auto-update, pause/resume, multi-folder, settings UI in web app | Public release |
-
-Total: roughly **3-4 weeks of focused work** for a shippable v1, plus ~$400/yr in signing certs.
-
-## Technical details (for the technical record)
-
-- **Project folder detection:** Ableton creates `Project folder/` containing `Ableton Project Info/` subfolder + the `.als` + `Samples/`. Walking up from any `.als` until we find a sibling `Ableton Project Info/` directory identifies the project root
-- **Save signal:** Ableton on save writes to a temp file then renames. Watching for `change` events on `*.als` with a 5-second debounce captures this reliably without firing during the brief temp state
-- **Skip list when zipping:** `Backup/` (Ableton's auto-saves, can be hundreds of MB), `*.als~` (lock files), `.DS_Store`, `Thumbs.db`
-- **Idempotency:** hash the zip after creation; if hash equals the last uploaded hash for this project, skip the upload (covers cases where Ableton saved but nothing actually changed)
-- **Reuse from web app:** the existing `parseAlsFile` logic in `src/lib/als-parser.ts` (extracts BPM, plugin list, track list) should be ported to the desktop app — same metadata flows into `project_versions.plugin_list` and `track_list`
-- **Auth model:** desktop tokens are scoped to one user, never expire (until user revokes), but each upload still goes through an edge function that validates the token + enforces RLS-equivalent checks (user owns the target project or has contributor permission). No Supabase service-role key ever ships in the binary
-
-## Cost & risk summary
-
-| Item | Cost | Notes |
-|---|---|---|
-| Apple Developer Program | $99/yr | Required for Mac signing |
-| Windows EV code-signing cert | ~$300/yr | Required to avoid SmartScreen |
-| Storage cost from larger upload volume | Variable | Auto-upload = more uploads. Smart-diff in v2 mitigates |
-| Ongoing support burden | Real | Desktop apps generate "doesn't work on my Mac" tickets that web apps don't |
-
-## Open questions before I start building
-
-1. **Are you OK starting with M1 only this week?** I'd rather ship the backend and pair flow first, then we both have a working "fake desktop client" via curl to validate the data model, before committing to the Electron build
-2. **Naming: "Tunesfork Sync" OK, or something else?** ("Tunesfork Desktop", "Tunesfork Studio", etc.)
-3. **Code-signing certs — buy now or after M2?** I'd defer until after we've validated with a few unsigned-test-builds with your test users
+1. Profile route — `/profile` (yours only, for now) or jump straight to public `/u/:handle`?
+2. Add an AI-generated "this week in your studio" blurb above the heatmap?
+3. Show stats from collaborators' saves on your shared projects, or only your own saves?
