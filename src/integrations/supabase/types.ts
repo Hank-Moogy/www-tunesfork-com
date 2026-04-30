@@ -81,6 +81,80 @@ export type Database = {
           },
         ]
       }
+      device_pair_codes: {
+        Row: {
+          code: string
+          confirmed_at: string | null
+          created_at: string
+          device_name: string
+          expires_at: string
+          id: string
+          token_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          code: string
+          confirmed_at?: string | null
+          created_at?: string
+          device_name?: string
+          expires_at?: string
+          id?: string
+          token_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          code?: string
+          confirmed_at?: string | null
+          created_at?: string
+          device_name?: string
+          expires_at?: string
+          id?: string
+          token_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_pair_codes_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "device_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      device_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          last_used_at: string | null
+          name: string
+          revoked_at: string | null
+          token_hash: string
+          token_prefix: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_used_at?: string | null
+          name?: string
+          revoked_at?: string | null
+          token_hash: string
+          token_prefix: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_used_at?: string | null
+          name?: string
+          revoked_at?: string | null
+          token_hash?: string
+          token_prefix?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -509,6 +583,30 @@ export type Database = {
           id?: string
           metadata?: Json | null
           reason?: string
+        }
+        Relationships: []
+      }
+      sync_waitlist: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          platform: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          platform?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          platform?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
