@@ -302,6 +302,17 @@ async function processAlsSave(alsPath, archiver) {
   const result = await cv.json();
   log("ok", `✓ Uploaded ${projectName} v${result.version_number}`);
 
+  // Native macOS / Windows toast — uses the system notification center.
+  if (Notification.isSupported()) {
+    const n = new Notification({
+      title: "Project saved to the cloud",
+      body: `${projectName} · v${result.version_number}`,
+      silent: false,
+    });
+    n.on("click", () => shell.openExternal(`${TUNESFORK_URL}/project/${result.project_id}`));
+    n.show();
+  }
+
   // Update recent
   const ss = readState();
   ss.recent = [{ name: projectName, version: result.version_number, at: Date.now() }, ...ss.recent].slice(0, 10);
