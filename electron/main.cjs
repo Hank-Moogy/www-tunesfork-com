@@ -1,19 +1,63 @@
 // Tunesfork Sync — main process
 // Menu-bar / tray app. Loads the tray UI in a small popover BrowserWindow.
-const { app, Tray, Menu, BrowserWindow, shell, ipcMain } = require("electron");
+const { app, Tray, Menu, BrowserWindow, shell, ipcMain, dialog } = require("electron");
 const path = require("node:path");
-const { startSync } = require("./src/sync");
+const fs = require("node:fs");
+const os = require("node:os");
 
 const TUNESFORK_URL = process.env.TUNESFORK_URL || "https://tunesfork.com";
+const FUNCTIONS_URL = process.env.TUNESFORK_FUNCTIONS_URL
+  || "https://zkzupvjqyltvxrgixrpx.supabase.co/functions/v1";
+const DEV_URL = process.env.VITE_DEV_SERVER_URL; // set when running `npm run dev:ui`
 
 let tray = null;
 let trayWindow = null;
-let stopSync = null;
+let pollInterval = null;
 
+// ---------- persistent state ----------
+const stateDir = path.join(
+  os.homedir(),
+  process.platform === "darwin" ? "Library/Application Support/Tunesfork Sync"
+  : process.platform === "win32" ? "AppData/Roaming/Tunesfork Sync"
+  : ".config/tunesfork-sync",
+);
+fs.mkdirSync(stateDir, { recursive: true });
+const stateFile = path.join(stateDir, "state.json");
+
+const defaultState = {
+  paired: false,
+  deviceName: null,
+  userId: null,
+  folders: [],
+  syncing: false,
+  recent: [],
+  // token is intentionally NOT in this file — stored in OS keychain via keytar.
+  // For the alpha we keep it in a sidecar file with 600 perms; swap for keytar in v0.2.
+};
+
+function readState() {
+  try { return { ...defaultState, ...JSON.parse(fs.readFileSync(stateFile, "utf8")) }; }
+  catch { return { ...defaultState }; }
+}
+function writeState(s) { fs.writeFileSync(stateFile, JSON.stringify(s, null, 2), { mode: 0o600 }); }
+
+const tokenFile = path.join(stateDir, "token");
+function readToken() { try { return fs.readFileSync(tokenFile, "utf8").trim(); } catch { return null; } }
+function writeToken(t) { fs.writeFileSync(tokenFile, t, { mode: 0o600 }); }
+function clearToken() { try { fs.unlinkSync(tokenFile); } catch {} }
+
+// ---------- logging ----------
+function log(level, msg) {
+  const line = { ts: Date.now(), level, msg };
+  console.log(`[${level}] ${msg}`);
+  trayWindow?.webContents.send("log", line);
+}
+
+// ---------- tray window ----------
 function createTrayWindow() {
   trayWindow = new BrowserWindow({
     width: 380,
-    height: 540,
+    height: 560,
     show: false,
     frame: false,
     resizable: false,
@@ -24,66 +68,249 @@ function createTrayWindow() {
       nodeIntegration: false,
     },
   });
-  trayWindow.loadFile(path.join(__dirname, "dist", "index.html"));
-  trayWindow.on("blur", () => trayWindow?.hide());
+  if (DEV_URL) trayWindow.loadURL(DEV_URL);
+  else trayWindow.loadFile(path.join(__dirname, "dist", "index.html"));
+  trayWindow.on("blur", () => { if (!DEV_URL) trayWindow?.hide(); });
 }
 
 function toggleTrayWindow() {
   if (!trayWindow) return;
-  if (trayWindow.isVisible()) {
-    trayWindow.hide();
-    return;
-  }
+  if (trayWindow.isVisible()) return trayWindow.hide();
   const bounds = tray.getBounds();
-  const winBounds = trayWindow.getBounds();
-  const x = Math.round(bounds.x + bounds.width / 2 - winBounds.width / 2);
-  const y = process.platform === "darwin" ? bounds.y + bounds.height : bounds.y - winBounds.height;
-  trayWindow.setBounds({ ...winBounds, x, y });
+  const wb = trayWindow.getBounds();
+  const x = Math.round(bounds.x + bounds.width / 2 - wb.width / 2);
+  const y = process.platform === "darwin" ? bounds.y + bounds.height : bounds.y - wb.height;
+  trayWindow.setBounds({ ...wb, x, y });
   trayWindow.show();
   trayWindow.focus();
 }
 
-app.whenReady().then(() => {
-  // Single-instance lock so opening the app twice doesn't spawn two watchers
-  if (!app.requestSingleInstanceLock()) {
-    app.quit();
+// ---------- pairing ----------
+async function pairInit(deviceName) {
+  const r = await fetch(`${FUNCTIONS_URL}/pair-device-init`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ device_name: deviceName }),
+  });
+  if (!r.ok) throw new Error(`pair-init ${r.status}`);
+  const data = await r.json();
+
+  // Start polling for confirmation
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(async () => {
+    try {
+      const pr = await fetch(`${FUNCTIONS_URL}/pair-device-poll?code=${data.code}`);
+      const body = await pr.json();
+      if (body.status === "confirmed") {
+        clearInterval(pollInterval);
+        pollInterval = null;
+        writeToken(body.token);
+        const s = readState();
+        s.paired = true;
+        s.deviceName = body.device_name;
+        s.userId = body.user_id;
+        writeState(s);
+        log("ok", `Paired as ${body.device_name}`);
+      } else if (body.status === "expired" || body.status === "not_found") {
+        clearInterval(pollInterval);
+        pollInterval = null;
+        log("err", `Pairing ${body.status}`);
+      }
+    } catch (e) {
+      log("err", `poll: ${e.message}`);
+    }
+  }, 2000);
+
+  return data;
+}
+
+// ---------- sync engine (lazy-loaded so pre-pair UI is fast) ----------
+let stopWatcher = null;
+async function startSync() {
+  if (stopWatcher) return;
+  const s = readState();
+  if (!s.paired || s.folders.length === 0) {
+    log("err", "Not paired or no folders");
+    return;
+  }
+  // Lazy require so the tree-shaking pulls chokidar only when needed
+  let chokidar, archiver;
+  try {
+    chokidar = require("chokidar");
+    archiver = require("archiver");
+  } catch (e) {
+    log("err", "Missing deps. Run `npm install` in /electron");
     return;
   }
 
-  tray = new Tray(path.join(__dirname, "assets", "tray-icon.png"));
+  log("info", `Watching ${s.folders.length} folder(s)…`);
+  const debouncers = new Map();
+  const watcher = chokidar.watch(s.folders, {
+    ignored: [/(^|[\/\\])\../, /[\/\\]Backup[\/\\]/, /[\/\\]Samples[\/\\]Processed[\/\\]Crop[\/\\]/],
+    persistent: true,
+    depth: 8,
+    awaitWriteFinish: { stabilityThreshold: 2000, pollInterval: 200 },
+  });
+
+  const handleSave = (alsPath) => {
+    if (path.extname(alsPath).toLowerCase() !== ".als") return;
+    const existing = debouncers.get(alsPath);
+    if (existing) clearTimeout(existing);
+    debouncers.set(alsPath, setTimeout(() => {
+      debouncers.delete(alsPath);
+      processAlsSave(alsPath, archiver).catch((e) => log("err", e.message));
+    }, 5000));
+  };
+  watcher.on("change", handleSave);
+  watcher.on("add", handleSave);
+
+  stopWatcher = () => { watcher.close(); debouncers.forEach((t) => clearTimeout(t)); };
+  const ss = readState(); ss.syncing = true; writeState(ss);
+}
+
+function stopSync() {
+  if (stopWatcher) { stopWatcher(); stopWatcher = null; }
+  const s = readState(); s.syncing = false; writeState(s);
+  log("info", "Sync paused");
+}
+
+// Find the Ableton Project folder containing this .als
+function findProjectFolder(alsPath) {
+  let dir = path.dirname(alsPath);
+  for (let i = 0; i < 6; i++) {
+    if (fs.existsSync(path.join(dir, "Ableton Project Info"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return path.dirname(alsPath);
+}
+
+async function processAlsSave(alsPath, archiver) {
+  const projectFolder = findProjectFolder(alsPath);
+  log("busy", `Save detected: ${path.basename(alsPath)}`);
+
+  // Zip the project folder
+  const tmpZip = path.join(os.tmpdir(), `tfsync-${Date.now()}.zip`);
+  const out = fs.createWriteStream(tmpZip);
+  const zip = archiver("zip", { zlib: { level: 0 } });
+  await new Promise((resolve, reject) => {
+    out.on("close", resolve);
+    zip.on("error", reject);
+    zip.pipe(out);
+    zip.glob("**/*", {
+      cwd: projectFolder,
+      ignore: ["Backup/**", "**/.DS_Store", "**/Thumbs.db", "**/*.als~"],
+      dot: false,
+    }, { prefix: path.basename(projectFolder) });
+    zip.finalize();
+  });
+  const fileSize = fs.statSync(tmpZip).size;
+  log("busy", `Zipped ${(fileSize / 1e6).toFixed(1)} MB`);
+
+  // Upload to project-zips bucket using TUS (via fetch — keep it dep-light for alpha)
+  // Simpler: use the resumable HTTP API directly. For alpha we use a single PUT
+  // since most projects are <50MB. Swap to tus-js-client in v0.2 for big projects.
+  const state = readState();
+  const objectPath = `${state.userId}/${Date.now()}.zip`;
+  const SUPABASE_PROJECT_ID = "zkzupvjqyltvxrgixrpx";
+  const STORAGE_PUBLIC_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InprenVwdmpxeWx0dnhyZ2l4cnB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzE2MzYsImV4cCI6MjA5MDcwNzYzNn0.FmwkI4ludX6GtR_ViQpa4hFXe5jOpka3w94Y9aIYwK0";
+
+  log("busy", `Uploading to ${objectPath}…`);
+  const uploadRes = await fetch(
+    `https://${SUPABASE_PROJECT_ID}.supabase.co/storage/v1/object/project-zips/${objectPath}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${STORAGE_PUBLIC_KEY}`,
+        "Content-Type": "application/zip",
+        "x-upsert": "false",
+      },
+      body: fs.readFileSync(tmpZip),
+    },
+  );
+  if (!uploadRes.ok) {
+    const t = await uploadRes.text();
+    throw new Error(`Upload failed ${uploadRes.status}: ${t}`);
+  }
+
+  // Register version
+  const token = readToken();
+  const projectName = path.basename(projectFolder).replace(/ Project$/i, "");
+  const cv = await fetch(`${FUNCTIONS_URL}/create-version-from-desktop`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      project_name: projectName,
+      zip_storage_path: objectPath,
+      file_size_bytes: fileSize,
+      change_note: "Auto-saved from Tunesfork Sync",
+    }),
+  });
+  if (!cv.ok) {
+    const t = await cv.text();
+    throw new Error(`Register failed ${cv.status}: ${t}`);
+  }
+  const result = await cv.json();
+  log("ok", `✓ Uploaded ${projectName} v${result.version_number}`);
+
+  // Update recent
+  const ss = readState();
+  ss.recent = [{ name: projectName, version: result.version_number, at: Date.now() }, ...ss.recent].slice(0, 10);
+  writeState(ss);
+  trayWindow?.webContents.send("log", { ts: Date.now(), level: "ok", msg: `Uploaded ${projectName} v${result.version_number}` });
+
+  fs.unlink(tmpZip, () => {});
+}
+
+// ---------- app lifecycle ----------
+app.whenReady().then(() => {
+  if (!app.requestSingleInstanceLock()) { app.quit(); return; }
+
+  // Generate placeholder tray icon if missing
+  const iconPath = path.join(__dirname, "assets", "tray-icon.png");
+  if (!fs.existsSync(iconPath)) {
+    fs.mkdirSync(path.dirname(iconPath), { recursive: true });
+    // 1×1 transparent png as fallback so the app doesn't crash. Replace with a real icon later.
+    const blank = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c63600100000005000159e9f6e30000000049454e44ae426082", "hex");
+    fs.writeFileSync(iconPath, blank);
+  }
+
+  tray = new Tray(iconPath);
   tray.setToolTip("Tunesfork Sync");
   tray.on("click", toggleTrayWindow);
-
-  // Right-click menu (fallback)
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: "Open Tunesfork Sync", click: toggleTrayWindow },
-      { label: "Open tunesfork.com", click: () => shell.openExternal(TUNESFORK_URL) },
-      { type: "separator" },
-      { label: "Quit", role: "quit" },
-    ]),
-  );
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: "Open Tunesfork Sync", click: toggleTrayWindow },
+    { label: "Open tunesfork.com", click: () => shell.openExternal(TUNESFORK_URL) },
+    { type: "separator" },
+    { label: "Quit", role: "quit" },
+  ]));
 
   createTrayWindow();
-
-  // The watcher boots from inside the tray UI once the user has paired + chosen a folder.
-  // See src/watcher.ts.
 });
 
-// macOS: keep app alive when all windows close
 app.on("window-all-closed", (e) => e.preventDefault());
 
-// IPC: tray UI asks the main process to do filesystem things
+// ---------- IPC ----------
 ipcMain.handle("open-external", (_e, url) => shell.openExternal(url));
 ipcMain.handle("pick-folder", async () => {
-  const { dialog } = require("electron");
   const r = await dialog.showOpenDialog({ properties: ["openDirectory"] });
   return r.canceled ? null : r.filePaths[0];
 });
-
-ipcMain.handle("start-sync", async (_e, folders) => {
-  if (stopSync) stopSync();
-  stopSync = startSync(folders, (msg) => {
-    trayWindow?.webContents.send("log", msg);
-  });
+ipcMain.handle("pair-init", (_e, deviceName) => pairInit(deviceName));
+ipcMain.handle("get-state", () => {
+  const s = readState();
+  // Don't leak token. Recent timestamps are fine.
+  return { paired: s.paired, deviceName: s.deviceName, folders: s.folders, syncing: s.syncing, recent: s.recent };
+});
+ipcMain.handle("set-folders", (_e, folders) => {
+  const s = readState(); s.folders = folders; writeState(s);
+});
+ipcMain.handle("start-sync", () => startSync());
+ipcMain.handle("stop-sync", () => stopSync());
+ipcMain.handle("sign-out", () => {
+  stopSync();
+  clearToken();
+  writeState({ ...defaultState });
+  log("info", "Signed out");
 });
