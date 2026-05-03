@@ -28,6 +28,23 @@ export default function SharePage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const inAppBrowser = useMemo(() => getInAppBrowserName(), []);
+
+  const handleOpenExternal = async () => {
+    const result = await tryOpenInExternalBrowser(window.location.href);
+    if (result === "copied") {
+      toast({
+        title: "Link copied",
+        description: "Paste it into Chrome or Safari to continue with Google sign-in.",
+      });
+    } else if (result === "failed") {
+      toast({
+        title: "Couldn't copy link",
+        description: "Tap the menu (⋯) in this app and choose 'Open in browser'.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const goToSignup = (source: string) => {
     trackButtonClick(source, "share_page");
