@@ -183,7 +183,8 @@ export default function Auth() {
           variant="outline"
           className="w-full border-border"
           onClick={handleGoogleSignIn}
-          disabled={loading}
+          disabled={loading || !!inAppBrowser}
+          title={inAppBrowser ? "Google sign-in is blocked in in-app browsers. Open this page in Chrome or Safari." : undefined}
         >
           <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
             <path
