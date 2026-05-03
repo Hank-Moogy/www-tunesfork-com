@@ -112,6 +112,30 @@ export default function Auth() {
           </p>
         </div>
 
+        {inAppBrowser && (
+          <Alert className="border-pastel-orange/40 bg-pastel-orange/5">
+            <AlertTriangle className="h-4 w-4 text-pastel-orange" />
+            <AlertTitle className="text-sm">Open in your browser to use Google sign-in</AlertTitle>
+            <AlertDescription className="text-xs space-y-2">
+              <p>
+                You're viewing this inside {inAppBrowser}'s in-app browser. Google blocks sign-in here.
+                Tap the menu (⋯ or ⋮) and choose <strong>"Open in Chrome"</strong> or <strong>"Open in Safari"</strong>,
+                or sign up with email below.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleOpenExternal}
+                className="h-7 text-xs mt-2"
+              >
+                <ExternalLink className="h-3 w-3 mr-1" />
+                Copy link to open in browser
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
