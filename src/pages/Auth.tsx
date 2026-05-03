@@ -22,11 +22,29 @@ export default function Auth() {
   const { toast } = useToast();
   usePageView("auth");
 
+  const inAppBrowser = useMemo(() => getInAppBrowserName(), []);
+
   // Persist invite token across the auth round-trip (incl. Google OAuth)
   const inviteToken = searchParams.get("invite");
   if (inviteToken) {
     try { sessionStorage.setItem("tf_pending_invite", inviteToken); } catch {}
   }
+
+  const handleOpenExternal = async () => {
+    const result = await tryOpenInExternalBrowser(window.location.href);
+    if (result === "copied") {
+      toast({
+        title: "Link copied",
+        description: "Paste it into Chrome or Safari to continue with Google sign-in.",
+      });
+    } else if (result === "failed") {
+      toast({
+        title: "Couldn't copy link",
+        description: "Tap the menu (⋯) in this app and choose 'Open in browser'.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
