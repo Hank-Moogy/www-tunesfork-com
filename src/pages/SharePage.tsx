@@ -183,6 +183,30 @@ export default function SharePage() {
             Sign up free to leave comments, upload new versions, and keep this Ableton project in sync with the rest of the team.
           </p>
 
+          {inAppBrowser && (
+            <Alert className="mb-5 max-w-xl mx-auto text-left border-pastel-orange/40 bg-pastel-orange/5">
+              <AlertTriangle className="h-4 w-4 text-pastel-orange" />
+              <AlertTitle className="text-sm">Open this in your browser to sign up with Google</AlertTitle>
+              <AlertDescription className="text-xs space-y-2">
+                <p>
+                  You're viewing this inside {inAppBrowser}'s in-app browser. Google blocks sign-in here.
+                  Tap the menu (⋯ or ⋮) at the top of {inAppBrowser} and choose <strong>"Open in Chrome"</strong> or{" "}
+                  <strong>"Open in Safari"</strong>. You can still continue with email below.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleOpenExternal}
+                  className="h-7 text-xs mt-2"
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  Copy link to open in browser
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="flex items-center justify-center gap-3 mb-6">
             <Button
               size="lg"
