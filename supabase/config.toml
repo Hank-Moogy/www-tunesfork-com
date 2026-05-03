@@ -13,3 +13,5 @@ project_id = "zkzupvjqyltvxrgixrpx"
     verify_jwt = false
   [functions.create-portal-session]
     verify_jwt = false
+  [functions.get-version-download-url]
+    verify_jwt = false

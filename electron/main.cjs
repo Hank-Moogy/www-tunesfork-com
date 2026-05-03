@@ -328,8 +328,108 @@ async function processAlsSave(alsPath, archiver) {
 app.setName("Tunesfork Sync");
 if (process.platform === "win32") app.setAppUserModelId("com.tunesfork.sync");
 
-app.whenReady().then(() => {
-  if (!app.requestSingleInstanceLock()) { app.quit(); return; }
+// ---------- deep-link protocol (tunesfork://) ----------
+// Register so the OS routes `tunesfork://...` URLs to this app.
+if (process.defaultApp) {
+  // dev: pass the entry script so the protocol works when launched via electron CLI
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient("tunesfork", process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient("tunesfork");
+}
+
+function parseDeepLink(url) {
+  // tunesfork://open-project/<projectId>?version=<versionId>
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "tunesfork:") return null;
+    const host = u.hostname; // "open-project"
+    const projectId = u.pathname.replace(/^\//, "");
+    if (host !== "open-project" || !projectId) return null;
+    return { projectId, versionId: u.searchParams.get("version") || null };
+  } catch { return null; }
+}
+
+async function handleOpenProjectDeepLink(url) {
+  const parsed = parseDeepLink(url);
+  if (!parsed) { log("err", `Ignoring deep link: ${url}`); return; }
+  log("busy", `Opening ${parsed.projectId} in Ableton…`);
+  try {
+    await openProjectInAbleton(parsed.projectId, parsed.versionId);
+  } catch (e) {
+    log("err", `Open in Ableton failed: ${e.message}`);
+    if (Notification.isSupported()) {
+      new Notification({ title: "Could not open project", body: e.message }).show();
+    }
+  }
+}
+
+// macOS delivers protocol URLs via this event.
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  if (app.isReady()) handleOpenProjectDeepLink(url);
+  else app.whenReady().then(() => handleOpenProjectDeepLink(url));
+});
+
+// Windows / Linux deliver them as argv on a second-instance launch.
+app.on("second-instance", (_e, argv) => {
+  const url = argv.find((a) => typeof a === "string" && a.startsWith("tunesfork://"));
+  if (url) handleOpenProjectDeepLink(url);
+});
+
+// ---------- open in Ableton ----------
+async function openProjectInAbleton(projectId, versionId) {
+  const token = readToken();
+  if (!token) throw new Error("Pair this Mac with TunesFork first");
+
+  const r = await fetch(`${FUNCTIONS_URL}/get-version-download-url`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ project_id: projectId, version_id: versionId }),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(`Server: ${r.status} ${t.slice(0, 200)}`);
+  }
+  const { signedUrl, projectName, versionNumber } = await r.json();
+
+  // Download & extract
+  const adm = require("adm-zip");
+  const zipPath = path.join(os.tmpdir(), `tfopen-${Date.now()}.zip`);
+  const buf = Buffer.from(await (await fetch(signedUrl)).arrayBuffer());
+  fs.writeFileSync(zipPath, buf);
+
+  const destRoot = path.join(os.homedir(), "TunesFork", "Projects");
+  fs.mkdirSync(destRoot, { recursive: true });
+  const zip = new adm(zipPath);
+  zip.extractAllTo(destRoot, true);
+
+  // Find the .als — prefer the first one in the extracted folder.
+  const safeName = (projectName || "Project").replace(/[\\/:*?"<>|]/g, "_");
+  let alsPath = null;
+  const candidateRoot = path.join(destRoot, safeName + " Project");
+  const search = (dir) => {
+    if (alsPath || !fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) search(full);
+      else if (entry.name.toLowerCase().endsWith(".als")) { alsPath = full; return; }
+    }
+  };
+  search(candidateRoot);
+  if (!alsPath) search(destRoot);
+  if (!alsPath) throw new Error("No .als file found in downloaded project");
+
+  await shell.openPath(alsPath);
+  log("ok", `Opened ${projectName} v${versionNumber} in Ableton`);
+  if (Notification.isSupported()) {
+    new Notification({ title: "Opening in Ableton", body: `${projectName} · v${versionNumber}` }).show();
+  }
+  fs.unlink(zipPath, () => {});
+}
+
+
 
   // Build a tray icon from a real PNG file if present, otherwise from an
   // in-memory 22×22 template image so macOS doesn't reject it.

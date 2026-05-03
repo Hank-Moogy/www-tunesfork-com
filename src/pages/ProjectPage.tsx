@@ -56,6 +56,7 @@ import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
 import type { Tables } from "@/integrations/supabase/types";
 import PluginMatchSection from "@/components/PluginMatchSection";
+import OpenInAbletonButton from "@/components/OpenInAbletonButton";
 import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick, trackShareCompleted } from "@/lib/analytics";
 
@@ -484,6 +485,11 @@ export default function ProjectPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <OpenInAbletonButton
+                  projectId={project.id}
+                  versionId={selectedVersion?.id}
+                  disabled={!selectedVersion}
+                />
                 <Button
                   variant="outline"
                   className="h-9 gap-2 rounded-xl bg-card/50 backdrop-blur-sm"
