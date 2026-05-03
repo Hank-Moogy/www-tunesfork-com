@@ -56,6 +56,7 @@ import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
 import type { Tables } from "@/integrations/supabase/types";
 import PluginMatchSection from "@/components/PluginMatchSection";
+import OpenInAbletonButton from "@/components/OpenInAbletonButton";
 import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick, trackShareCompleted } from "@/lib/analytics";
 
