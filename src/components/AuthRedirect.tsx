@@ -13,6 +13,15 @@ export default function AuthRedirect() {
   }
 
   if (!user) return <Navigate to="/welcome" replace />;
+
+  // If the user came from an invite link, send them back so the invite
+  // can be auto-accepted (handled in SharePage).
+  let pendingInvite: string | null = null;
+  try { pendingInvite = sessionStorage.getItem("tf_pending_invite"); } catch {}
+  if (pendingInvite) {
+    return <Navigate to={`/share/${pendingInvite}`} replace />;
+  }
+
   if (!onboardingCompleted) return <Navigate to="/onboarding" replace />;
   return <Navigate to="/dashboard" replace />;
 }
