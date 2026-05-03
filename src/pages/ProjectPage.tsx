@@ -216,9 +216,26 @@ export default function ProjectPage() {
     trackButtonClick("project_download_zip", "project", { project_id: project?.id, version_id: selectedVersion.id });
     setDownloading(true);
     try {
-      const { data, error } = await supabase.storage.from("project-zips").createSignedUrl(selectedVersion.zip_url, 300);
+      const safeName = (project?.name || "project")
+        .replace(/[^a-z0-9-_ ]/gi, "")
+        .trim()
+        .replace(/\s+/g, "_") || "project";
+      const filename = `${safeName}_v${selectedVersion.version_number}.zip`;
+
+      const { data, error } = await supabase
+        .storage
+        .from("project-zips")
+        .createSignedUrl(selectedVersion.zip_url, 300, { download: filename });
       if (error) throw error;
-      if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+      if (data?.signedUrl) {
+        const a = document.createElement("a");
+        a.href = data.signedUrl;
+        a.download = filename;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
     } catch {
       toast({ title: "Error", description: "Could not generate download link.", variant: "destructive" });
     }
