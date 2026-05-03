@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,17 +18,40 @@ export default function SharePage() {
   const { token } = useParams<{ token: string }>();
   usePageView("share");
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const { toast } = useToast();
   const [project, setProject] = useState<any>(null);
   const [version, setVersion] = useState<any>(null);
   const [owner, setOwner] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [accepting, setAccepting] = useState(false);
 
   const goToSignup = (source: string) => {
     trackButtonClick(source, "share_page");
+    if (token) {
+      try { sessionStorage.setItem("tf_pending_invite", token); } catch {}
+    }
     const inviteParam = token ? `?invite=${token}` : "";
     navigate(`/auth${inviteParam}`);
   };
+
+  // Auto-accept the invite if the user is already signed in
+  useEffect(() => {
+    if (authLoading || !user || !token || accepting) return;
+    setAccepting(true);
+    (async () => {
+      const { data, error } = await supabase.rpc("accept_share_invite", { _token: token });
+      if (error) {
+        toast({ title: "Couldn't accept invite", description: error.message, variant: "destructive" });
+        setAccepting(false);
+        return;
+      }
+      try { sessionStorage.removeItem("tf_pending_invite"); } catch {}
+      toast({ title: "Invite accepted", description: "You now have access to this project." });
+      navigate(`/project/${data}`, { replace: true });
+    })();
+  }, [authLoading, user, token, accepting, navigate, toast]);
 
   useEffect(() => {
     if (!token) return;

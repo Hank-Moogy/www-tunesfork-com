@@ -19,6 +19,12 @@ export default function Auth() {
   const { toast } = useToast();
   usePageView("auth");
 
+  // Persist invite token across the auth round-trip (incl. Google OAuth)
+  const inviteToken = searchParams.get("invite");
+  if (inviteToken) {
+    try { sessionStorage.setItem("tf_pending_invite", inviteToken); } catch {}
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     trackButtonClick(isLogin ? "auth_submit_signin" : "auth_submit_signup", "auth");
