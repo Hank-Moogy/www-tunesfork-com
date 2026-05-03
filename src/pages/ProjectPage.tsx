@@ -222,22 +222,27 @@ export default function ProjectPage() {
         .replace(/\s+/g, "_") || "project";
       const filename = `${safeName}_v${selectedVersion.version_number}.zip`;
 
-      const { data, error } = await supabase
-        .storage
+      const { data, error } = await supabase.storage
         .from("project-zips")
-        .createSignedUrl(selectedVersion.zip_url, 300, { download: filename });
+        .download(selectedVersion.zip_url);
       if (error) throw error;
-      if (data?.signedUrl) {
-        const a = document.createElement("a");
-        a.href = data.signedUrl;
-        a.download = filename;
-        a.rel = "noopener";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      }
-    } catch {
-      toast({ title: "Error", description: "Could not generate download link.", variant: "destructive" });
+      if (!data) throw new Error("No archive returned.");
+
+      const signature = new Uint8Array(await data.slice(0, 4).arrayBuffer());
+      const isZip = signature[0] === 0x50 && signature[1] === 0x4b;
+      if (!isZip) throw new Error("Downloaded file was not a ZIP archive.");
+
+      const url = URL.createObjectURL(new Blob([data], { type: "application/zip" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("[download] failed", error);
+      toast({ title: "Error", description: "Could not download the ZIP archive.", variant: "destructive" });
     }
     setDownloading(false);
   };
