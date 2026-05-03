@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,13 +6,15 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import ArrangementTimeline from "@/components/ArrangementTimeline";
 import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
-import { Music, Users, Layers, ArrowRight, Sparkles } from "lucide-react";
+import { Music, Users, Layers, ArrowRight, Sparkles, AlertTriangle, ExternalLink } from "lucide-react";
 import PluginMatchSection from "@/components/PluginMatchSection";
 import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick } from "@/lib/analytics";
+import { getInAppBrowserName, tryOpenInExternalBrowser } from "@/lib/inAppBrowser";
 
 export default function SharePage() {
   const { token } = useParams<{ token: string }>();
