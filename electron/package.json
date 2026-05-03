@@ -24,6 +24,7 @@
     "wait-on": "^8.0.0"
   },
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "archiver": "^7.0.1",
     "chokidar": "^3.6.0",
     "fast-xml-parser": "^5.7.2",
