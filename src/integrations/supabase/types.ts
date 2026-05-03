@@ -633,6 +633,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_share_invite: { Args: { _token: string }; Returns: string }
       count_launch_purchases: { Args: { check_env?: string }; Returns: number }
       create_notification: {
         Args: {
