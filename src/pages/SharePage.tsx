@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,13 +6,15 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import ArrangementTimeline from "@/components/ArrangementTimeline";
 import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
-import { Music, Users, Layers, ArrowRight, Sparkles } from "lucide-react";
+import { Music, Users, Layers, ArrowRight, Sparkles, AlertTriangle, ExternalLink } from "lucide-react";
 import PluginMatchSection from "@/components/PluginMatchSection";
 import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick } from "@/lib/analytics";
+import { getInAppBrowserName, tryOpenInExternalBrowser } from "@/lib/inAppBrowser";
 
 export default function SharePage() {
   const { token } = useParams<{ token: string }>();
@@ -26,6 +28,23 @@ export default function SharePage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const inAppBrowser = useMemo(() => getInAppBrowserName(), []);
+
+  const handleOpenExternal = async () => {
+    const result = await tryOpenInExternalBrowser(window.location.href);
+    if (result === "copied") {
+      toast({
+        title: "Link copied",
+        description: "Paste it into Chrome or Safari to continue with Google sign-in.",
+      });
+    } else if (result === "failed") {
+      toast({
+        title: "Couldn't copy link",
+        description: "Tap the menu (⋯) in this app and choose 'Open in browser'.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const goToSignup = (source: string) => {
     trackButtonClick(source, "share_page");
@@ -163,6 +182,30 @@ export default function SharePage() {
           <p className="text-base text-muted-foreground max-w-xl mx-auto mb-5">
             Sign up free to leave comments, upload new versions, and keep this Ableton project in sync with the rest of the team.
           </p>
+
+          {inAppBrowser && (
+            <Alert className="mb-5 max-w-xl mx-auto text-left border-pastel-orange/40 bg-pastel-orange/5">
+              <AlertTriangle className="h-4 w-4 text-pastel-orange" />
+              <AlertTitle className="text-sm">Open this in your browser to sign up with Google</AlertTitle>
+              <AlertDescription className="text-xs space-y-2">
+                <p>
+                  You're viewing this inside {inAppBrowser}'s in-app browser. Google blocks sign-in here.
+                  Tap the menu (⋯ or ⋮) at the top of {inAppBrowser} and choose <strong>"Open in Chrome"</strong> or{" "}
+                  <strong>"Open in Safari"</strong>. You can still continue with email below.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleOpenExternal}
+                  className="h-7 text-xs mt-2"
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  Copy link to open in browser
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
 
           <div className="flex items-center justify-center gap-3 mb-6">
             <Button

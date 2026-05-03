@@ -1,59 +1,54 @@
-# Open in Ableton — CTA from the web
+## Problem
 
-## How it works
+On mobile, when an invitee taps a share link from inside an in-app browser (WhatsApp, Instagram, Messenger, LinkedIn, etc.), Google refuses the OAuth request with *"Access blocked: this request doesn't comply with Google's policy."* This is Google's `disallowed_useragent` policy — they block OAuth in embedded webviews. We can't bypass it; we have to route the user out of the embedded browser.
 
-Browsers cannot launch native apps like Ableton directly. The standard, secure pattern is:
+## Solution
 
-1. The TunesFork desktop app registers a **custom URL protocol** (`tunesfork://`) with the OS.
-2. The website renders an "Open in Ableton" button that points to `tunesfork://open-project/<projectId>?version=<versionId>`.
-3. Clicking the button hands the URL to the OS, which launches the desktop app and passes the parameters.
-4. The desktop app downloads the latest `.als`, links plugins, and opens it in Ableton (or focuses the project if already synced locally).
-5. If the user does not have the app installed, we fall back to the existing `/desktop-app` download page.
+Detect embedded webviews and:
+1. Show a friendly banner telling the user to open the link in their real browser.
+2. Provide a one-tap "Open in browser" helper (best-effort — varies per platform).
+3. Hide / disable the Google button inside webviews so users don't hit the cryptic Google error, and steer them to email sign-up instead.
 
-```text
-Browser  ──tunesfork://open-project/abc?version=xyz──▶  OS  ──▶  Electron app  ──▶  Ableton (.als)
-                                                                       │
-                              fallback (no handler) ──▶ /desktop-app ──┘
-```
+## Changes
 
-## What to build
+### 1. New utility: `src/lib/inAppBrowser.ts`
 
-### 1. Desktop app — register the protocol
-- In `electron/main.cjs`, register `tunesfork://` as a protocol handler:
-  - macOS: `app.setAsDefaultProtocolClient('tunesfork')` + handle `open-url` event.
-  - Windows/Linux: same API + handle `second-instance` (deep-link arrives in `argv`).
-- Parse incoming URLs (`open-project/:projectId`, optional `?version=`).
-- Reuse the existing sync/linker pipeline to:
-  - Pull the requested version's zip,
-  - Run plugin linking,
-  - Open the resulting `.als` via `shell.openPath()`.
-- Show a tray notification while it works, surface errors in the tray UI.
+Small helper that inspects `navigator.userAgent` to detect common embedded webviews:
+- iOS: presence of `FBAN`/`FBAV` (Facebook/Messenger), `Instagram`, `Line`, `MicroMessenger`, `WhatsApp`, `LinkedInApp`, `Snapchat`, `TikTok`; or Safari-on-iOS *without* `Safari/` token (generic WKWebView).
+- Android: `; wv)` token, or matches for `FB_IAB`, `Instagram`, `Line`, `MicroMessenger`, `WhatsApp`, `LinkedInApp`, etc.
 
-### 2. Web — "Open in Ableton" CTA
-- New component `OpenInAbletonButton.tsx` used on `ProjectPage.tsx` (and optionally on the version row in the version history).
-- Click behavior:
-  - Set `window.location.href = "tunesfork://open-project/<id>?version=<vid>"`.
-  - Start a 1.5 s timer; if the page is still visible (i.e. the OS didn't hand off), show a small dialog: "Looks like the desktop app isn't installed" with a link to `/desktop-app`.
-  - Use the standard "page visibility / blur" trick so the fallback doesn't fire when handoff actually succeeded.
-- Track the click in analytics (`open_in_ableton_clicked`).
+Exports:
+- `isInAppBrowser(): boolean`
+- `getInAppBrowserName(): string | null` (for nicer messaging)
+- `tryOpenInExternalBrowser(url: string): void` — best-effort: on Android tries an `intent://` URL, on iOS just copies the URL to clipboard and shows instructions (iOS has no reliable escape).
 
-### 3. UX detail — first-run consent
-- Browsers (especially Chrome/Safari) prompt the user the first time to confirm "Open TunesFork?". That's expected and handled by the OS — no extra work.
-- Add a subtle helper text under the button on first visit: "Requires TunesFork desktop app".
+### 2. `src/pages/Auth.tsx`
 
-### 4. Optional polish (not required for v1)
-- Detect installation hint via a `localStorage` flag set by the desktop app on a paired sign-in (we already have device pairing) so we can hide the fallback dialog for known installs.
-- Add an "Open latest in Ableton" item to the project card menu on the dashboard.
+- On mount, call `isInAppBrowser()`.
+- If true: render an `Alert` at the top: *"You're using {AppName}'s in-app browser. Google sign-in is blocked here. Tap the menu (⋯ / ⋮) and choose 'Open in Chrome' or 'Open in Safari', or sign up with email below."* Include a small "Copy link" button.
+- Disable the Google button in this state (with a tooltip explaining why) so users don't hit the Google error screen.
+- Still allow email/password sign-up to proceed normally.
+
+### 3. `src/pages/SharePage.tsx`
+
+- Same detection at the top.
+- When in an in-app browser, replace the two CTA buttons (`Sign up to accept invite` / `I already have an account`) with:
+  - A prominent banner telling them to open in their real browser.
+  - A "Copy invite link" button.
+  - A secondary "Continue with email anyway" button that still routes to `/auth?invite=<token>` (email sign-up keeps working).
+
+### 4. Optional: tighten share link generation
+
+While we're here, update wherever `handleShare` builds the URL (likely in `ProjectPage.tsx` / share modal — to be confirmed) to always use `https://tunesfork.com` as the origin instead of `window.location.origin`. Prevents accidentally sharing a preview URL in the future. (Not the cause of *this* bug, but a good guardrail.)
+
+## What this does *not* fix
+
+- Google's policy itself — we cannot make Google OAuth work inside WhatsApp's webview. The only real fix is leaving the embedded browser. Our UI just makes that obvious instead of showing Google's scary error.
+- Users who insist on staying in the in-app browser will need to use email/password sign-up.
 
 ## Files touched
 
-- `electron/main.cjs` — protocol registration + deep-link handling.
-- `electron/src/sync.ts` (or `linker.ts`) — small helper to fetch + open a specific version on demand.
-- `src/components/OpenInAbletonButton.tsx` — new.
-- `src/pages/ProjectPage.tsx` — render the CTA in the header.
-- `src/lib/analytics.ts` — new event id.
-
-## Out of scope
-
-- Two-way "save back to TunesFork from Ableton" — already handled by the existing watcher/auto-sync.
-- Web-only opening of `.als` files (not feasible; Ableton has no web runtime).
+- `src/lib/inAppBrowser.ts` (new)
+- `src/pages/Auth.tsx`
+- `src/pages/SharePage.tsx`
+- (optional) `src/pages/ProjectPage.tsx` or wherever the share URL is constructed
