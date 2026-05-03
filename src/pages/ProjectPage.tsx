@@ -484,6 +484,11 @@ export default function ProjectPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <OpenInAbletonButton
+                  projectId={project.id}
+                  versionId={selectedVersion?.id}
+                  disabled={!selectedVersion}
+                />
                 <Button
                   variant="outline"
                   className="h-9 gap-2 rounded-xl bg-card/50 backdrop-blur-sm"
