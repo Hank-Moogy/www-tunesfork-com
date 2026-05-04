@@ -1,67 +1,127 @@
-## Why the samples are offline
 
-Ableton stores sample references in the `.als` in two ways:
+# Phase 1: Make Tunesfork Sync downloadable
 
-1. **Relative** — `Samples/Imported/kick.wav` → resolved relative to the `.als` file. These survive zipping, sharing, and unzipping as long as the folder structure around the `.als` is preserved.
-2. **Absolute** — `/Users/joe/Music/Splice/kick.wav` → only resolves on the original machine. These are what create "Samples Offline" on the recipient's side.
+Goal: a single click on `/desktop-app` gives the visitor an installer for their OS, hosted free on GitHub Releases. Unsigned builds, with clear "first-launch" instructions to bypass Gatekeeper / SmartScreen warnings.
 
-"Collect All and Save" is supposed to copy every external sample into the project's `Samples/Imported/` folder and rewrite all references to relative — **but only for the categories the user ticks in the dialog**. By default Live does **not** collect:
+## What changes
 
-- Files from Factory Packs / Live Packs
-- Files already inside the project (fine)
-- Files from User Library (depending on options)
-- Files in "other locations" if the box isn't checked
+### 1. Switch packaging to `electron-builder`
 
-If the uploader hit "Collect All and Save" without ticking every "Other locations / Factory / User Library" checkbox, the `.als` still contains absolute paths → the recipient sees "Samples Offline" even though the zip looks correct.
+Replace `@electron/packager` in `electron/package.json`:
 
-A second, simpler cause we currently allow:
+- Remove dep: `@electron/packager`
+- Add devDep: `electron-builder`
+- New scripts:
+  - `dist:mac` → `npm run build:ui && electron-builder --mac --universal`
+  - `dist:win` → `npm run build:ui && electron-builder --win --x64`
+  - `dist` → builds for current OS
 
-- The uploader dragged the **single `.als` file** (not the folder) into our modal. We show a warning but still let them proceed, producing a zip with no `Samples/` folder at all.
-- The uploader picked a folder that doesn't actually contain `Samples/` and clicked "Continue anyway".
+Add a `build` block to `package.json` configuring electron-builder:
 
-Our current `validateFolder` only checks "is there a folder named samples somewhere?" — it never inspects what the `.als` actually references, so a half-collected project passes silently.
+```json
+"build": {
+  "appId": "com.tunesfork.sync",
+  "productName": "Tunesfork Sync",
+  "directories": { "output": "release" },
+  "files": ["main.cjs", "preload.cjs", "als-parser.cjs", "dist/**", "src/**", "node_modules/**"],
+  "mac": {
+    "category": "public.app-category.music",
+    "target": [{ "target": "dmg", "arch": ["universal"] }],
+    "identity": null,
+    "icon": "build/icon.icns"
+  },
+  "win": {
+    "target": [{ "target": "nsis", "arch": ["x64"] }],
+    "icon": "build/icon.ico"
+  },
+  "nsis": { "oneClick": true, "perMachine": false }
+}
+```
 
-## The fix
+`identity: null` skips macOS code-signing (unsigned, alpha-only).
 
-Catch both cases at upload time, before the zip ships, so the recipient never gets a broken project.
+Add placeholder icons under `electron/build/` (`icon.icns`, `icon.ico`, `icon.png`) — I'll generate them from the existing app logo if available, otherwise a temporary Tunesfork "T" mark.
 
-### 1. Parse sample references from the `.als`
+### 2. Build & publish workflow (manual for Phase 1)
 
-Extend `src/lib/als-parser.ts` to also walk every `<SampleRef>` node and pull the file's path:
+CI is Phase 3. For now, you (the maintainer) build locally:
 
-- Modern `.als` (Live 10+): `<SampleRef><FileRef><RelativePath>…<RelativePathElement Dir="Samples"/>…</RelativePath><Path Value="/Users/…"/><HasRelativePath Value="true|false"/><RelativePathType Value="…"/></FileRef></SampleRef>`
-- Older versions only have `<Path Value="…"/>` with no `<RelativePath>`.
+```bash
+cd electron
+npm install
+npm run dist:mac     # produces release/Tunesfork Sync-0.1.0-alpha.1-universal.dmg
+npm run dist:win     # produces release/Tunesfork Sync Setup 0.1.0-alpha.1.exe
+                     # (cross-compile from macOS with `--win`; requires wine for icon embedding,
+                     #  or build on Windows directly)
+```
 
-Return a new `samples: { name; relativePath?: string; absolutePath?: string; isRelative: boolean }[]` array on `AlsMetadata`.
+Then upload both files to a GitHub Release. README in `electron/` will document the exact steps and naming convention so URLs stay stable.
 
-### 2. Strengthen `validateFolder`
+### 3. GitHub repo & release naming convention
 
-Take the parsed `samples[]` plus the actual `File[]` and compute:
+Assumption: repo lives at `https://github.com/<owner>/<repo>` (you'll tell me the slug after approval, or I'll put a `TODO_GITHUB_SLUG` placeholder).
 
-- `missingSamples`: any sample whose resolved relative path isn't present in the uploaded files
-- `nonRelativeSamples`: any sample whose `.als` entry is absolute / `HasRelativePath=false`
+Each release tag matches the electron app version, e.g. `v0.1.0-alpha.1`.
 
-Return them alongside `errors` / `warnings`.
+Asset filenames must be predictable so the static download page can link to "latest":
 
-### 3. Update `UploadModal` to block, not just warn
+- `Tunesfork-Sync-mac-universal.dmg`
+- `Tunesfork-Sync-win-x64.exe`
 
-In `src/components/UploadModal.tsx`:
+We rename outputs at upload time (or set `artifactName` in electron-builder config). Static URL pattern:
 
-- If `nonRelativeSamples.length > 0` → hard error: "Your `.als` still references samples outside the project folder. In Ableton: **File → Collect All and Save**, tick **every** category (Factory Packs, User Library, Other locations), save, then re-upload." Show the first few offending paths so they understand. Do not allow "Continue anyway".
-- If `missingSamples.length > 0` → hard error: "Some samples referenced by the set aren't in the folder you selected: …". Same guidance.
-- Single-`.als` upload (`handleAlsSelect`) → keep allowed but make the warning much louder ("Samples will be missing — your collaborator won't be able to play the project") and require an explicit "I understand" checkbox before Next is enabled.
-- "Continue anyway" only stays available for benign warnings (e.g. large project size), not for missing-samples warnings.
+```
+https://github.com/<owner>/<repo>/releases/latest/download/Tunesfork-Sync-mac-universal.dmg
+https://github.com/<owner>/<repo>/releases/latest/download/Tunesfork-Sync-win-x64.exe
+```
 
-### 4. Diagnose the existing share
+GitHub auto-redirects `/releases/latest/download/<asset>` to the newest release — zero backend, zero edge function.
 
-Once in build mode I'll look at the actual uploaded zip for the project behind `/share/8e57edf574bc4d3a81edfb9378d67450` to confirm which of the two causes hit you (no `Samples/` folder vs. absolute paths in the `.als`), and report back. No code change to the existing version — re-uploading after the fix lands is the cleanest path.
+### 4. Rework `src/pages/DesktopAppPage.tsx`
 
-## Files to touch
+Replace the current "waitlist" hero with a real download experience (keep the waitlist form below as a secondary "notify me about updates" capture).
 
-- `src/lib/als-parser.ts` — add `<SampleRef>` parsing, return `samples[]`, extend `FolderValidation` with `missingSamples` / `nonRelativeSamples`.
-- `src/components/UploadModal.tsx` — surface the new errors, gate the "Continue anyway" / single-`.als` paths, add the explicit acknowledgement.
-- `electron/als-parser.cjs` — mirror the new sample-ref extraction so desktop saves get the same protection (otherwise the Electron sync would happily upload broken projects too).
+- Detect OS from `navigator.userAgent` / `navigator.platform` → `mac` | `windows` | `other`
+- Hero shows one big primary CTA matching detected OS:
+  - "Download for Mac (Apple Silicon + Intel)" → `.dmg` URL
+  - "Download for Windows" → `.exe` URL
+- Below the primary button, a small "Other platforms" row with both links always visible
+- Track downloads via `trackButtonClick("desktop_download", "desktop_app", { platform })`
+- Add a version label ("v0.1.0 alpha · unsigned build") under the button
+- Add an expandable "First launch instructions" panel:
+  - **macOS**: "Right-click the app → Open → Open. Required once because the build is unsigned. We're getting an Apple Developer ID soon."
+  - **Windows**: "Click 'More info' → 'Run anyway' on the SmartScreen prompt."
 
-## What this won't fix
+Keep the existing 3-card "what it does" section and "How it works" steps — just below the new download hero.
 
-This catches bad projects on the way in. It doesn't repair already-uploaded versions — the only way to recover the current shared project is for the uploader to re-collect properly and upload a new version.
+Constants for URLs go in `src/lib/desktopDownload.ts` so we have one place to bump the version / repo slug later.
+
+### 5. Update `OpenInAbletonButton` fallback dialog
+
+The existing fallback dialog already routes to `/desktop-app` — no change needed, but its copy gets a small refresh: instead of "install it once", say "Download Tunesfork Sync (Mac or Windows)".
+
+## Out of scope (later phases)
+
+- **Phase 2**: Code signing (Apple Developer ID, Windows EV cert), notarization, auto-updates via `electron-updater`
+- **Phase 3**: GitHub Actions CI to build + publish on tag push
+- **Phase 4**: `get-desktop-release` edge function for live release notes / version display
+
+## Technical notes
+
+- `electron-builder` cross-compile from macOS → Windows works for `.exe` (NSIS) but Linux → macOS `.dmg` needs `hdiutil` (macOS-only). You'll need to run `dist:mac` on a Mac, `dist:win` on either Mac or Windows.
+- The current `package.json` ships `tunesfork://` deep-link registration via `app.setAsDefaultProtocolClient` — already in `main.cjs`, so installer registration "just works" on first launch.
+- Unsigned macOS DMGs trigger Gatekeeper. Right-click → Open is the documented bypass and works as long as the app isn't quarantined-and-translocated. Document clearly on download page.
+- `src/integrations/supabase/client.ts` and `.env` not touched.
+
+## Files to add / edit
+
+- `electron/package.json` — swap packager → builder, add `build` block, new scripts
+- `electron/build/icon.icns`, `icon.ico`, `icon.png` (new) — app icons
+- `electron/README.md` — update build/release instructions
+- `src/pages/DesktopAppPage.tsx` — new hero with OS-detected download button + first-launch instructions
+- `src/lib/desktopDownload.ts` (new) — URL/version constants, OS detection helper
+- `src/components/OpenInAbletonButton.tsx` — minor copy refresh
+
+## One thing I need from you
+
+The **GitHub repo slug** (e.g. `tunesfork/tunesfork-sync`) where releases will live. If you haven't created the repo yet, I'll wire the page with a `TODO_GITHUB_SLUG` constant you can fill in once you do.
