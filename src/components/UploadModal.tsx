@@ -59,6 +59,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   const [dragOver, setDragOver] = useState(false);
   const [preZippedBlob, setPreZippedBlob] = useState<Blob | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [acknowledgeSamplesMissing, setAcknowledgeSamplesMissing] = useState(false);
 
   const PROCESSING_MESSAGES = [
     "Reading project files…",
