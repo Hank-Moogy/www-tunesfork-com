@@ -5,8 +5,7 @@
 export const DESKTOP_APP_VERSION = "0.1.0-alpha.1";
 export const DESKTOP_APP_VERSION_LABEL = "v0.1.0 alpha · unsigned build";
 
-// TODO: replace with the real "<owner>/<repo>" once the GitHub repo is created.
-export const REPO_SLUG: string | null = null;
+export const REPO_SLUG: string | null = "Hank-Moogy/www-tunesfork-com";
 
 const MAC_ASSET = "Tunesfork-Sync-mac-universal.dmg";
 const WIN_ASSET = "Tunesfork-Sync-win-x64.exe";
