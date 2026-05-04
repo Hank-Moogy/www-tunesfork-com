@@ -9,16 +9,17 @@
     "dev:win": "set VITE_DEV_SERVER_URL=http://localhost:5180&& electron .",
     "dev:all": "concurrently -k -n ui,electron -c blue,green \"npm run dev:ui\" \"wait-on http://localhost:5180 && npm run dev\"",
     "build:ui": "vite build",
-    "build:mac": "npm run build:ui && electron-packager . \"Tunesfork Sync\" --platform=darwin --arch=universal --out=release --overwrite",
-    "build:win": "npm run build:ui && electron-packager . \"Tunesfork Sync\" --platform=win32 --arch=x64 --out=release --overwrite"
+    "dist": "npm run build:ui && electron-builder",
+    "dist:mac": "npm run build:ui && electron-builder --mac --universal",
+    "dist:win": "npm run build:ui && electron-builder --win --x64"
   },
   "devDependencies": {
-    "@electron/packager": "^18.3.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
     "concurrently": "^9.0.0",
     "electron": "^32.0.0",
+    "electron-builder": "^25.1.8",
     "typescript": "^5.5.0",
     "vite": "^5.4.0",
     "wait-on": "^8.0.0"
@@ -30,5 +31,48 @@
     "fast-xml-parser": "^5.7.2",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
+  },
+  "build": {
+    "appId": "com.tunesfork.sync",
+    "productName": "Tunesfork Sync",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "als-parser.cjs",
+      "dist/**",
+      "src/**",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "target": [
+        { "target": "dmg", "arch": ["universal"] }
+      ],
+      "identity": null,
+      "icon": "build/icon.icns",
+      "artifactName": "Tunesfork-Sync-mac-universal.${ext}"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Tunesfork-Sync-win-x64.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "Tunesfork-Sync-win-x64.${ext}"
+    },
+    "protocols": [
+      {
+        "name": "Tunesfork",
+        "schemes": ["tunesfork"]
+      }
+    ]
   }
 }
