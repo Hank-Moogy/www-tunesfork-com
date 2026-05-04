@@ -779,18 +779,42 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
             {validation &&
               validation.errors.length === 0 &&
-              validation.warnings.length > 0 && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    const als = pickLatestAls(validation.alsFiles);
-                    advanceWithAls(als);
-                  }}
-                >
-                  Continue anyway
-                </Button>
-              )}
+              validation.warnings.length > 0 && (() => {
+                const isSingleAls =
+                  validation.allFiles.length === 1 &&
+                  validation.alsFiles.length === 1 &&
+                  !preZippedBlob;
+                const requiresAck = isSingleAls;
+                return (
+                  <div className="space-y-3">
+                    {requiresAck && (
+                      <label className="flex items-start gap-2 rounded-md border border-border bg-secondary/40 p-3 text-sm text-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={acknowledgeSamplesMissing}
+                          onChange={(e) => setAcknowledgeSamplesMissing(e.target.checked)}
+                        />
+                        <span>
+                          I understand my collaborator won't have the samples and
+                          will see "Samples Offline" in Ableton.
+                        </span>
+                      </label>
+                    )}
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      disabled={requiresAck && !acknowledgeSamplesMissing}
+                      onClick={() => {
+                        const als = pickLatestAls(validation.alsFiles);
+                        advanceWithAls(als);
+                      }}
+                    >
+                      Continue anyway
+                    </Button>
+                  </div>
+                );
+              })()}
             </>)}
           </div>
         )}
