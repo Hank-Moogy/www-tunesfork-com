@@ -167,7 +167,38 @@ function parseAlsFile(alsPath) {
       for (const t of arr) tracks.push(parseTrackElement(t, TRACK_TYPE_MAP[tag]));
     }
 
-    return { bpm, plugins: Array.from(plugins), tracks };
+    // Sample references: <SampleRef><FileRef><RelativePath>…</RelativePath><Path Value="…"/><HasRelativePath Value="…"/></FileRef></SampleRef>
+    const sampleNodes = [];
+    collectAll(doc, "SampleRef", sampleNodes);
+    const samples = [];
+    for (const sr of sampleNodes) {
+      const fileRef = sr.FileRef || sr;
+      const absolutePath = attrValue(fileRef.Path, "Value") || null;
+      const hasRelativePath = attrValue(fileRef.HasRelativePath, "Value") === "true";
+
+      let relativePath = null;
+      const relPath = fileRef.RelativePath;
+      if (relPath) {
+        const segs = [];
+        const elems = relPath.RelativePathElement;
+        const arr = Array.isArray(elems) ? elems : elems ? [elems] : [];
+        for (const rpe of arr) {
+          const dir = attrValue(rpe, "Dir");
+          if (dir) segs.push(dir);
+        }
+        const fileName =
+          attrValue(fileRef.Name, "Value") ||
+          (absolutePath ? absolutePath.split(/[\\/]/).pop() || "" : "");
+        if (segs.length > 0 || fileName) {
+          relativePath = [...segs, fileName].filter(Boolean).join("/");
+        }
+      }
+
+      if (!absolutePath && !relativePath) continue;
+      samples.push({ relativePath, absolutePath, hasRelativePath });
+    }
+
+    return { bpm, plugins: Array.from(plugins), tracks, samples };
   } catch (e) {
     return null;
   }
