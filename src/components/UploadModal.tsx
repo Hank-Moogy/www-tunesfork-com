@@ -158,6 +158,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
     setDragOver(false);
     setPreZippedBlob(null);
     setProcessing(false);
+    setAcknowledgeSamplesMissing(false);
   };
 
   const handleClose = () => {
