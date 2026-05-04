@@ -13,11 +13,21 @@ export interface Track {
   clips: Clip[];
 }
 
+export interface SampleRef {
+  /** Relative path resolved from <RelativePath> elements (e.g. "Samples/Recorded/kick.wav"). */
+  relativePath: string | null;
+  /** Absolute path from <Path Value="…"/>. Present on most refs. */
+  absolutePath: string | null;
+  /** True if Ableton marked this ref as having a usable relative path. */
+  hasRelativePath: boolean;
+}
+
 export interface AlsMetadata {
   projectName: string;
   bpm: number | null;
   plugins: string[];
   tracks: Track[];
+  samples: SampleRef[];
 }
 
 // Ableton's 70-color palette (index → hex)
@@ -120,7 +130,62 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
       }
     }
 
-    return { projectName, bpm, plugins: Array.from(plugins), tracks };
+    // Extract sample references — every <SampleRef><FileRef>…</FileRef></SampleRef>
+    // Two formats exist:
+    //   • Live ≤11: <RelativePath><RelativePathElement Dir="Samples"/><RelativePathElement Dir="Imported"/></RelativePath>
+    //               + <HasRelativePath Value="true|false"/>
+    //   • Live 12+: <RelativePath Value="Samples/Imported/foo.wav"/> + <RelativePathType Value="3"/>
+    //               (no HasRelativePath element). RelativePathType=3 means "relative to project".
+    const samples: SampleRef[] = [];
+    const sampleRefEls = doc.querySelectorAll("SampleRef");
+    sampleRefEls.forEach((sampleRef) => {
+      const fileRef = sampleRef.querySelector("FileRef") || sampleRef;
+
+      // Absolute path
+      const pathEl = fileRef.querySelector(":scope > Path") || fileRef.querySelector("Path");
+      const absolutePath = pathEl?.getAttribute("Value") || null;
+
+      // Relative path — prefer Live 12 attribute form, fall back to nested elements.
+      let relativePath: string | null = null;
+      const relPathEl = fileRef.querySelector("RelativePath");
+      if (relPathEl) {
+        const attrVal = relPathEl.getAttribute("Value");
+        if (attrVal && attrVal.length > 0) {
+          relativePath = attrVal;
+        } else {
+          const segs: string[] = [];
+          relPathEl.querySelectorAll("RelativePathElement").forEach((rpe) => {
+            const dir = rpe.getAttribute("Dir");
+            if (dir) segs.push(dir);
+          });
+          const nameEl = fileRef.querySelector(":scope > Name") || fileRef.querySelector("Name");
+          const fileName =
+            nameEl?.getAttribute("Value") ||
+            (absolutePath ? absolutePath.split(/[\\/]/).pop() || "" : "");
+          if (segs.length > 0 || fileName) {
+            relativePath = [...segs, fileName].filter(Boolean).join("/");
+          }
+        }
+      }
+
+      // hasRelativePath: Live 11 has an explicit flag; Live 12 implies it via
+      // a non-empty RelativePath plus RelativePathType ∈ {1,3} (project-relative).
+      const hasRelEl = fileRef.querySelector("HasRelativePath");
+      let hasRelativePath: boolean;
+      if (hasRelEl) {
+        hasRelativePath = hasRelEl.getAttribute("Value") === "true";
+      } else {
+        const typeEl = fileRef.querySelector("RelativePathType");
+        const typeVal = typeEl?.getAttribute("Value");
+        hasRelativePath = !!relativePath && (typeVal === "1" || typeVal === "3" || typeVal === null || typeVal === undefined);
+      }
+
+      // Skip refs with no path at all (e.g. impulse responses without a file)
+      if (!absolutePath && !relativePath) return;
+      samples.push({ relativePath, absolutePath, hasRelativePath });
+    });
+
+    return { projectName, bpm, plugins: Array.from(plugins), tracks, samples };
   } catch {
     // Parsing failed — skip silently per spec
     return null;
@@ -134,12 +199,22 @@ export interface FolderValidation {
   allFiles: File[];
   errors: string[];
   warnings: string[];
+  /** Sample paths the .als references but that aren't in the uploaded files. */
+  missingSamples: string[];
+  /** Sample refs that have no relative path — they only exist on the uploader's machine. */
+  nonRelativeSamples: string[];
+}
+
+/** Normalize a path for case-insensitive comparison and consistent separators. */
+function normalizePath(p: string): string {
+  return p.replace(/\\/g, "/").replace(/^\/+/, "").toLowerCase();
 }
 
 /**
  * Validate a selected folder for Ableton project structure.
+ * Pass `samples` from `parseAlsFile` to also detect missing / non-relative refs.
  */
-export function validateFolder(files: File[]): FolderValidation {
+export function validateFolder(files: File[], samples: SampleRef[] = []): FolderValidation {
   const alsFiles = files.filter((f) => f.name.toLowerCase().endsWith(".als"));
   const hasSamplesFolder = files.some((f) => {
     const parts = f.webkitRelativePath?.split("/") ?? [];
@@ -156,9 +231,58 @@ export function validateFolder(files: File[]): FolderValidation {
     );
   }
 
-  if (!hasSamplesFolder) {
+  // Build a set of file paths inside the upload, normalized.
+  // We accept matches by either the full webkitRelativePath OR the trailing portion
+  // (so that `<projectFolder>/Samples/x.wav` matches a relative ref of `Samples/x.wav`).
+  const uploadedNormalized = new Set<string>();
+  const uploadedTails: string[] = [];
+  for (const f of files) {
+    const rel = f.webkitRelativePath || f.name;
+    const norm = normalizePath(rel);
+    uploadedNormalized.add(norm);
+    uploadedTails.push(norm);
+  }
+
+  const isPresent = (relPath: string): boolean => {
+    const target = normalizePath(relPath);
+    if (uploadedNormalized.has(target)) return true;
+    // Allow matching when the upload includes the project folder as a prefix.
+    return uploadedTails.some((u) => u === target || u.endsWith("/" + target));
+  };
+
+  const missingSamples: string[] = [];
+  const nonRelativeSamples: string[] = [];
+
+  for (const s of samples) {
+    if (!s.relativePath || !s.hasRelativePath) {
+      // No usable relative path — sample only exists on the uploader's disk.
+      if (s.absolutePath) nonRelativeSamples.push(s.absolutePath);
+      continue;
+    }
+    if (!isPresent(s.relativePath)) {
+      missingSamples.push(s.relativePath);
+    }
+  }
+
+  if (nonRelativeSamples.length > 0) {
+    errors.push(
+      `${nonRelativeSamples.length} sample(s) in your .als still point to absolute paths on your computer. ` +
+        `In Ableton: File → Collect All and Save and tick every category (Factory Packs, User Library, Other locations), then re-upload.`
+    );
+  }
+
+  if (missingSamples.length > 0) {
+    errors.push(
+      `${missingSamples.length} sample(s) referenced by your .als are missing from the folder you selected (e.g. ${missingSamples
+        .slice(0, 3)
+        .join(", ")}). Make sure you selected the full project folder, not just the .als file.`
+    );
+  }
+
+  // Only warn about a missing samples folder when the .als didn't tell us anything.
+  if (samples.length === 0 && !hasSamplesFolder && alsFiles.length > 0) {
     warnings.push(
-      "No samples folder detected. Your collaborator may get missing file errors. Did you run 'Collect All and Save' in Ableton before uploading?"
+      "No samples folder detected. If your project uses external samples, your collaborator may get missing file errors."
     );
   }
 
@@ -166,7 +290,16 @@ export function validateFolder(files: File[]): FolderValidation {
     warnings.push("This is a large project — upload may take several minutes.");
   }
 
-  return { alsFiles, hasSamplesFolder, totalSizeBytes, allFiles: files, errors, warnings };
+  return {
+    alsFiles,
+    hasSamplesFolder,
+    totalSizeBytes,
+    allFiles: files,
+    errors,
+    warnings,
+    missingSamples,
+    nonRelativeSamples,
+  };
 }
 
 /**

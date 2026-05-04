@@ -59,6 +59,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   const [dragOver, setDragOver] = useState(false);
   const [preZippedBlob, setPreZippedBlob] = useState<Blob | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [acknowledgeSamplesMissing, setAcknowledgeSamplesMissing] = useState(false);
 
   const PROCESSING_MESSAGES = [
     "Reading project files…",
@@ -157,6 +158,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
     setDragOver(false);
     setPreZippedBlob(null);
     setProcessing(false);
+    setAcknowledgeSamplesMissing(false);
   };
 
   const handleClose = () => {
@@ -178,6 +180,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
     setProjectName(existingProjectName ?? meta?.projectName ?? als.name.replace(/\.als$/i, ""));
     setBpm(meta?.bpm?.toString() ?? "");
     setStep(2);
+    return meta;
   };
 
   const uploadZipResumable = useCallback(
@@ -302,6 +305,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   const handleZipSelect = useCallback(
     async (file: File) => {
       setProcessing(true);
+      setAcknowledgeSamplesMissing(false);
       try {
         const zip = await JSZip.loadAsync(file);
         const entries: File[] = [];
@@ -318,7 +322,19 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
         });
         await Promise.all(promises);
 
-        const result = validateFolder(entries);
+        // First pass to find the .als
+        const initial = validateFolder(entries);
+        if (initial.errors.length > 0) {
+          setValidation(initial);
+          setPreZippedBlob(file);
+          setProcessing(false);
+          return;
+        }
+
+        // Parse the .als so we can validate sample refs against the zip contents.
+        const als = pickLatestAls(initial.alsFiles);
+        const meta = await parseAlsFile(als);
+        const result = validateFolder(entries, meta?.samples ?? []);
         setValidation(result);
         setPreZippedBlob(file);
 
@@ -327,8 +343,11 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
           return;
         }
 
-        const als = pickLatestAls(result.alsFiles);
-        await advanceWithAls(als);
+        // Reuse parsed metadata so we don't parse twice.
+        setMetadata(meta);
+        setProjectName(existingProjectName ?? meta?.projectName ?? als.name.replace(/\.als$/i, ""));
+        setBpm(meta?.bpm?.toString() ?? "");
+        setStep(2);
       } catch {
         setValidation({
           alsFiles: [],
@@ -337,11 +356,13 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
           allFiles: [],
           errors: ["Could not read zip file. Make sure it's a valid .zip archive."],
           warnings: [],
+          missingSamples: [],
+          nonRelativeSamples: [],
         });
       }
       setProcessing(false);
     },
-    []
+    [existingProjectName]
   );
 
   // Handle a single .als file upload
@@ -349,21 +370,42 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
     async (file: File) => {
       setProcessing(true);
       setPreZippedBlob(null);
-      const result: FolderValidation = {
+      setAcknowledgeSamplesMissing(false);
+
+      // Parse the .als so we can tell the user how many samples will be missing.
+      const meta = await parseAlsFile(file);
+      const samples = meta?.samples ?? [];
+      const sampleCount = samples.length;
+
+      // Single-file uploads: don't hard-error on missing samples (every sample is missing
+      // by definition). Instead, downgrade to a loud warning + require acknowledgement.
+      const warnings: string[] = [];
+      if (sampleCount > 0) {
+        warnings.push(
+          `Heads up — your .als references ${sampleCount} sample${sampleCount === 1 ? "" : "s"} that won't be included. Your collaborator will see "Samples Offline" in Ableton.`
+        );
+      } else {
+        warnings.push(
+          "You uploaded a single .als file. If your project uses external samples, your collaborator may get missing file errors."
+        );
+      }
+
+      setValidation({
         alsFiles: [file],
         hasSamplesFolder: false,
         totalSizeBytes: file.size,
         allFiles: [file],
         errors: [],
-        warnings: [
-          "You uploaded a single .als file. Samples won't be included — your collaborator may get missing file errors.",
-        ],
-      };
-      setValidation(result);
-      await advanceWithAls(file);
+        warnings,
+        missingSamples: [],
+        nonRelativeSamples: [],
+      });
+      setMetadata(meta);
+      setProjectName(existingProjectName ?? meta?.projectName ?? file.name.replace(/\.als$/i, ""));
+      setBpm(meta?.bpm?.toString() ?? "");
       setProcessing(false);
     },
-    []
+    [existingProjectName]
   );
 
   // Step 1: Folder selection
@@ -381,8 +423,19 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
       setProcessing(true);
       setPreZippedBlob(null);
+      setAcknowledgeSamplesMissing(false);
       const fileArray = Array.from(files);
-      const result = validateFolder(fileArray);
+
+      const initial = validateFolder(fileArray);
+      if (initial.errors.length > 0) {
+        setValidation(initial);
+        setProcessing(false);
+        return;
+      }
+
+      const als = pickLatestAls(initial.alsFiles);
+      const meta = await parseAlsFile(als);
+      const result = validateFolder(fileArray, meta?.samples ?? []);
       setValidation(result);
 
       if (result.errors.length > 0) {
@@ -390,11 +443,13 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
         return;
       }
 
-      const als = pickLatestAls(result.alsFiles);
-      await advanceWithAls(als);
+      setMetadata(meta);
+      setProjectName(existingProjectName ?? meta?.projectName ?? als.name.replace(/\.als$/i, ""));
+      setBpm(meta?.bpm?.toString() ?? "");
+      setStep(2);
       setProcessing(false);
     },
-    [handleZipSelect, handleAlsSelect]
+    [handleZipSelect, handleAlsSelect, existingProjectName]
   );
 
   // Step 4: Upload
@@ -724,18 +779,42 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
             {validation &&
               validation.errors.length === 0 &&
-              validation.warnings.length > 0 && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    const als = pickLatestAls(validation.alsFiles);
-                    advanceWithAls(als);
-                  }}
-                >
-                  Continue anyway
-                </Button>
-              )}
+              validation.warnings.length > 0 && (() => {
+                const isSingleAls =
+                  validation.allFiles.length === 1 &&
+                  validation.alsFiles.length === 1 &&
+                  !preZippedBlob;
+                const requiresAck = isSingleAls;
+                return (
+                  <div className="space-y-3">
+                    {requiresAck && (
+                      <label className="flex items-start gap-2 rounded-md border border-border bg-secondary/40 p-3 text-sm text-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={acknowledgeSamplesMissing}
+                          onChange={(e) => setAcknowledgeSamplesMissing(e.target.checked)}
+                        />
+                        <span>
+                          I understand my collaborator won't have the samples and
+                          will see "Samples Offline" in Ableton.
+                        </span>
+                      </label>
+                    )}
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      disabled={requiresAck && !acknowledgeSamplesMissing}
+                      onClick={() => {
+                        const als = pickLatestAls(validation.alsFiles);
+                        advanceWithAls(als);
+                      }}
+                    >
+                      Continue anyway
+                    </Button>
+                  </div>
+                );
+              })()}
             </>)}
           </div>
         )}
