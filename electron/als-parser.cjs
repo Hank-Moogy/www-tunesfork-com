@@ -167,31 +167,45 @@ function parseAlsFile(alsPath) {
       for (const t of arr) tracks.push(parseTrackElement(t, TRACK_TYPE_MAP[tag]));
     }
 
-    // Sample references: <SampleRef><FileRef><RelativePath>…</RelativePath><Path Value="…"/><HasRelativePath Value="…"/></FileRef></SampleRef>
+    // Sample references — supports Live ≤11 (nested RelativePathElement + HasRelativePath)
+    // and Live 12+ (single <RelativePath Value="…"/> + <RelativePathType Value="…"/>).
     const sampleNodes = [];
     collectAll(doc, "SampleRef", sampleNodes);
     const samples = [];
     for (const sr of sampleNodes) {
       const fileRef = sr.FileRef || sr;
       const absolutePath = attrValue(fileRef.Path, "Value") || null;
-      const hasRelativePath = attrValue(fileRef.HasRelativePath, "Value") === "true";
 
       let relativePath = null;
       const relPath = fileRef.RelativePath;
       if (relPath) {
-        const segs = [];
-        const elems = relPath.RelativePathElement;
-        const arr = Array.isArray(elems) ? elems : elems ? [elems] : [];
-        for (const rpe of arr) {
-          const dir = attrValue(rpe, "Dir");
-          if (dir) segs.push(dir);
+        // Live 12 attribute form
+        const attrVal = attrValue(relPath, "Value");
+        if (attrVal && attrVal.length > 0) {
+          relativePath = attrVal;
+        } else {
+          const elems = relPath.RelativePathElement;
+          const arr = Array.isArray(elems) ? elems : elems ? [elems] : [];
+          const segs = [];
+          for (const rpe of arr) {
+            const dir = attrValue(rpe, "Dir");
+            if (dir) segs.push(dir);
+          }
+          const fileName =
+            attrValue(fileRef.Name, "Value") ||
+            (absolutePath ? absolutePath.split(/[\\/]/).pop() || "" : "");
+          if (segs.length > 0 || fileName) {
+            relativePath = [...segs, fileName].filter(Boolean).join("/");
+          }
         }
-        const fileName =
-          attrValue(fileRef.Name, "Value") ||
-          (absolutePath ? absolutePath.split(/[\\/]/).pop() || "" : "");
-        if (segs.length > 0 || fileName) {
-          relativePath = [...segs, fileName].filter(Boolean).join("/");
-        }
+      }
+
+      let hasRelativePath;
+      if (fileRef.HasRelativePath) {
+        hasRelativePath = attrValue(fileRef.HasRelativePath, "Value") === "true";
+      } else {
+        const typeVal = attrValue(fileRef.RelativePathType, "Value");
+        hasRelativePath = !!relativePath && (typeVal === "1" || typeVal === "3" || typeVal == null);
       }
 
       if (!absolutePath && !relativePath) continue;
