@@ -85,8 +85,8 @@ export default function OpenInAbletonButton({
             <DialogTitle>Desktop app required</DialogTitle>
             <DialogDescription>
               Opening a project directly in Ableton needs the TunesFork
-              desktop app. Install it once and this button will hand the
-              project straight to Ableton from any browser.
+              desktop app. Download Tunesfork Sync (Mac or Windows) and this
+              button will hand the project straight to Ableton from any browser.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-2">

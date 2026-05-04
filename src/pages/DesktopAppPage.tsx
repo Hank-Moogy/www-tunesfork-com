@@ -1,19 +1,52 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Apple, Monitor, Music, RefreshCw, Shield, Zap } from "lucide-react";
+import { Apple, Monitor, Music, RefreshCw, Shield, Zap, Download } from "lucide-react";
+import { trackButtonClick } from "@/lib/analytics";
+import {
+  DESKTOP_APP_VERSION_LABEL,
+  DOWNLOADS_AVAILABLE,
+  DOWNLOAD_URLS,
+  detectPlatform,
+  type DesktopPlatform,
+} from "@/lib/desktopDownload";
 
 export default function DesktopAppPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [email, setEmail] = useState(user?.email ?? "");
-  const [platform, setPlatform] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [joined, setJoined] = useState(false);
+  const [platform, setPlatform] = useState<DesktopPlatform>("other");
+
+  useEffect(() => {
+    setPlatform(detectPlatform());
+  }, []);
+
+  const primary = useMemo(() => {
+    if (platform === "mac") {
+      return { label: "Download for Mac", sub: "Apple Silicon + Intel · .dmg", url: DOWNLOAD_URLS.mac, key: "mac" as const };
+    }
+    if (platform === "windows") {
+      return { label: "Download for Windows", sub: "64-bit installer · .exe", url: DOWNLOAD_URLS.windows, key: "windows" as const };
+    }
+    return null;
+  }, [platform]);
+
+  const handleDownload = (key: "mac" | "windows", url: string | null) => {
+    trackButtonClick("desktop_download", "desktop_app", { platform: key });
+    if (url) window.location.href = url;
+  };
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,15 +55,14 @@ export default function DesktopAppPage() {
     try {
       const { error } = await supabase.from("sync_waitlist").insert({
         email: email.trim().toLowerCase(),
-        platform: platform || null,
+        platform: platform === "other" ? null : platform,
         user_id: user?.id ?? null,
       });
-      // Treat unique-violation (already on list) as success.
       if (error && !String(error.message).toLowerCase().includes("duplicate")) {
         throw error;
       }
       setJoined(true);
-      toast({ title: "You're on the list!", description: "We'll email you the moment Tunesfork Sync is ready." });
+      toast({ title: "You're on the list!", description: "We'll email you about new releases." });
     } catch (err: any) {
       toast({ title: "Couldn't join", description: err.message ?? String(err), variant: "destructive" });
     } finally {
@@ -46,7 +78,7 @@ export default function DesktopAppPage() {
         <div className="text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
             <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-            Coming soon
+            {DOWNLOADS_AVAILABLE ? "Alpha available" : "Coming soon"}
           </span>
           <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-6xl">
             Tunesfork <span className="text-primary">Sync</span>
@@ -57,9 +89,46 @@ export default function DesktopAppPage() {
             No drag, no zip, no upload modal. It just works.
           </p>
 
-          {/* Waitlist */}
+          {/* Download or waitlist */}
           <div className="mx-auto mt-10 max-w-md">
-            {joined ? (
+            {DOWNLOADS_AVAILABLE ? (
+              <div className="space-y-4">
+                {primary ? (
+                  <Button
+                    size="lg"
+                    onClick={() => handleDownload(primary.key, primary.url)}
+                    className="w-full h-14 text-base bg-primary hover:bg-primary/90 gap-2"
+                  >
+                    <Download className="h-5 w-5" />
+                    {primary.label}
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    We don't recognize your OS — pick a build below.
+                  </p>
+                )}
+
+                <div className="flex justify-center gap-3 text-sm">
+                  <button
+                    onClick={() => handleDownload("mac", DOWNLOAD_URLS.mac)}
+                    className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 hover:border-primary/50 hover:text-primary transition"
+                  >
+                    <Apple className="h-4 w-4" /> macOS
+                  </button>
+                  <button
+                    onClick={() => handleDownload("windows", DOWNLOAD_URLS.windows)}
+                    className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 hover:border-primary/50 hover:text-primary transition"
+                  >
+                    <Monitor className="h-4 w-4" /> Windows
+                  </button>
+                </div>
+
+                <div className="font-mono text-xs text-muted-foreground">
+                  {DESKTOP_APP_VERSION_LABEL}
+                  {primary?.sub && <> · {primary.sub}</>}
+                </div>
+              </div>
+            ) : joined ? (
               <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-6 text-green-400">
                 ✓ You're on the list. We'll be in touch.
               </div>
@@ -78,27 +147,36 @@ export default function DesktopAppPage() {
                 </Button>
               </form>
             )}
-
-            {!joined && (
-              <div className="mt-3 flex justify-center gap-2 text-xs text-muted-foreground">
-                <button
-                  type="button"
-                  onClick={() => setPlatform("mac")}
-                  className={`rounded-full border px-3 py-1 transition ${platform === "mac" ? "border-primary text-primary" : "border-border"}`}
-                >
-                  <Apple className="mr-1 inline h-3 w-3" /> Mac
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPlatform("windows")}
-                  className={`rounded-full border px-3 py-1 transition ${platform === "windows" ? "border-primary text-primary" : "border-border"}`}
-                >
-                  <Monitor className="mr-1 inline h-3 w-3" /> Windows
-                </button>
-              </div>
-            )}
           </div>
         </div>
+
+        {/* First-launch instructions */}
+        {DOWNLOADS_AVAILABLE && (
+          <div className="mx-auto mt-10 max-w-2xl">
+            <Accordion type="single" collapsible>
+              <AccordionItem value="first-launch" className="border-border">
+                <AccordionTrigger className="text-sm">
+                  First launch — read this if you see a security warning
+                </AccordionTrigger>
+                <AccordionContent className="text-sm text-muted-foreground space-y-3">
+                  <div>
+                    <strong className="text-foreground">macOS:</strong> right-click the app in
+                    Applications → <em>Open</em> → <em>Open</em>. You only need to do this once.
+                    Required because the alpha build isn't yet signed with an Apple Developer ID.
+                  </div>
+                  <div>
+                    <strong className="text-foreground">Windows:</strong> on the SmartScreen
+                    prompt, click <em>More info</em> → <em>Run anyway</em>. The build isn't yet
+                    signed with an EV certificate.
+                  </div>
+                  <div className="text-xs">
+                    Code-signing is on the roadmap — these warnings will disappear in the next release.
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
+        )}
 
         {/* Feature row */}
         <div className="mt-24 grid gap-6 md:grid-cols-3">
@@ -117,7 +195,7 @@ export default function DesktopAppPage() {
 
         {/* How it works */}
         <div className="mt-24">
-          <h2 className="text-2xl font-bold">How it'll work</h2>
+          <h2 className="text-2xl font-bold">How it works</h2>
           <ol className="mt-6 space-y-4 text-muted-foreground">
             <li className="flex gap-4"><span className="font-mono text-primary">01</span> Download Tunesfork Sync (Mac or Windows).</li>
             <li className="flex gap-4"><span className="font-mono text-primary">02</span> Sign in with one click — same Tunesfork account.</li>
@@ -125,6 +203,26 @@ export default function DesktopAppPage() {
             <li className="flex gap-4"><span className="font-mono text-primary">04</span> Make music. Every save = new version on Tunesfork.</li>
           </ol>
         </div>
+
+        {/* Notify-me capture (always available, even when downloads are live) */}
+        {DOWNLOADS_AVAILABLE && !joined && (
+          <div className="mx-auto mt-20 max-w-md text-center">
+            <h3 className="text-lg font-semibold">Get notified about new releases</h3>
+            <form onSubmit={handleJoin} className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <Input
+                type="email"
+                required
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="flex-1"
+              />
+              <Button type="submit" disabled={submitting} variant="outline">
+                {submitting ? "Joining…" : "Notify me"}
+              </Button>
+            </form>
+          </div>
+        )}
 
         {/* Trust */}
         <div className="mt-20 rounded-xl border border-border bg-muted/20 p-6 text-sm text-muted-foreground">
