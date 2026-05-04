@@ -131,6 +131,11 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
     }
 
     // Extract sample references — every <SampleRef><FileRef>…</FileRef></SampleRef>
+    // Two formats exist:
+    //   • Live ≤11: <RelativePath><RelativePathElement Dir="Samples"/><RelativePathElement Dir="Imported"/></RelativePath>
+    //               + <HasRelativePath Value="true|false"/>
+    //   • Live 12+: <RelativePath Value="Samples/Imported/foo.wav"/> + <RelativePathType Value="3"/>
+    //               (no HasRelativePath element). RelativePathType=3 means "relative to project".
     const samples: SampleRef[] = [];
     const sampleRefEls = doc.querySelectorAll("SampleRef");
     sampleRefEls.forEach((sampleRef) => {
@@ -140,28 +145,39 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
       const pathEl = fileRef.querySelector(":scope > Path") || fileRef.querySelector("Path");
       const absolutePath = pathEl?.getAttribute("Value") || null;
 
-      // HasRelativePath flag
-      const hasRelEl = fileRef.querySelector("HasRelativePath");
-      const hasRelativePath = hasRelEl?.getAttribute("Value") === "true";
-
-      // Build relative path from <RelativePath><RelativePathElement Dir="…"/>…<Name Value="…"/></RelativePath>
-      // Note: the actual filename is the last segment of <Path Value> typically.
+      // Relative path — prefer Live 12 attribute form, fall back to nested elements.
       let relativePath: string | null = null;
       const relPathEl = fileRef.querySelector("RelativePath");
       if (relPathEl) {
-        const segs: string[] = [];
-        relPathEl.querySelectorAll("RelativePathElement").forEach((rpe) => {
-          const dir = rpe.getAttribute("Dir");
-          if (dir) segs.push(dir);
-        });
-        // Filename: prefer <Name Value="…"/> on the FileRef, else last segment of absolutePath
-        const nameEl = fileRef.querySelector(":scope > Name") || fileRef.querySelector("Name");
-        const fileName =
-          nameEl?.getAttribute("Value") ||
-          (absolutePath ? absolutePath.split(/[\\/]/).pop() || "" : "");
-        if (segs.length > 0 || fileName) {
-          relativePath = [...segs, fileName].filter(Boolean).join("/");
+        const attrVal = relPathEl.getAttribute("Value");
+        if (attrVal && attrVal.length > 0) {
+          relativePath = attrVal;
+        } else {
+          const segs: string[] = [];
+          relPathEl.querySelectorAll("RelativePathElement").forEach((rpe) => {
+            const dir = rpe.getAttribute("Dir");
+            if (dir) segs.push(dir);
+          });
+          const nameEl = fileRef.querySelector(":scope > Name") || fileRef.querySelector("Name");
+          const fileName =
+            nameEl?.getAttribute("Value") ||
+            (absolutePath ? absolutePath.split(/[\\/]/).pop() || "" : "");
+          if (segs.length > 0 || fileName) {
+            relativePath = [...segs, fileName].filter(Boolean).join("/");
+          }
         }
+      }
+
+      // hasRelativePath: Live 11 has an explicit flag; Live 12 implies it via
+      // a non-empty RelativePath plus RelativePathType ∈ {1,3} (project-relative).
+      const hasRelEl = fileRef.querySelector("HasRelativePath");
+      let hasRelativePath: boolean;
+      if (hasRelEl) {
+        hasRelativePath = hasRelEl.getAttribute("Value") === "true";
+      } else {
+        const typeEl = fileRef.querySelector("RelativePathType");
+        const typeVal = typeEl?.getAttribute("Value");
+        hasRelativePath = !!relativePath && (typeVal === "1" || typeVal === "3" || typeVal === null || typeVal === undefined);
       }
 
       // Skip refs with no path at all (e.g. impulse responses without a file)
