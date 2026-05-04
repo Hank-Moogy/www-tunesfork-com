@@ -13,11 +13,21 @@ export interface Track {
   clips: Clip[];
 }
 
+export interface SampleRef {
+  /** Relative path resolved from <RelativePath> elements (e.g. "Samples/Recorded/kick.wav"). */
+  relativePath: string | null;
+  /** Absolute path from <Path Value="…"/>. Present on most refs. */
+  absolutePath: string | null;
+  /** True if Ableton marked this ref as having a usable relative path. */
+  hasRelativePath: boolean;
+}
+
 export interface AlsMetadata {
   projectName: string;
   bpm: number | null;
   plugins: string[];
   tracks: Track[];
+  samples: SampleRef[];
 }
 
 // Ableton's 70-color palette (index → hex)
