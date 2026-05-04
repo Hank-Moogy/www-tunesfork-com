@@ -32,7 +32,9 @@ const parser = new XMLParser({
     name === "AudioTrack" ||
     name === "MidiTrack" ||
     name === "ReturnTrack" ||
-    name === "GroupTrack",
+    name === "GroupTrack" ||
+    name === "SampleRef" ||
+    name === "RelativePathElement",
 });
 
 function attrValue(node, attr) {
