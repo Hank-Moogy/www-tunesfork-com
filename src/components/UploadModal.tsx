@@ -305,6 +305,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   const handleZipSelect = useCallback(
     async (file: File) => {
       setProcessing(true);
+      setAcknowledgeSamplesMissing(false);
       try {
         const zip = await JSZip.loadAsync(file);
         const entries: File[] = [];
@@ -321,7 +322,19 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
         });
         await Promise.all(promises);
 
-        const result = validateFolder(entries);
+        // First pass to find the .als
+        const initial = validateFolder(entries);
+        if (initial.errors.length > 0) {
+          setValidation(initial);
+          setPreZippedBlob(file);
+          setProcessing(false);
+          return;
+        }
+
+        // Parse the .als so we can validate sample refs against the zip contents.
+        const als = pickLatestAls(initial.alsFiles);
+        const meta = await parseAlsFile(als);
+        const result = validateFolder(entries, meta?.samples ?? []);
         setValidation(result);
         setPreZippedBlob(file);
 
@@ -330,8 +343,11 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
           return;
         }
 
-        const als = pickLatestAls(result.alsFiles);
-        await advanceWithAls(als);
+        // Reuse parsed metadata so we don't parse twice.
+        setMetadata(meta);
+        setProjectName(existingProjectName ?? meta?.projectName ?? als.name.replace(/\.als$/i, ""));
+        setBpm(meta?.bpm?.toString() ?? "");
+        setStep(2);
       } catch {
         setValidation({
           alsFiles: [],
@@ -340,11 +356,13 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
           allFiles: [],
           errors: ["Could not read zip file. Make sure it's a valid .zip archive."],
           warnings: [],
+          missingSamples: [],
+          nonRelativeSamples: [],
         });
       }
       setProcessing(false);
     },
-    []
+    [existingProjectName]
   );
 
   // Handle a single .als file upload
@@ -352,21 +370,27 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
     async (file: File) => {
       setProcessing(true);
       setPreZippedBlob(null);
-      const result: FolderValidation = {
-        alsFiles: [file],
-        hasSamplesFolder: false,
-        totalSizeBytes: file.size,
-        allFiles: [file],
-        errors: [],
-        warnings: [
-          "You uploaded a single .als file. Samples won't be included — your collaborator may get missing file errors.",
-        ],
-      };
-      setValidation(result);
-      await advanceWithAls(file);
+      setAcknowledgeSamplesMissing(false);
+
+      // Parse the .als so we can tell the user *exactly* what's missing.
+      const meta = await parseAlsFile(file);
+      const samples = meta?.samples ?? [];
+      const result = validateFolder([file], samples);
+
+      // Always loud about the single-file case — even if the .als has no sample refs,
+      // we can't be sure it's truly self-contained.
+      const warnings = [
+        "You uploaded a single .als file. Any samples it references will be missing for your collaborator.",
+        ...result.warnings,
+      ];
+
+      setValidation({ ...result, warnings });
+      setMetadata(meta);
+      setProjectName(existingProjectName ?? meta?.projectName ?? file.name.replace(/\.als$/i, ""));
+      setBpm(meta?.bpm?.toString() ?? "");
       setProcessing(false);
     },
-    []
+    [existingProjectName]
   );
 
   // Step 1: Folder selection
@@ -384,8 +408,19 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
       setProcessing(true);
       setPreZippedBlob(null);
+      setAcknowledgeSamplesMissing(false);
       const fileArray = Array.from(files);
-      const result = validateFolder(fileArray);
+
+      const initial = validateFolder(fileArray);
+      if (initial.errors.length > 0) {
+        setValidation(initial);
+        setProcessing(false);
+        return;
+      }
+
+      const als = pickLatestAls(initial.alsFiles);
+      const meta = await parseAlsFile(als);
+      const result = validateFolder(fileArray, meta?.samples ?? []);
       setValidation(result);
 
       if (result.errors.length > 0) {
@@ -393,11 +428,13 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
         return;
       }
 
-      const als = pickLatestAls(result.alsFiles);
-      await advanceWithAls(als);
+      setMetadata(meta);
+      setProjectName(existingProjectName ?? meta?.projectName ?? als.name.replace(/\.als$/i, ""));
+      setBpm(meta?.bpm?.toString() ?? "");
+      setStep(2);
       setProcessing(false);
     },
-    [handleZipSelect, handleAlsSelect]
+    [handleZipSelect, handleAlsSelect, existingProjectName]
   );
 
   // Step 4: Upload
