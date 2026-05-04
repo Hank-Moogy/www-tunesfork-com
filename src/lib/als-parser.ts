@@ -130,7 +130,46 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
       }
     }
 
-    return { projectName, bpm, plugins: Array.from(plugins), tracks };
+    // Extract sample references — every <SampleRef><FileRef>…</FileRef></SampleRef>
+    const samples: SampleRef[] = [];
+    const sampleRefEls = doc.querySelectorAll("SampleRef");
+    sampleRefEls.forEach((sampleRef) => {
+      const fileRef = sampleRef.querySelector("FileRef") || sampleRef;
+
+      // Absolute path
+      const pathEl = fileRef.querySelector(":scope > Path") || fileRef.querySelector("Path");
+      const absolutePath = pathEl?.getAttribute("Value") || null;
+
+      // HasRelativePath flag
+      const hasRelEl = fileRef.querySelector("HasRelativePath");
+      const hasRelativePath = hasRelEl?.getAttribute("Value") === "true";
+
+      // Build relative path from <RelativePath><RelativePathElement Dir="…"/>…<Name Value="…"/></RelativePath>
+      // Note: the actual filename is the last segment of <Path Value> typically.
+      let relativePath: string | null = null;
+      const relPathEl = fileRef.querySelector("RelativePath");
+      if (relPathEl) {
+        const segs: string[] = [];
+        relPathEl.querySelectorAll("RelativePathElement").forEach((rpe) => {
+          const dir = rpe.getAttribute("Dir");
+          if (dir) segs.push(dir);
+        });
+        // Filename: prefer <Name Value="…"/> on the FileRef, else last segment of absolutePath
+        const nameEl = fileRef.querySelector(":scope > Name") || fileRef.querySelector("Name");
+        const fileName =
+          nameEl?.getAttribute("Value") ||
+          (absolutePath ? absolutePath.split(/[\\/]/).pop() || "" : "");
+        if (segs.length > 0 || fileName) {
+          relativePath = [...segs, fileName].filter(Boolean).join("/");
+        }
+      }
+
+      // Skip refs with no path at all (e.g. impulse responses without a file)
+      if (!absolutePath && !relativePath) return;
+      samples.push({ relativePath, absolutePath, hasRelativePath });
+    });
+
+    return { projectName, bpm, plugins: Array.from(plugins), tracks, samples };
   } catch {
     // Parsing failed — skip silently per spec
     return null;
