@@ -181,23 +181,6 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
     return meta;
   };
 
-  /**
-   * Parse the chosen .als and re-run validation against the actual sample refs.
-   * Returns the (possibly updated) validation so callers can decide whether to advance.
-   */
-  const validateWithSamples = async (
-    files: File[],
-    als: File,
-    pre?: FolderValidation
-  ): Promise<{ validation: FolderValidation; metadata: AlsMetadata | null }> => {
-    const meta = await parseAlsFile(als);
-    const base = pre ?? validateFolder(files, meta?.samples ?? []);
-    // If we were given a pre-built validation (computed without samples), recompute now
-    // that we know what the .als references.
-    const result = pre ? validateFolder(files, meta?.samples ?? []) : base;
-    return { validation: result, metadata: meta };
-  };
-
   const uploadZipResumable = useCallback(
     async (
       file: File,
