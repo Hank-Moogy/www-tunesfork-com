@@ -372,19 +372,34 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
       setPreZippedBlob(null);
       setAcknowledgeSamplesMissing(false);
 
-      // Parse the .als so we can tell the user *exactly* what's missing.
+      // Parse the .als so we can tell the user how many samples will be missing.
       const meta = await parseAlsFile(file);
       const samples = meta?.samples ?? [];
-      const result = validateFolder([file], samples);
+      const sampleCount = samples.length;
 
-      // Always loud about the single-file case — even if the .als has no sample refs,
-      // we can't be sure it's truly self-contained.
-      const warnings = [
-        "You uploaded a single .als file. Any samples it references will be missing for your collaborator.",
-        ...result.warnings,
-      ];
+      // Single-file uploads: don't hard-error on missing samples (every sample is missing
+      // by definition). Instead, downgrade to a loud warning + require acknowledgement.
+      const warnings: string[] = [];
+      if (sampleCount > 0) {
+        warnings.push(
+          `Heads up — your .als references ${sampleCount} sample${sampleCount === 1 ? "" : "s"} that won't be included. Your collaborator will see "Samples Offline" in Ableton.`
+        );
+      } else {
+        warnings.push(
+          "You uploaded a single .als file. If your project uses external samples, your collaborator may get missing file errors."
+        );
+      }
 
-      setValidation({ ...result, warnings });
+      setValidation({
+        alsFiles: [file],
+        hasSamplesFolder: false,
+        totalSizeBytes: file.size,
+        allFiles: [file],
+        errors: [],
+        warnings,
+        missingSamples: [],
+        nonRelativeSamples: [],
+      });
       setMetadata(meta);
       setProjectName(existingProjectName ?? meta?.projectName ?? file.name.replace(/\.als$/i, ""));
       setBpm(meta?.bpm?.toString() ?? "");
