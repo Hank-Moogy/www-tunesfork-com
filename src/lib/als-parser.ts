@@ -183,12 +183,22 @@ export interface FolderValidation {
   allFiles: File[];
   errors: string[];
   warnings: string[];
+  /** Sample paths the .als references but that aren't in the uploaded files. */
+  missingSamples: string[];
+  /** Sample refs that have no relative path — they only exist on the uploader's machine. */
+  nonRelativeSamples: string[];
+}
+
+/** Normalize a path for case-insensitive comparison and consistent separators. */
+function normalizePath(p: string): string {
+  return p.replace(/\\/g, "/").replace(/^\/+/, "").toLowerCase();
 }
 
 /**
  * Validate a selected folder for Ableton project structure.
+ * Pass `samples` from `parseAlsFile` to also detect missing / non-relative refs.
  */
-export function validateFolder(files: File[]): FolderValidation {
+export function validateFolder(files: File[], samples: SampleRef[] = []): FolderValidation {
   const alsFiles = files.filter((f) => f.name.toLowerCase().endsWith(".als"));
   const hasSamplesFolder = files.some((f) => {
     const parts = f.webkitRelativePath?.split("/") ?? [];
@@ -205,9 +215,58 @@ export function validateFolder(files: File[]): FolderValidation {
     );
   }
 
-  if (!hasSamplesFolder) {
+  // Build a set of file paths inside the upload, normalized.
+  // We accept matches by either the full webkitRelativePath OR the trailing portion
+  // (so that `<projectFolder>/Samples/x.wav` matches a relative ref of `Samples/x.wav`).
+  const uploadedNormalized = new Set<string>();
+  const uploadedTails: string[] = [];
+  for (const f of files) {
+    const rel = f.webkitRelativePath || f.name;
+    const norm = normalizePath(rel);
+    uploadedNormalized.add(norm);
+    uploadedTails.push(norm);
+  }
+
+  const isPresent = (relPath: string): boolean => {
+    const target = normalizePath(relPath);
+    if (uploadedNormalized.has(target)) return true;
+    // Allow matching when the upload includes the project folder as a prefix.
+    return uploadedTails.some((u) => u === target || u.endsWith("/" + target));
+  };
+
+  const missingSamples: string[] = [];
+  const nonRelativeSamples: string[] = [];
+
+  for (const s of samples) {
+    if (!s.relativePath || !s.hasRelativePath) {
+      // No usable relative path — sample only exists on the uploader's disk.
+      if (s.absolutePath) nonRelativeSamples.push(s.absolutePath);
+      continue;
+    }
+    if (!isPresent(s.relativePath)) {
+      missingSamples.push(s.relativePath);
+    }
+  }
+
+  if (nonRelativeSamples.length > 0) {
+    errors.push(
+      `${nonRelativeSamples.length} sample(s) in your .als still point to absolute paths on your computer. ` +
+        `In Ableton: File → Collect All and Save and tick every category (Factory Packs, User Library, Other locations), then re-upload.`
+    );
+  }
+
+  if (missingSamples.length > 0) {
+    errors.push(
+      `${missingSamples.length} sample(s) referenced by your .als are missing from the folder you selected (e.g. ${missingSamples
+        .slice(0, 3)
+        .join(", ")}). Make sure you selected the full project folder, not just the .als file.`
+    );
+  }
+
+  // Only warn about a missing samples folder when the .als didn't tell us anything.
+  if (samples.length === 0 && !hasSamplesFolder && alsFiles.length > 0) {
     warnings.push(
-      "No samples folder detected. Your collaborator may get missing file errors. Did you run 'Collect All and Save' in Ableton before uploading?"
+      "No samples folder detected. If your project uses external samples, your collaborator may get missing file errors."
     );
   }
 
@@ -215,7 +274,16 @@ export function validateFolder(files: File[]): FolderValidation {
     warnings.push("This is a large project — upload may take several minutes.");
   }
 
-  return { alsFiles, hasSamplesFolder, totalSizeBytes, allFiles: files, errors, warnings };
+  return {
+    alsFiles,
+    hasSamplesFolder,
+    totalSizeBytes,
+    allFiles: files,
+    errors,
+    warnings,
+    missingSamples,
+    nonRelativeSamples,
+  };
 }
 
 /**
