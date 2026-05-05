@@ -150,27 +150,79 @@ export default function DesktopAppPage() {
           </div>
         </div>
 
+        {/* Heads-up banner */}
+        {DOWNLOADS_AVAILABLE && (
+          <div className="mx-auto mt-6 max-w-2xl">
+            <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-200">
+              <strong className="text-yellow-100">Heads up:</strong> this alpha build isn't yet
+              code-signed, so macOS and Windows will show a security warning on first launch.
+              Takes ~30 seconds to bypass — instructions below.
+            </div>
+          </div>
+        )}
+
         {/* First-launch instructions */}
         {DOWNLOADS_AVAILABLE && (
-          <div className="mx-auto mt-10 max-w-2xl">
-            <Accordion type="single" collapsible>
-              <AccordionItem value="first-launch" className="border-border">
+          <div className="mx-auto mt-6 max-w-2xl">
+            <Accordion type="single" collapsible defaultValue="mac">
+              <AccordionItem value="mac" className="border-border">
                 <AccordionTrigger className="text-sm">
-                  First launch — read this if you see a security warning
+                  <span className="flex items-center gap-2">
+                    <Apple className="h-4 w-4" /> macOS — first launch instructions
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="text-sm text-muted-foreground space-y-4">
+                  <div>
+                    When you double-click the app you'll see <em>"Apple could not verify
+                    'Tunesfork Sync' is free of malware"</em>. That's macOS's Gatekeeper blocking
+                    unsigned apps — the build is safe, just not yet signed with an Apple Developer
+                    ID.
+                  </div>
+
+                  <div>
+                    <div className="font-semibold text-foreground mb-2">
+                      Recommended: System Settings bypass
+                    </div>
+                    <ol className="list-decimal list-inside space-y-1.5 ml-1">
+                      <li>Try to open the app — let macOS show the warning, then click <em>Done</em>.</li>
+                      <li>Open <strong className="text-foreground">System Settings → Privacy & Security</strong>.</li>
+                      <li>Scroll down. You'll see <em>"Tunesfork Sync was blocked to protect your Mac"</em>.</li>
+                      <li>Click <strong className="text-foreground">Open Anyway</strong>, then confirm with your password.</li>
+                      <li>The app will launch. You only need to do this once.</li>
+                    </ol>
+                  </div>
+
+                  <div>
+                    <div className="font-semibold text-foreground mb-2">
+                      Still stuck? Run this in Terminal:
+                    </div>
+                    <pre className="rounded-md bg-muted/40 border border-border p-3 text-xs text-foreground overflow-x-auto">
+{`xattr -cr /Applications/Tunesfork\\ Sync.app`}
+                    </pre>
+                    <div className="mt-2 text-xs">
+                      This removes the quarantine flag macOS adds to downloaded files. After
+                      running it, double-click the app normally.
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="windows" className="border-border">
+                <AccordionTrigger className="text-sm">
+                  <span className="flex items-center gap-2">
+                    <Monitor className="h-4 w-4" /> Windows — first launch instructions
+                  </span>
                 </AccordionTrigger>
                 <AccordionContent className="text-sm text-muted-foreground space-y-3">
                   <div>
-                    <strong className="text-foreground">macOS:</strong> right-click the app in
-                    Applications → <em>Open</em> → <em>Open</em>. You only need to do this once.
-                    Required because the alpha build isn't yet signed with an Apple Developer ID.
-                  </div>
-                  <div>
-                    <strong className="text-foreground">Windows:</strong> on the SmartScreen
-                    prompt, click <em>More info</em> → <em>Run anyway</em>. The build isn't yet
-                    signed with an EV certificate.
+                    SmartScreen will show <em>"Windows protected your PC"</em>. Click{" "}
+                    <strong className="text-foreground">More info</strong> →{" "}
+                    <strong className="text-foreground">Run anyway</strong>. The build isn't yet
+                    signed with an EV certificate, so Windows doesn't recognize it.
                   </div>
                   <div className="text-xs">
-                    Code-signing is on the roadmap — these warnings will disappear in the next release.
+                    Code-signing for both platforms is on the roadmap — these warnings will
+                    disappear in a future release.
                   </div>
                 </AccordionContent>
               </AccordionItem>
