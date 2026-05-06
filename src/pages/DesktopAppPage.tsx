@@ -77,6 +77,9 @@ export default function DesktopAppPage() {
     return null;
   }, [downloadUrls.mac, downloadUrls.windows, platform]);
 
+  const hasAnyDownload = Boolean(downloadUrls.mac || downloadUrls.windows);
+  const showDownloadControls = DOWNLOADS_AVAILABLE && (checkingDownloads || hasAnyDownload);
+
   const handleDownload = (key: "mac" | "windows", url: string | null) => {
     trackButtonClick("desktop_download", "desktop_app", { platform: key });
     if (url) {
@@ -121,7 +124,7 @@ export default function DesktopAppPage() {
         <div className="text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
             <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-            {DOWNLOADS_AVAILABLE ? "Alpha available" : "Coming soon"}
+            {checkingDownloads ? "Checking release" : hasAnyDownload ? "Alpha available" : "Release pending"}
           </span>
           <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-6xl">
             Tunesfork <span className="text-primary">Sync</span>
@@ -134,7 +137,7 @@ export default function DesktopAppPage() {
 
           {/* Download or waitlist */}
           <div className="mx-auto mt-10 max-w-md">
-            {DOWNLOADS_AVAILABLE ? (
+            {showDownloadControls ? (
               <div className="space-y-4">
                 {primary ? (
                   <Button
