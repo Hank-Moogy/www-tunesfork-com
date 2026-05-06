@@ -14,10 +14,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Apple, Monitor, Music, RefreshCw, Shield, Zap, Download } from "lucide-react";
 import { trackButtonClick } from "@/lib/analytics";
 import {
+  DESKTOP_ASSETS,
   DESKTOP_APP_VERSION_LABEL,
+  GITHUB_LATEST_RELEASE_API,
   DOWNLOADS_AVAILABLE,
   DOWNLOAD_URLS,
   detectPlatform,
+  type DesktopDownloadUrls,
   type DesktopPlatform,
 } from "@/lib/desktopDownload";
 
@@ -28,24 +31,64 @@ export default function DesktopAppPage() {
   const [submitting, setSubmitting] = useState(false);
   const [joined, setJoined] = useState(false);
   const [platform, setPlatform] = useState<DesktopPlatform>("other");
+  const [downloadUrls, setDownloadUrls] = useState<DesktopDownloadUrls>(DOWNLOAD_URLS);
+  const [checkingDownloads, setCheckingDownloads] = useState(DOWNLOADS_AVAILABLE);
 
   useEffect(() => {
     setPlatform(detectPlatform());
   }, []);
 
+  useEffect(() => {
+    if (!GITHUB_LATEST_RELEASE_API) {
+      setCheckingDownloads(false);
+      return;
+    }
+
+    let cancelled = false;
+    fetch(GITHUB_LATEST_RELEASE_API)
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error("No release found"))))
+      .then((release) => {
+        if (cancelled) return;
+        const assets = Array.isArray(release.assets) ? release.assets : [];
+        setDownloadUrls({
+          mac: assets.find((asset: { name?: string }) => asset.name === DESKTOP_ASSETS.mac)?.browser_download_url ?? null,
+          windows: assets.find((asset: { name?: string }) => asset.name === DESKTOP_ASSETS.windows)?.browser_download_url ?? null,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setDownloadUrls({ mac: null, windows: null });
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingDownloads(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const primary = useMemo(() => {
     if (platform === "mac") {
-      return { label: "Download for Mac", sub: "Apple Silicon + Intel · .dmg", url: DOWNLOAD_URLS.mac, key: "mac" as const };
+      return { label: "Download for Mac", sub: "Apple Silicon + Intel · .dmg", url: downloadUrls.mac, key: "mac" as const };
     }
     if (platform === "windows") {
-      return { label: "Download for Windows", sub: "64-bit installer · .exe", url: DOWNLOAD_URLS.windows, key: "windows" as const };
+      return { label: "Download for Windows", sub: "64-bit installer · .exe", url: downloadUrls.windows, key: "windows" as const };
     }
     return null;
-  }, [platform]);
+  }, [downloadUrls.mac, downloadUrls.windows, platform]);
 
   const handleDownload = (key: "mac" | "windows", url: string | null) => {
     trackButtonClick("desktop_download", "desktop_app", { platform: key });
-    if (url) window.location.href = url;
+    if (url) {
+      window.location.href = url;
+      return;
+    }
+
+    toast({
+      title: "Download not published yet",
+      description: `The ${key === "mac" ? "Mac" : "Windows"} installer hasn't been attached to the latest GitHub release yet.`,
+      variant: "destructive",
+    });
   };
 
   const handleJoin = async (e: React.FormEvent) => {
