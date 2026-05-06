@@ -1,6 +1,6 @@
 {
   "name": "tunesfork-sync",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "Tunesfork Sync — auto-upload Ableton projects on save",
   "main": "main.cjs",
   "scripts": {
@@ -50,7 +50,12 @@
     "mac": {
       "category": "public.app-category.music",
       "target": [
-        { "target": "dmg", "arch": ["universal"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
       ],
       "identity": null,
       "icon": "build/icon.icns",
@@ -58,7 +63,12 @@
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.ico",
       "artifactName": "Tunesfork-Sync-win-x64.${ext}"
@@ -71,7 +81,9 @@
     "protocols": [
       {
         "name": "Tunesfork",
-        "schemes": ["tunesfork"]
+        "schemes": [
+          "tunesfork"
+        ]
       }
     ]
   }
