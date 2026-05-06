@@ -429,8 +429,7 @@ async function openProjectInAbleton(projectId, versionId) {
   fs.unlink(zipPath, () => {});
 }
 
-
-
+app.whenReady().then(() => {
   // Build a tray icon from a real PNG file if present, otherwise from an
   // in-memory 22×22 template image so macOS doesn't reject it.
   const iconPath = path.join(__dirname, "assets", "tray-icon.png");
