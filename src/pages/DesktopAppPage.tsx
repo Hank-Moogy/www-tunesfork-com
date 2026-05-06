@@ -200,7 +200,7 @@ export default function DesktopAppPage() {
         </div>
 
         {/* Heads-up banner */}
-        {DOWNLOADS_AVAILABLE && (
+        {showDownloadControls && (
           <div className="mx-auto mt-6 max-w-2xl">
             <div className="rounded-lg border border-yellow-600/40 bg-yellow-100/80 p-4 text-sm text-yellow-900">
               <strong className="text-yellow-950">Heads up:</strong> this alpha build isn't yet
@@ -211,7 +211,7 @@ export default function DesktopAppPage() {
         )}
 
         {/* First-launch instructions */}
-        {DOWNLOADS_AVAILABLE && (
+        {showDownloadControls && (
           <div className="mx-auto mt-6 max-w-2xl">
             <Accordion type="single" collapsible defaultValue="mac">
               <AccordionItem value="mac" className="border-border">
