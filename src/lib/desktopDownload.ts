@@ -3,12 +3,20 @@
 // a "coming soon" state instead of broken links.
 
 export const DESKTOP_APP_VERSION = "0.1.0-alpha.1";
-export const DESKTOP_APP_VERSION_LABEL = "v0.1.0 alpha · unsigned build";
+export const DESKTOP_APP_VERSION_LABEL = "v0.1.0 alpha.2 · unsigned build";
 
 export const REPO_SLUG: string | null = "Hank-Moogy/www-tunesfork-com";
 
 const MAC_ASSET = "Tunesfork-Sync-mac-universal.dmg";
 const WIN_ASSET = "Tunesfork-Sync-win-x64.exe";
+export const DESKTOP_ASSETS = {
+  mac: MAC_ASSET,
+  windows: WIN_ASSET,
+};
+
+export const GITHUB_LATEST_RELEASE_API = REPO_SLUG
+  ? `https://api.github.com/repos/${REPO_SLUG}/releases/latest`
+  : null;
 
 export const DOWNLOAD_URLS = {
   mac: REPO_SLUG
@@ -31,3 +39,5 @@ export function detectPlatform(): DesktopPlatform {
 }
 
 export const DOWNLOADS_AVAILABLE = REPO_SLUG !== null;
+
+export type DesktopDownloadUrls = typeof DOWNLOAD_URLS;

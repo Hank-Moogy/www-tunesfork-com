@@ -14,10 +14,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Apple, Monitor, Music, RefreshCw, Shield, Zap, Download } from "lucide-react";
 import { trackButtonClick } from "@/lib/analytics";
 import {
+  DESKTOP_ASSETS,
   DESKTOP_APP_VERSION_LABEL,
+  GITHUB_LATEST_RELEASE_API,
   DOWNLOADS_AVAILABLE,
   DOWNLOAD_URLS,
   detectPlatform,
+  type DesktopDownloadUrls,
   type DesktopPlatform,
 } from "@/lib/desktopDownload";
 
@@ -28,24 +31,67 @@ export default function DesktopAppPage() {
   const [submitting, setSubmitting] = useState(false);
   const [joined, setJoined] = useState(false);
   const [platform, setPlatform] = useState<DesktopPlatform>("other");
+  const [downloadUrls, setDownloadUrls] = useState<DesktopDownloadUrls>(DOWNLOAD_URLS);
+  const [checkingDownloads, setCheckingDownloads] = useState(DOWNLOADS_AVAILABLE);
 
   useEffect(() => {
     setPlatform(detectPlatform());
   }, []);
 
+  useEffect(() => {
+    if (!GITHUB_LATEST_RELEASE_API) {
+      setCheckingDownloads(false);
+      return;
+    }
+
+    let cancelled = false;
+    fetch(GITHUB_LATEST_RELEASE_API)
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error("No release found"))))
+      .then((release) => {
+        if (cancelled) return;
+        const assets = Array.isArray(release.assets) ? release.assets : [];
+        setDownloadUrls({
+          mac: assets.find((asset: { name?: string }) => asset.name === DESKTOP_ASSETS.mac)?.browser_download_url ?? null,
+          windows: assets.find((asset: { name?: string }) => asset.name === DESKTOP_ASSETS.windows)?.browser_download_url ?? null,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setDownloadUrls({ mac: null, windows: null });
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingDownloads(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const primary = useMemo(() => {
     if (platform === "mac") {
-      return { label: "Download for Mac", sub: "Apple Silicon + Intel · .dmg", url: DOWNLOAD_URLS.mac, key: "mac" as const };
+      return { label: "Download for Mac", sub: "Apple Silicon + Intel · .dmg", url: downloadUrls.mac, key: "mac" as const };
     }
     if (platform === "windows") {
-      return { label: "Download for Windows", sub: "64-bit installer · .exe", url: DOWNLOAD_URLS.windows, key: "windows" as const };
+      return { label: "Download for Windows", sub: "64-bit installer · .exe", url: downloadUrls.windows, key: "windows" as const };
     }
     return null;
-  }, [platform]);
+  }, [downloadUrls.mac, downloadUrls.windows, platform]);
+
+  const hasAnyDownload = Boolean(downloadUrls.mac || downloadUrls.windows);
+  const showDownloadControls = DOWNLOADS_AVAILABLE && (checkingDownloads || hasAnyDownload);
 
   const handleDownload = (key: "mac" | "windows", url: string | null) => {
     trackButtonClick("desktop_download", "desktop_app", { platform: key });
-    if (url) window.location.href = url;
+    if (url) {
+      window.location.href = url;
+      return;
+    }
+
+    toast({
+      title: "Download not published yet",
+      description: `The ${key === "mac" ? "Mac" : "Windows"} installer hasn't been attached to the latest GitHub release yet.`,
+      variant: "destructive",
+    });
   };
 
   const handleJoin = async (e: React.FormEvent) => {
@@ -78,7 +124,7 @@ export default function DesktopAppPage() {
         <div className="text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
             <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-            {DOWNLOADS_AVAILABLE ? "Alpha available" : "Coming soon"}
+            {checkingDownloads ? "Checking release" : hasAnyDownload ? "Alpha available" : "Release pending"}
           </span>
           <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-6xl">
             Tunesfork <span className="text-primary">Sync</span>
@@ -91,16 +137,17 @@ export default function DesktopAppPage() {
 
           {/* Download or waitlist */}
           <div className="mx-auto mt-10 max-w-md">
-            {DOWNLOADS_AVAILABLE ? (
+            {showDownloadControls ? (
               <div className="space-y-4">
                 {primary ? (
                   <Button
                     size="lg"
                     onClick={() => handleDownload(primary.key, primary.url)}
+                    disabled={checkingDownloads || !primary.url}
                     className="w-full h-14 text-base bg-primary hover:bg-primary/90 gap-2"
                   >
-                    <Download className="h-5 w-5" />
-                    {primary.label}
+                    {checkingDownloads ? <RefreshCw className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+                    {checkingDownloads ? "Checking latest release…" : primary.url ? primary.label : "Installer coming soon"}
                   </Button>
                 ) : (
                   <p className="text-sm text-muted-foreground">
@@ -110,13 +157,15 @@ export default function DesktopAppPage() {
 
                 <div className="flex justify-center gap-3 text-sm">
                   <button
-                    onClick={() => handleDownload("mac", DOWNLOAD_URLS.mac)}
+                    onClick={() => handleDownload("mac", downloadUrls.mac)}
+                    disabled={checkingDownloads || !downloadUrls.mac}
                     className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 hover:border-primary/50 hover:text-primary transition"
                   >
                     <Apple className="h-4 w-4" /> macOS
                   </button>
                   <button
-                    onClick={() => handleDownload("windows", DOWNLOAD_URLS.windows)}
+                    onClick={() => handleDownload("windows", downloadUrls.windows)}
+                    disabled={checkingDownloads || !downloadUrls.windows}
                     className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 hover:border-primary/50 hover:text-primary transition"
                   >
                     <Monitor className="h-4 w-4" /> Windows
@@ -151,7 +200,7 @@ export default function DesktopAppPage() {
         </div>
 
         {/* Heads-up banner */}
-        {DOWNLOADS_AVAILABLE && (
+        {showDownloadControls && (
           <div className="mx-auto mt-6 max-w-2xl">
             <div className="rounded-lg border border-yellow-600/40 bg-yellow-100/80 p-4 text-sm text-yellow-900">
               <strong className="text-yellow-950">Heads up:</strong> this alpha build isn't yet
@@ -162,7 +211,7 @@ export default function DesktopAppPage() {
         )}
 
         {/* First-launch instructions */}
-        {DOWNLOADS_AVAILABLE && (
+        {showDownloadControls && (
           <div className="mx-auto mt-6 max-w-2xl">
             <Accordion type="single" collapsible defaultValue="mac">
               <AccordionItem value="mac" className="border-border">
