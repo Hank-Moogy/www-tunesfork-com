@@ -153,8 +153,8 @@ export default function DesktopAppPage() {
         {/* Heads-up banner */}
         {DOWNLOADS_AVAILABLE && (
           <div className="mx-auto mt-6 max-w-2xl">
-            <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-200">
-              <strong className="text-yellow-100">Heads up:</strong> this alpha build isn't yet
+            <div className="rounded-lg border border-yellow-600/40 bg-yellow-100/80 p-4 text-sm text-yellow-900">
+              <strong className="text-yellow-950">Heads up:</strong> this alpha build isn't yet
               code-signed, so macOS and Windows will show a security warning on first launch.
               Takes ~30 seconds to bypass — instructions below.
             </div>
