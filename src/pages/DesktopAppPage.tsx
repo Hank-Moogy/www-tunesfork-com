@@ -140,10 +140,11 @@ export default function DesktopAppPage() {
                   <Button
                     size="lg"
                     onClick={() => handleDownload(primary.key, primary.url)}
+                    disabled={checkingDownloads || !primary.url}
                     className="w-full h-14 text-base bg-primary hover:bg-primary/90 gap-2"
                   >
-                    <Download className="h-5 w-5" />
-                    {primary.label}
+                    {checkingDownloads ? <RefreshCw className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+                    {checkingDownloads ? "Checking latest release…" : primary.url ? primary.label : "Installer coming soon"}
                   </Button>
                 ) : (
                   <p className="text-sm text-muted-foreground">
@@ -153,13 +154,15 @@ export default function DesktopAppPage() {
 
                 <div className="flex justify-center gap-3 text-sm">
                   <button
-                    onClick={() => handleDownload("mac", DOWNLOAD_URLS.mac)}
+                    onClick={() => handleDownload("mac", downloadUrls.mac)}
+                    disabled={checkingDownloads || !downloadUrls.mac}
                     className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 hover:border-primary/50 hover:text-primary transition"
                   >
                     <Apple className="h-4 w-4" /> macOS
                   </button>
                   <button
-                    onClick={() => handleDownload("windows", DOWNLOAD_URLS.windows)}
+                    onClick={() => handleDownload("windows", downloadUrls.windows)}
+                    disabled={checkingDownloads || !downloadUrls.windows}
                     className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 hover:border-primary/50 hover:text-primary transition"
                   >
                     <Monitor className="h-4 w-4" /> Windows
