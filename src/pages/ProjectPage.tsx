@@ -298,6 +298,26 @@ export default function ProjectPage() {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Collaborator added" });
+      // Fire-and-forget invite email (don't block UI on failure)
+      try {
+        const inviterProfile = profile?.display_name ?? user?.email ?? null;
+        const recipientName = matches?.[0]?.display_name ?? null;
+        supabase.functions.invoke("send-transactional-email", {
+          body: {
+            templateName: "collaborator-invited",
+            recipientEmail: email,
+            idempotencyKey: `collab-invited-${project.id}-${targetUserId}`,
+            templateData: {
+              inviterName: inviterProfile,
+              recipientName,
+              projectName: project.name,
+              projectUrl: `${window.location.origin}/project/${project.id}`,
+            },
+          },
+        });
+      } catch (e) {
+        console.warn("invite email failed", e);
+      }
       setCollabEmail("");
       setAddCollabOpen(false);
       const { data: collabs } = await supabase.from("collaborators").select("*").eq("project_id", project.id);
