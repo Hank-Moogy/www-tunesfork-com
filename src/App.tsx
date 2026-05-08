@@ -20,6 +20,7 @@ import NotFound from "./pages/NotFound";
 import DesktopAppPage from "./pages/DesktopAppPage";
 import DesktopPairPage from "./pages/DesktopPairPage";
 import ProfilePage from "./pages/ProfilePage";
+import UnsubscribePage from "./pages/UnsubscribePage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthRedirect from "./components/AuthRedirect";
 
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/welcome/gitsound" element={<LandingPageGithub />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/share/:token" element={<SharePage />} />
+            <Route path="/unsubscribe" element={<UnsubscribePage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/checkout/return" element={<CheckoutReturn />} />
