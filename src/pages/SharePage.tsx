@@ -67,6 +67,12 @@ export default function SharePage() {
         return;
       }
       try { sessionStorage.removeItem("tf_pending_invite"); } catch {}
+      // Notify project owner that invite was accepted (fire-and-forget)
+      try {
+        supabase.functions.invoke("notify-invite-accepted", { body: { projectId: data } });
+      } catch (e) {
+        console.warn("notify-invite-accepted failed", e);
+      }
       toast({ title: "Invite accepted", description: "You now have access to this project." });
       navigate(`/project/${data}`, { replace: true });
     })();

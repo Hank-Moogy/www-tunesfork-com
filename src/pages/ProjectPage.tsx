@@ -300,7 +300,7 @@ export default function ProjectPage() {
       toast({ title: "Collaborator added" });
       // Fire-and-forget invite email (don't block UI on failure)
       try {
-        const inviterProfile = profile?.display_name ?? user?.email ?? null;
+        const inviterProfile = user?.user_metadata?.full_name ?? user?.email ?? null;
         const recipientName = matches?.[0]?.display_name ?? null;
         supabase.functions.invoke("send-transactional-email", {
           body: {
