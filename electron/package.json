@@ -1,6 +1,6 @@
 {
   "name": "tunesfork-sync",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "description": "Tunesfork Sync — auto-upload Ableton projects on save",
   "main": "main.cjs",
   "scripts": {
@@ -46,8 +46,7 @@
       "als-parser.cjs",
       "dist/**",
       "src/**",
-      "package.json",
-      "node_modules/**/*"
+      "package.json"
     ],
     "asarUnpack": [
       "node_modules/fsevents/**/*"

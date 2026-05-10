@@ -7,7 +7,16 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { execSync } = require("node:child_process");
 
-const REQUIRED = ["chokidar", "archiver", "adm-zip", "fast-xml-parser"];
+const REQUIRED = [
+  "chokidar",
+  "archiver",
+  "archiver-utils",
+  "zip-stream",
+  "compress-commons",
+  "readable-stream",
+  "adm-zip",
+  "fast-xml-parser",
+];
 const releaseDir = path.join(__dirname, "..", "release");
 
 if (!fs.existsSync(releaseDir)) {
