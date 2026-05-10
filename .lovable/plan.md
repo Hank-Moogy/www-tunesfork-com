@@ -1,31 +1,102 @@
-## Problem
+## The bug
 
-The desktop app crashes on launch with:
+The user's screenshot shows the desktop app logging:
 
 ```
-SyntaxError: Unexpected token '}'
-  at main.cjs:476
+Missing deps. Run `npm install` in /electron
 ```
 
-In `electron/main.cjs`, the opening `app.whenReady().then(() => {` was lost in a prior edit. The tray-icon / window setup code at lines 434–475 now sits at the top level, and the dangling `});` on line 476 has no matching opener — so Node refuses to parse the file and Electron exits before it can even create a window.
+That message comes from `electron/main.cjs` (around line 173–178), where the sync engine lazy-requires `chokidar` and `archiver`:
+
+```js
+try {
+  chokidar = require("chokidar");
+  archiver = require("archiver");
+} catch (e) {
+  log("err", "Missing deps. Run `npm install` in /electron");
+  return;
+}
+```
+
+Inside the packaged `.app`, those modules are not present — so `require()` throws and sync never starts. Pairing works (it uses only built-in `https`), which matches the screenshot: "Paired as MacIntel" succeeds, but as soon as Resume is clicked, deps fail.
+
+## Root cause
+
+In `electron/package.json`, the electron-builder `files` array is:
+
+```json
+"files": [
+  "main.cjs",
+  "preload.cjs",
+  "als-parser.cjs",
+  "dist/**",
+  "src/**",
+  "package.json"
+]
+```
+
+`node_modules/**` is not listed. electron-builder normally auto-includes production dependencies, but when a custom `files` array is provided without an explicit `node_modules` pattern, packaged builds frequently end up missing them — especially when `npm install` was run with dev/optional flags or when the DMG was built from a fresh clone where the dep tree wasn't fully resolved before `electron-builder` ran.
+
+The result: the shipped `.app/Contents/Resources/app.asar` doesn't contain `chokidar` or `archiver`, so end users hit this error even though it works in `npm run dev`.
 
 ## Fix
 
-In `electron/main.cjs`, wrap the tray bootstrap block in `app.whenReady().then(...)` again:
+### 1. Bundle production node_modules into the build
 
-- Replace the blank lines 432–433 with:
-  ```js
-  app.whenReady().then(() => {
-  ```
-- Leave lines 434–475 (icon resolution, `new Tray(...)`, click handlers, `createTrayWindow()`, auto-resume sync) unchanged.
-- Line 476's existing `});` then correctly closes the `whenReady` callback.
+Update `electron/package.json` `build.files` to explicitly include node_modules:
 
-No other files need to change. After the edit, the alpha .dmg needs to be rebuilt and re-uploaded to the GitHub release so users get a working binary — the published web download URL stays the same.
+```json
+"files": [
+  "main.cjs",
+  "preload.cjs",
+  "als-parser.cjs",
+  "dist/**",
+  "src/**",
+  "package.json",
+  "node_modules/**/*"
+]
+```
 
-## Note on shipping the fix
+And add `asarUnpack` for `chokidar` (it uses `fsevents` on macOS, which is a native module that must live outside the asar):
 
-Lovable can only edit the source. To actually unblock Mac users you (or whoever owns the repo) will need to:
-1. `cd electron && npm run dist:mac`
-2. Upload the new `Tunesfork-Sync-mac-universal.dmg` to the GitHub release.
+```json
+"asarUnpack": [
+  "node_modules/fsevents/**/*",
+  "node_modules/chokidar/**/*"
+]
+```
 
-The download page on tunesfork.com points at `/releases/latest/download/...`, so no web change is required once the new asset is uploaded.
+### 2. Improve the in-app error so we can debug future cases
+
+Replace the generic "Missing deps" log with the actual `e.message` from the failed require, so if this ever happens again the activity log shows *which* module failed and *where* it looked. Keep the user-facing wording friendly:
+
+```js
+} catch (e) {
+  log("err", `Sync engine failed to load: ${e.message}`);
+  log("err", "This is a packaging bug — please reinstall the latest build.");
+  return;
+}
+```
+
+### 3. Bump alpha version
+
+Update `electron/package.json` version to `0.1.0-alpha.3` and the matching label in `src/lib/desktopDownload.ts` (`DESKTOP_APP_VERSION_LABEL`) so the user knows to grab the new build, and so old broken DMGs are visibly outdated.
+
+## What you (Hank) need to do after I apply the fix
+
+1. `cd electron && rm -rf node_modules dist release && npm install`
+2. `npm run dist:mac` (and `npm run dist:win` if shipping Windows too)
+3. Attach the new `Tunesfork-Sync-mac-universal.dmg` (and `.exe`) to a new GitHub release — the site auto-fetches `latest`.
+4. Tell the affected user (the one in the screenshot) to redownload and reinstall.
+
+## What this does NOT change
+
+- No frontend / dashboard / database changes.
+- No edge function changes.
+- The pairing flow, watcher logic, and upload pipeline are untouched — only the packaging manifest and one error message.
+
+## Files touched
+
+- `electron/package.json` — `build.files`, `build.asarUnpack`, `version`
+- `electron/main.cjs` — improve the catch block message
+- `src/lib/desktopDownload.ts` — bump `DESKTOP_APP_VERSION` and `DESKTOP_APP_VERSION_LABEL`
