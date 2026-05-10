@@ -174,7 +174,8 @@ async function startSync() {
     chokidar = require("chokidar");
     archiver = require("archiver");
   } catch (e) {
-    log("err", "Missing deps. Run `npm install` in /electron");
+    log("err", `Sync engine failed to load: ${e.message}`);
+    log("err", "This is a packaging bug — please reinstall the latest build.");
     return;
   }
 
