@@ -1,6 +1,6 @@
 {
   "name": "tunesfork-sync",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "description": "Tunesfork Sync — auto-upload Ableton projects on save",
   "main": "main.cjs",
   "scripts": {
@@ -9,9 +9,10 @@
     "dev:win": "set VITE_DEV_SERVER_URL=http://localhost:5180&& electron .",
     "dev:all": "concurrently -k -n ui,electron -c blue,green \"npm run dev:ui\" \"wait-on http://localhost:5180 && npm run dev\"",
     "build:ui": "vite build",
-    "dist": "npm run build:ui && electron-builder",
-    "dist:mac": "npm run build:ui && electron-builder --mac --universal",
-    "dist:win": "npm run build:ui && electron-builder --win --x64"
+    "verify:pack": "node scripts/verify-pack.cjs",
+    "dist": "npm run build:ui && electron-builder && npm run verify:pack",
+    "dist:mac": "npm run build:ui && electron-builder --mac --universal && npm run verify:pack",
+    "dist:win": "npm run build:ui && electron-builder --win --x64 && npm run verify:pack"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",
@@ -49,9 +50,9 @@
       "node_modules/**/*"
     ],
     "asarUnpack": [
-      "node_modules/fsevents/**/*",
-      "node_modules/chokidar/**/*"
+      "node_modules/fsevents/**/*"
     ],
+    "npmRebuild": true,
     "mac": {
       "category": "public.app-category.music",
       "target": [

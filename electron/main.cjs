@@ -172,10 +172,18 @@ async function startSync() {
   let chokidar, archiver;
   try {
     chokidar = require("chokidar");
+  } catch (e) {
+    log("err", `Failed to load 'chokidar': ${e && e.code ? `[${e.code}] ` : ""}${e && e.message ? e.message : e}`);
+    log("err", `Looked in: ${(require.resolve.paths("chokidar") || []).join(" | ")}`);
+    log("err", "Packaging bug — please install the latest build from tunesfork.com/desktop-app.");
+    return;
+  }
+  try {
     archiver = require("archiver");
   } catch (e) {
-    log("err", `Sync engine failed to load: ${e.message}`);
-    log("err", "This is a packaging bug — please reinstall the latest build.");
+    log("err", `Failed to load 'archiver': ${e && e.code ? `[${e.code}] ` : ""}${e && e.message ? e.message : e}`);
+    log("err", `Looked in: ${(require.resolve.paths("archiver") || []).join(" | ")}`);
+    log("err", "Packaging bug — please install the latest build from tunesfork.com/desktop-app.");
     return;
   }
 
