@@ -9,7 +9,7 @@ import UploadModal from "@/components/UploadModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 // Badge import removed (no longer used in new layout)
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -146,11 +146,26 @@ export default function ProjectPage() {
   const [collabEmail, setCollabEmail] = useState("");
   const [collabRole, setCollabRole] = useState<"viewer" | "contributor">("viewer");
   const [addingCollab, setAddingCollab] = useState(false);
+  const [frequentCollabs, setFrequentCollabs] = useState<{
+    user_id: string;
+    email: string;
+    display_name: string | null;
+    avatar_url: string | null;
+    project_count: number;
+  }[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const commentInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!addCollabOpen) return;
+    supabase.rpc("get_frequent_collaborators", { _limit: 8 }).then(({ data, error }) => {
+      if (error) { console.warn("frequent collabs", error); return; }
+      setFrequentCollabs((data ?? []) as typeof frequentCollabs);
+    });
+  }, [addCollabOpen]);
 
   useEffect(() => {
     if (!id || !user) return;
@@ -683,6 +698,44 @@ export default function ProjectPage() {
             <DialogDescription>Invite someone to view or contribute to this project.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {(() => {
+              const existingIds = new Set(collaborators.map((c) => c.user_id));
+              const suggestions = frequentCollabs.filter((f) => !existingIds.has(f.user_id));
+              if (suggestions.length === 0) return null;
+              return (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Frequent collaborators
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestions.map((s) => {
+                      const name = s.display_name ?? s.email.split("@")[0];
+                      const initials = (s.display_name ?? s.email).slice(0, 2).toUpperCase();
+                      const selected = collabEmail.trim().toLowerCase() === s.email.toLowerCase();
+                      return (
+                        <button
+                          key={s.user_id}
+                          type="button"
+                          onClick={() => setCollabEmail(s.email)}
+                          className={`flex items-center gap-2 rounded-full border px-2 py-1 text-xs transition-colors ${
+                            selected
+                              ? "border-pastel-green/60 bg-pastel-green/15 text-pastel-green"
+                              : "border-border bg-secondary hover:bg-secondary/70"
+                          }`}
+                          title={s.email}
+                        >
+                          <Avatar className="h-5 w-5">
+                            {s.avatar_url && <AvatarImage src={s.avatar_url} alt="" />}
+                            <AvatarFallback className="text-[9px]">{initials}</AvatarFallback>
+                          </Avatar>
+                          <span className="max-w-[120px] truncate">{name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             <div className="space-y-2">
               <label className="text-sm font-medium">Email address</label>
               <Input type="email" value={collabEmail} onChange={(e) => setCollabEmail(e.target.value)} placeholder="name@example.com" className="bg-secondary border-border" autoComplete="off" />
