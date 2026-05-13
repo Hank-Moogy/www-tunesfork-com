@@ -675,6 +675,17 @@ export type Database = {
           user_email: string
         }[]
       }
+      get_frequent_collaborators: {
+        Args: { _limit?: number }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          email: string
+          last_added_at: string
+          project_count: number
+          user_id: string
+        }[]
+      }
       get_project_by_share_token: {
         Args: { _token: string }
         Returns: {
