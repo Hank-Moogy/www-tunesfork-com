@@ -9,6 +9,7 @@ import ContributionHeatmap from "@/components/profile/ContributionHeatmap";
 import RhythmCard from "@/components/profile/RhythmCard";
 import GearCard from "@/components/profile/GearCard";
 import Milestones from "@/components/profile/Milestones";
+import StorageCard from "@/components/profile/StorageCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Flame } from "lucide-react";
@@ -38,6 +39,12 @@ export type UserStats = {
     version_number: number;
     created_at: string;
     file_size_bytes: number;
+  }[];
+  storage_by_project: {
+    project_id: string;
+    project_name: string;
+    bytes: number;
+    version_count: number;
   }[];
 };
 
