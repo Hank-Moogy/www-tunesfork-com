@@ -118,6 +118,7 @@ export default function ProfilePage() {
         ) : (
           <>
             <HeroStats stats={stats} />
+            <StorageCard stats={stats} />
             <ContributionHeatmap heatmap={stats.heatmap} />
             <div className="grid gap-6 lg:grid-cols-2">
               <RhythmCard stats={stats} />
