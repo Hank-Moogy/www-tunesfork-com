@@ -1,37 +1,37 @@
-## What's happening
+## Storage usage section on profile
 
-The new build *does* include `archiver` itself, but `archiver`'s nested dependency `archiver-utils` is missing from `app.asar`. That's why `verify-pack` passed (it only checks top-level packages) but Resume still crashes.
+Add a new `StorageCard` component on `/profile`, placed right under `HeroStats`.
 
-Root cause: `electron/package.json` overrides electron-builder's default `files` glob with `"node_modules/**/*"`. That string looks correct but it disables electron-builder's smart production-dependency tracer, and combined with how `npm install` hoists transitive deps, some nested packages (`archiver-utils`, possibly `zip-stream`'s deps) get pruned out of the asar.
+### What the user sees
 
-## Plan
+- **Header**: "Storage" with the total used (e.g. `2.4 GB across 12 projects`) and a small note "No storage limit during alpha".
+- **Usage bar**: a single full-width bar split into colored segments — one segment per top project, plus a grey "Other" segment. Hovering a segment shows the project name + size.
+- **Breakdown list**: top 8 projects by size, each row showing
+  - Project name (links to `/project/:id`)
+  - Mini bar (% of total)
+  - Size (e.g. `412 MB`) and version count (e.g. `8 versions`)
+- "Show all" expands to the full list if there are more than 8.
 
-### 1. Let electron-builder handle node_modules itself
-In `electron/package.json` `build.files`, remove the explicit `"node_modules/**/*"` line. electron-builder will then auto-include every production dependency (and its transitive tree) by walking `package.json`, which is the supported path and correctly picks up `archiver-utils`, `zip-stream`, etc.
+### Data
 
-### 2. Make verify-pack catch transitive misses
-Update `electron/scripts/verify-pack.cjs` so the REQUIRED list also includes the transitive deps that have already bitten us:
-- `archiver-utils`
-- `zip-stream`
-- `compress-commons`
-- `readable-stream`
+Extend the existing `get_user_stats` Postgres function to also return:
 
-If any of these are absent from `app.asar`, the build fails before the DMG is produced.
-
-### 3. Bump version
-- `electron/package.json` → `0.1.0-alpha.5`
-- `src/lib/desktopDownload.ts` label → `v0.1.0 alpha.5`
-
-### 4. Rebuild + release instructions (after approval and code changes)
 ```
-cd electron
-rm -rf node_modules dist release
-npm install
-npm run dist:mac
+storage_by_project: [
+  { project_id, project_name, bytes, version_count },
+  ...
+] -- ordered by bytes desc, all projects user has uploaded versions to
 ```
-- Expected verify-pack output now lists `ok: archiver-utils`, `ok: zip-stream`, etc.
-- If green: publish GitHub release `v0.1.0-alpha.5` with the new DMG, click Publish → Update in Lovable, re-test Resume in incognito download.
-- If red: paste the `MISSING:` lines back and we'll pin the offending packages explicitly in `dependencies`.
 
-## Why not just pin archiver-utils in dependencies?
-That would mask the underlying packaging bug and we'd hit the same class of error the next time `archiver` (or any other dep) gains a new transitive. Removing the `files` override is the proper fix; the expanded verify-pack list is the safety net.
+Computed by summing `file_size_bytes` from `project_versions` grouped by `project_id` where `uploader_id = target_user`, joined to `projects.name`. Reuses existing RLS-safe SECURITY DEFINER pattern.
+
+### Files
+
+- **Migration**: replace `get_user_stats` to add `storage_by_project` field.
+- **New**: `src/components/profile/StorageCard.tsx` — bar + list UI using existing `glass-card` styling and pastel tints already used in `HeroStats`.
+- **Edit**: `src/pages/ProfilePage.tsx` — add `storage_by_project` to `UserStats` type, render `<StorageCard stats={stats} />` after `<HeroStats />`.
+
+### Notes
+
+- No quota logic now; the component is structured so we can drop in a quota bar later by passing an optional `limitBytes` prop.
+- Reuses the existing `formatBytes` helper (move it to `src/lib/utils.ts` so both `HeroStats` and `StorageCard` import it).
