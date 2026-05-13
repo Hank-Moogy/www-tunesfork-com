@@ -160,6 +160,14 @@ export default function ProjectPage() {
   const commentInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (!addCollabOpen) return;
+    supabase.rpc("get_frequent_collaborators", { _limit: 8 }).then(({ data, error }) => {
+      if (error) { console.warn("frequent collabs", error); return; }
+      setFrequentCollabs((data ?? []) as typeof frequentCollabs);
+    });
+  }, [addCollabOpen]);
+
+  useEffect(() => {
     if (!id || !user) return;
     const fetchAll = async () => {
       setLoading(true);
