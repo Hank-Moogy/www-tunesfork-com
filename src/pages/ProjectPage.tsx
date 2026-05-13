@@ -146,6 +146,13 @@ export default function ProjectPage() {
   const [collabEmail, setCollabEmail] = useState("");
   const [collabRole, setCollabRole] = useState<"viewer" | "contributor">("viewer");
   const [addingCollab, setAddingCollab] = useState(false);
+  const [frequentCollabs, setFrequentCollabs] = useState<{
+    user_id: string;
+    email: string;
+    display_name: string | null;
+    avatar_url: string | null;
+    project_count: number;
+  }[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
