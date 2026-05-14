@@ -252,7 +252,16 @@ export default function Dashboard() {
 
   const openUpload = () => setUploadOpen(true);
 
-  const isFirstTime = hasAnyProjectsEver === false && tab === "my" && !debouncedSearch;
+  // Only show the first-time empty state when we're certain the user has zero projects.
+  // Guard against races where the standalone count query resolves with 0 even though
+  // the main fetch returns projects (e.g. transient RLS/auth timing on reload).
+  const isFirstTime =
+    hasAnyProjectsEver === false &&
+    tab === "my" &&
+    !debouncedSearch &&
+    !loading &&
+    projects.length === 0 &&
+    totalCount === 0;
 
   return (
     <div className="min-h-screen">
