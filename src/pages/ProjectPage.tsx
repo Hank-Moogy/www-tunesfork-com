@@ -493,9 +493,12 @@ export default function ProjectPage() {
                                         {title}
                                       </span>
                                     </div>
-                                    <p className="text-[11px] text-muted-foreground mt-0.5 truncate font-mono">
-                                      {new Date(v.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                                    </p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <p className="text-[11px] text-muted-foreground truncate font-mono">
+                                        {new Date(v.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                      </p>
+                                      <SampleCheckBadge check={(v as any).sample_check as SampleCheck | null} />
+                                    </div>
                                     {(() => {
                                       const up = profileMap.get(v.uploader_id);
                                       const name = up?.display_name || (v.uploader_id === project.owner_id ? "Owner" : "Contributor");
