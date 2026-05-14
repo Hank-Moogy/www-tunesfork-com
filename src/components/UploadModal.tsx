@@ -613,6 +613,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
           plugin_list: metadata?.plugins ?? null,
           file_size_bytes: blob.size,
           track_list: (metadata?.tracks as any) ?? null,
+          ableton_version: metadata?.abletonVersion ?? null,
         });
       if (verError) {
         console.error("[upload] version insert error:", verError);
