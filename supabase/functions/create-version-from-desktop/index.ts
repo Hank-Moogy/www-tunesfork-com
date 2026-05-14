@@ -102,20 +102,26 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Next version number
+    // Next version number + which major group this save belongs to.
+    // First save = V1; subsequent saves stay on current max major until the
+    // user explicitly promotes one to a new major.
     const { data: latest } = await admin
       .from("project_versions")
-      .select("version_number")
+      .select("version_number, major_version")
       .eq("project_id", projectId)
       .order("version_number", { ascending: false })
       .limit(1);
-    const versionNumber = (latest && latest[0]?.version_number ? latest[0].version_number : 0) + 1;
+    const isFirstVersion = !(latest && latest.length > 0);
+    const versionNumber = isFirstVersion ? 1 : (latest![0].version_number + 1);
+    const majorVersion = isFirstVersion ? 1 : (latest![0].major_version ?? 1);
 
     const { data: version, error: vErr } = await admin
       .from("project_versions")
       .insert({
         project_id: projectId,
         version_number: versionNumber,
+        major_version: majorVersion,
+        is_main_version: isFirstVersion,
         uploader_id: userId,
         change_note: body.change_note ?? "Auto-saved from desktop",
         zip_url: zipPath,
