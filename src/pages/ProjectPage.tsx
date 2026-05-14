@@ -187,11 +187,15 @@ export default function ProjectPage() {
       }
 
       const { data: collabs } = await supabase.from("collaborators").select("*").eq("project_id", id);
+      const collabUserIds = collabs?.map((c) => c.user_id) ?? [];
+      const uploaderIds = (vers ?? []).map((v) => v.uploader_id);
+      const allIds = Array.from(new Set([...collabUserIds, ...uploaderIds, proj.owner_id].filter(Boolean)));
+      const { data: profiles } = await supabase
+        .from("profiles").select("user_id, display_name, avatar_url").in("user_id", allIds);
+      const pMap = new Map(profiles?.map((p) => [p.user_id, { display_name: p.display_name, avatar_url: p.avatar_url }]));
+      setProfileMap(pMap);
       if (collabs) {
-        const userIds = collabs.map((c) => c.user_id);
-        const { data: profiles } = await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", userIds);
-        const profileMap = new Map(profiles?.map((p) => [p.user_id, p]));
-        setCollaborators(collabs.map((c) => ({ ...c, profile: profileMap.get(c.user_id) ?? null })));
+        setCollaborators(collabs.map((c) => ({ ...c, profile: pMap.get(c.user_id) ?? null })));
       }
       setLoading(false);
     };
