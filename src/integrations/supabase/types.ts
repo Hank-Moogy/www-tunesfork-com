@@ -382,6 +382,7 @@ export type Database = {
       }
       project_versions: {
         Row: {
+          ableton_version: string | null
           audio_preview_url: string | null
           change_note: string | null
           created_at: string
@@ -395,6 +396,7 @@ export type Database = {
           zip_url: string
         }
         Insert: {
+          ableton_version?: string | null
           audio_preview_url?: string | null
           change_note?: string | null
           created_at?: string
@@ -408,6 +410,7 @@ export type Database = {
           zip_url: string
         }
         Update: {
+          ableton_version?: string | null
           audio_preview_url?: string | null
           change_note?: string | null
           created_at?: string
