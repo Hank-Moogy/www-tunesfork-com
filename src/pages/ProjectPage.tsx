@@ -444,48 +444,88 @@ export default function ProjectPage() {
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="px-2 pb-2 space-y-1 max-h-[420px] overflow-y-auto">
-                {versions.map((v, i) => {
-                  const isSelected = selectedVersion?.id === v.id;
-                  const isCurrent = i === 0;
-                  const title = v.change_note?.split("\n")[0] || `Version ${v.version_number}`;
-                  const subtitle = isCurrent
-                    ? `Modified ${formatRelative(v.created_at)}`
-                    : i === versions.length - 1
-                      ? "Initial upload"
-                      : `Modified ${formatRelative(v.created_at)}`;
-                  return (
-                    <button
-                      key={v.id}
-                      onClick={() => setSelectedVersion(v)}
-                      className={`w-full text-left rounded-xl px-3 py-2.5 transition-all border ${
-                        isSelected
-                          ? "bg-primary/10 border-primary/25"
-                          : "bg-transparent border-transparent hover:bg-secondary/60"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-sm font-semibold truncate ${isSelected ? "text-foreground" : "text-foreground/90"}`}>
-                              V{v.version_number} - {title}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>
+              <div className="px-2 pb-2 space-y-3 max-h-[480px] overflow-y-auto">
+                {(() => {
+                  // Group versions by major_version (desc), within each group sorted by save time (desc)
+                  const groups = new Map<number, Version[]>();
+                  for (const v of versions) {
+                    const m = (v as any).major_version ?? 1;
+                    if (!groups.has(m)) groups.set(m, []);
+                    groups.get(m)!.push(v);
+                  }
+                  const sortedMajors = Array.from(groups.keys()).sort((a, b) => b - a);
+                  const canEdit = project.owner_id === user?.id;
+
+                  return sortedMajors.map((major) => {
+                    const saves = groups.get(major)!;
+                    return (
+                      <div key={major} className="space-y-1">
+                        <div className="px-2 pt-1 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                          V{major}
                         </div>
-                        {isCurrent ? (
-                          <span className="shrink-0 rounded-full bg-accent/15 text-accent text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5">
-                            Current
-                          </span>
-                        ) : (
-                          <span className="shrink-0 text-[10px] text-muted-foreground font-mono mt-0.5">
-                            {new Date(v.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                          </span>
-                        )}
+                        {saves.map((v) => {
+                          const isSelected = selectedVersion?.id === v.id;
+                          const isMain = (v as any).is_main_version;
+                          const title = v.change_note?.split("\n")[0] || `Save ${new Date(v.created_at).toLocaleString()}`;
+                          return (
+                            <div
+                              key={v.id}
+                              className={`group relative w-full rounded-xl px-3 py-2.5 transition-all border ${
+                                isSelected
+                                  ? "bg-primary/10 border-primary/25"
+                                  : "bg-transparent border-transparent hover:bg-secondary/60"
+                              }`}
+                            >
+                              <button
+                                onClick={() => setSelectedVersion(v)}
+                                className="w-full text-left"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-sm font-medium truncate ${isSelected ? "text-foreground" : "text-foreground/90"}`}>
+                                        {title}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground mt-0.5 truncate font-mono">
+                                      {new Date(v.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                    </p>
+                                  </div>
+                                  {isMain && (
+                                    <span className="shrink-0 rounded-full bg-accent/15 text-accent text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5">
+                                      Main
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+                              {canEdit && (
+                                <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md">
+                                        <Settings className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-52">
+                                      {!isMain && (
+                                        <DropdownMenuItem onClick={() => handleSetMainVersion(v.id)}>
+                                          Mark as Main
+                                        </DropdownMenuItem>
+                                      )}
+                                      <DropdownMenuItem onClick={() => handlePromoteVersion(v.id)}>
+                                        Promote to new major version
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                    </button>
-                  );
-                })}
+                    );
+                  });
+                })()}
                 {versions.length === 0 && (
                   <p className="text-xs text-muted-foreground text-center py-6">No versions yet.</p>
                 )}
