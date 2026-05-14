@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
@@ -12,7 +12,8 @@ import Milestones from "@/components/profile/Milestones";
 import StorageCard from "@/components/profile/StorageCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Flame } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Flame, RefreshCw } from "lucide-react";
 
 export type UserStats = {
   user_id: string;
@@ -54,24 +55,75 @@ export default function ProfilePage() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [profile, setProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
+  const refresh = useCallback(
+    async (opts: { silent?: boolean } = {}) => {
+      if (!user) return;
+      if (opts.silent) setRefreshing(true);
       const [statsRes, profRes] = await Promise.all([
         supabase.rpc("get_user_stats", { p_user_id: user.id }),
         supabase.from("profiles").select("display_name, avatar_url").eq("user_id", user.id).maybeSingle(),
       ]);
-      if (cancelled) return;
       if (statsRes.error) console.error("get_user_stats", statsRes.error);
       else setStats(statsRes.data as UserStats);
       if (profRes.data) setProfile(profRes.data);
+      setLastUpdated(new Date());
       setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [user]);
+      setRefreshing(false);
+    },
+    [user]
+  );
+
+  // Initial load
+  useEffect(() => {
+    if (!user) return;
+    setLoading(true);
+    refresh();
+  }, [user, refresh]);
+
+  // Refetch when the tab regains focus / becomes visible (covers desktop saves
+  // happening while this tab was in the background or behind Ableton).
+  useEffect(() => {
+    const onFocus = () => refresh({ silent: true });
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh({ silent: true });
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refresh]);
+
+  // Realtime: bump stats a moment after any new save by this user lands.
+  // Debounced so a multi-row insert only triggers one refetch.
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`stats-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "project_versions",
+          filter: `uploader_id=eq.${user.id}`,
+        },
+        () => {
+          if (refetchTimer.current) clearTimeout(refetchTimer.current);
+          refetchTimer.current = setTimeout(() => refresh({ silent: true }), 800);
+        }
+      )
+      .subscribe();
+    return () => {
+      if (refetchTimer.current) clearTimeout(refetchTimer.current);
+      supabase.removeChannel(channel);
+    };
+  }, [user, refresh]);
 
   const memberSince = useMemo(() => {
     if (!stats?.first_save) return null;
@@ -106,6 +158,23 @@ export default function ProfilePage() {
                 )}
               </p>
             </div>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            {lastUpdated && (
+              <span className="font-mono">
+                Updated {lastUpdated.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refresh({ silent: true })}
+              disabled={refreshing}
+              className="gap-1.5"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
           </div>
         </header>
 
