@@ -414,7 +414,7 @@ export default function ProjectPage() {
   if (!project) return null;
 
   const currentVersionLabel = selectedVersion
-    ? `V${selectedVersion.version_number}${selectedVersion.change_note ? ` - ${selectedVersion.change_note}` : ""}`
+    ? `V${(selectedVersion as any).major_version ?? 1}${selectedVersion.change_note ? ` - ${selectedVersion.change_note}` : ""}`
     : "";
 
   const ownerInitials = "OW";
