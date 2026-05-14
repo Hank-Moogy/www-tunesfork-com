@@ -145,6 +145,22 @@ function parseAlsFile(alsPath) {
       if (!isNaN(v) && v > 0) bpm = Math.round(v);
     }
 
+    // Ableton Live version from root <Ableton Creator="Ableton Live X.Y.Z" .../>
+    let abletonVersion = null;
+    const root = doc && doc.Ableton ? doc.Ableton : null;
+    if (root) {
+      const creator = attrValue(root, "Creator");
+      if (creator) {
+        abletonVersion = creator;
+      } else {
+        const major = attrValue(root, "MajorVersion");
+        const minor = attrValue(root, "MinorVersion");
+        if (major || minor) {
+          abletonVersion = `Ableton Live ${major || ""}${minor ? ` (${minor})` : ""}`.trim();
+        }
+      }
+    }
+
     // Plugins: <PluginDesc> → <VstPluginInfo|AuPluginInfo> → <PlugName Value="…"/>
     const pluginNodes = [];
     collectAll(doc, "VstPluginInfo", pluginNodes);
