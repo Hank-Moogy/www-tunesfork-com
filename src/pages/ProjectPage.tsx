@@ -538,6 +538,11 @@ export default function ProjectPage() {
                         {pluginList.length} plugins
                       </span>
                     )}
+                    {selectedVersion?.ableton_version && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border px-2.5 py-1 text-[11px] font-mono">
+                        <Music className="h-3 w-3 text-muted-foreground" /> {selectedVersion.ableton_version}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
