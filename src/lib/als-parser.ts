@@ -66,6 +66,19 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
       if (!isNaN(parsed) && parsed > 0) bpm = Math.round(parsed);
     }
 
+    // Extract Ableton Live version from the root <Ableton ... Creator="Ableton Live X.Y.Z" />
+    let abletonVersion: string | null = null;
+    const creatorMatch = xml.match(/<Ableton\b[^>]*\bCreator="([^"]+)"/);
+    if (creatorMatch) {
+      abletonVersion = creatorMatch[1];
+    } else {
+      const majMatch = xml.match(/<Ableton\b[^>]*\bMajorVersion="([^"]+)"/);
+      const minMatch = xml.match(/<Ableton\b[^>]*\bMinorVersion="([^"]+)"/);
+      if (majMatch || minMatch) {
+        abletonVersion = `Ableton Live ${majMatch?.[1] ?? ""}${minMatch ? ` (${minMatch[1]})` : ""}`.trim();
+      }
+    }
+
     // Extract plugin names from <PluginDesc> → <VstPluginInfo> or <AuPluginInfo>
     const plugins = new Set<string>();
     const pluginMatches = xml.matchAll(/<(?:VstPluginInfo|AuPluginInfo)[^>]*>[\s\S]*?<PlugName\s+Value="([^"]+)"/g);
