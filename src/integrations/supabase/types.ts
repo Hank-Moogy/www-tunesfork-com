@@ -392,6 +392,7 @@ export type Database = {
           major_version: number
           plugin_list: Json | null
           project_id: string
+          sample_check: Json | null
           track_list: Json | null
           uploader_id: string
           version_number: number
@@ -408,6 +409,7 @@ export type Database = {
           major_version?: number
           plugin_list?: Json | null
           project_id: string
+          sample_check?: Json | null
           track_list?: Json | null
           uploader_id: string
           version_number: number
@@ -424,6 +426,7 @@ export type Database = {
           major_version?: number
           plugin_list?: Json | null
           project_id?: string
+          sample_check?: Json | null
           track_list?: Json | null
           uploader_id?: string
           version_number?: number
