@@ -495,6 +495,20 @@ export default function ProjectPage() {
                                     <p className="text-[11px] text-muted-foreground mt-0.5 truncate font-mono">
                                       {new Date(v.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                                     </p>
+                                    {(() => {
+                                      const up = profileMap.get(v.uploader_id);
+                                      const name = up?.display_name || (v.uploader_id === project.owner_id ? "Owner" : "Contributor");
+                                      const initials = (name || "?").split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase();
+                                      return (
+                                        <div className="flex items-center gap-1.5 mt-1.5">
+                                          <Avatar className="h-4 w-4">
+                                            <AvatarImage src={up?.avatar_url ?? undefined} alt={name} />
+                                            <AvatarFallback className="text-[8px]">{initials}</AvatarFallback>
+                                          </Avatar>
+                                          <span className="text-[11px] text-muted-foreground truncate">{name}</span>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                   {isMain && (
                                     <span className="shrink-0 rounded-full bg-accent/15 text-accent text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5">
