@@ -350,6 +350,39 @@ export default function ProjectPage() {
     setAddingCollab(false);
   };
 
+  const refreshVersions = async () => {
+    if (!id) return;
+    const { data: vers } = await supabase
+      .from("project_versions").select("*").eq("project_id", id)
+      .order("major_version", { ascending: false })
+      .order("version_number", { ascending: false });
+    setVersions(vers ?? []);
+    if (vers && selectedVersion) {
+      const updated = vers.find((v) => v.id === selectedVersion.id);
+      if (updated) setSelectedVersion(updated);
+    }
+  };
+
+  const handlePromoteVersion = async (versionId: string) => {
+    const { data, error } = await supabase.rpc("promote_version_to_major", { _version_id: versionId });
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: `Promoted to V${data}`, description: "Future saves will continue from this version." });
+    await refreshVersions();
+  };
+
+  const handleSetMainVersion = async (versionId: string) => {
+    const { error } = await supabase.rpc("set_main_version", { _version_id: versionId });
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Main version updated" });
+    await refreshVersions();
+  };
+
   const handleDeleteProject = async () => {
     if (!project) return;
     trackButtonClick("project_delete", "project", { project_id: project.id });
