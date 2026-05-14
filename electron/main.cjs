@@ -5,6 +5,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
 const { parseAlsFile } = require("./als-parser.cjs");
+const { buildSampleCheck } = require("./sample-check.cjs");
 
 const TUNESFORK_URL = process.env.TUNESFORK_URL || "https://tunesfork.com";
 const FUNCTIONS_URL = process.env.TUNESFORK_FUNCTIONS_URL
@@ -292,6 +293,22 @@ async function processAlsSave(alsPath, archiver) {
     log("info", `Parsed ${meta.tracks.length} tracks, ${clipCount} clips, ${meta.plugins.length} plugins${meta.bpm ? `, ${meta.bpm} BPM` : ""}`);
   }
 
+  // Sample integrity check — see how many referenced samples actually live in
+  // the project folder. Stored on the version so the web UI can flag missing
+  // samples before a collaborator opens the project.
+  let sampleCheck = null;
+  try {
+    sampleCheck = buildSampleCheck(projectFolder, meta?.samples ?? []);
+    if (sampleCheck.missing > 0 || sampleCheck.external > 0) {
+      log(
+        "warn",
+        `${sampleCheck.missing} missing / ${sampleCheck.external} external samples — collaborators may see "Media Files Missing". Run File → Collect All and Save in Ableton.`
+      );
+    }
+  } catch (e) {
+    log("warn", `Sample check failed: ${e.message}`);
+  }
+
   const cv = await fetch(`${FUNCTIONS_URL}/create-version-from-desktop`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -304,6 +321,7 @@ async function processAlsSave(alsPath, archiver) {
       plugin_list: meta?.plugins ?? null,
       track_list: meta?.tracks ?? null,
       ableton_version: meta?.abletonVersion ?? null,
+      sample_check: sampleCheck,
     }),
   });
   if (!cv.ok) {

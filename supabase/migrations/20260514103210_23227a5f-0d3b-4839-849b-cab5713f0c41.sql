@@ -1,0 +1,1 @@
+ALTER TABLE public.project_versions ADD COLUMN IF NOT EXISTS sample_check jsonb;
