@@ -128,6 +128,7 @@ Deno.serve(async (req) => {
         plugin_list: body.plugin_list ?? null,
         track_list: body.track_list ?? null,
         ableton_version: body.ableton_version ?? null,
+        sample_check: body.sample_check ?? null,
         file_size_bytes: fileSize,
       })
       .select()
