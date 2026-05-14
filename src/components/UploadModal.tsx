@@ -612,6 +612,8 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
         .insert({
           project_id: projectId,
           version_number: versionNumber,
+          major_version: majorVersion,
+          is_main_version: isFirstVersion,
           uploader_id: user.id,
           change_note: changeNote || null,
           zip_url: zipPath,
