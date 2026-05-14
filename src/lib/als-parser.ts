@@ -200,7 +200,7 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
       samples.push({ relativePath, absolutePath, hasRelativePath });
     });
 
-    return { projectName, bpm, plugins: Array.from(plugins), tracks, samples };
+    return { projectName, bpm, plugins: Array.from(plugins), tracks, samples, abletonVersion };
   } catch {
     // Parsing failed — skip silently per spec
     return null;
