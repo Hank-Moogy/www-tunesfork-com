@@ -388,6 +388,8 @@ export type Database = {
           created_at: string
           file_size_bytes: number
           id: string
+          is_main_version: boolean
+          major_version: number
           plugin_list: Json | null
           project_id: string
           track_list: Json | null
@@ -402,6 +404,8 @@ export type Database = {
           created_at?: string
           file_size_bytes?: number
           id?: string
+          is_main_version?: boolean
+          major_version?: number
           plugin_list?: Json | null
           project_id: string
           track_list?: Json | null
@@ -416,6 +420,8 @@ export type Database = {
           created_at?: string
           file_size_bytes?: number
           id?: string
+          is_main_version?: boolean
+          major_version?: number
           plugin_list?: Json | null
           project_id?: string
           track_list?: Json | null
@@ -767,6 +773,10 @@ export type Database = {
         Returns: number
       }
       normalize_plugin_name: { Args: { raw_name: string }; Returns: string }
+      promote_version_to_major: {
+        Args: { _version_id: string }
+        Returns: number
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
@@ -775,6 +785,7 @@ export type Database = {
           read_ct: number
         }[]
       }
+      set_main_version: { Args: { _version_id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
