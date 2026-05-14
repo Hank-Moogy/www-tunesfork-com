@@ -177,9 +177,13 @@ export default function ProjectPage() {
 
       const { data: vers } = await supabase
         .from("project_versions").select("*").eq("project_id", id)
+        .order("major_version", { ascending: false })
         .order("version_number", { ascending: false });
       setVersions(vers ?? []);
-      if (vers && vers.length > 0) setSelectedVersion(vers[0]);
+      if (vers && vers.length > 0) {
+        const main = vers.find((v) => v.is_main_version);
+        setSelectedVersion(main ?? vers[0]);
+      }
 
       const { data: collabs } = await supabase.from("collaborators").select("*").eq("project_id", id);
       if (collabs) {
