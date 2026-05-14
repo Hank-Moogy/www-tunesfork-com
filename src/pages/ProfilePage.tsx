@@ -159,6 +159,23 @@ export default function ProfilePage() {
               </p>
             </div>
           </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            {lastUpdated && (
+              <span className="font-mono">
+                Updated {lastUpdated.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refresh({ silent: true })}
+              disabled={refreshing}
+              className="gap-1.5"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
         </header>
 
         {loading || !stats ? (
