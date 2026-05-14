@@ -607,6 +607,20 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
         audioUrl,
         fileSizeBytes: blob.size,
       });
+      const totalSamples = metadata?.samples?.length ?? 0;
+      const missingCount = validation.missingSamples.length;
+      const externalCount = validation.nonRelativeSamples.length;
+      const sampleCheck =
+        totalSamples > 0
+          ? {
+              included: Math.max(0, totalSamples - missingCount - externalCount),
+              missing: missingCount,
+              external: externalCount,
+              missing_paths: validation.missingSamples.slice(0, 10),
+              external_paths: validation.nonRelativeSamples.slice(0, 10),
+            }
+          : null;
+
       const { error: verError } = await supabase
         .from("project_versions")
         .insert({
@@ -622,6 +636,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
           file_size_bytes: blob.size,
           track_list: (metadata?.tracks as any) ?? null,
           ableton_version: metadata?.abletonVersion ?? null,
+          sample_check: sampleCheck as any,
         });
       if (verError) {
         console.error("[upload] version insert error:", verError);
