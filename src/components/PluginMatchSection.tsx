@@ -34,10 +34,26 @@ export default function PluginMatchSection({ pluginList, showSubmit = false }: P
     const match = async () => {
       setLoading(true);
       const { data, error } = await supabase.rpc("match_plugins", {
-        plugin_names: JSON.stringify(pluginList),
+        plugin_names: pluginList as unknown as any,
       });
-      if (!error && data) {
+      if (!error && data && (data as unknown as MatchedPlugin[]).length > 0) {
         setResults(data as unknown as MatchedPlugin[]);
+      } else {
+        // Fallback: RPC failed or returned nothing — show raw plugin names as unmatched.
+        if (error) console.warn("[match_plugins] failed:", error);
+        setResults(
+          pluginList.map((name) => ({
+            input_name: name,
+            catalog_id: null,
+            catalog_name: null,
+            developer: null,
+            type: null,
+            website_url: null,
+            logo_url: null,
+            is_free: null,
+            matched: false,
+          }))
+        );
       }
       setLoading(false);
     };
