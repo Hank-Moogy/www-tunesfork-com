@@ -155,7 +155,7 @@ export default function PluginMatchSection({ pluginList, showSubmit = false }: P
           defaultName={submitName}
           onSubmitted={() => {
             // Re-run matching
-            supabase.rpc("match_plugins", { plugin_names: JSON.stringify(pluginList) })
+            supabase.rpc("match_plugins", { plugin_names: pluginList as unknown as any })
               .then(({ data }) => { if (data) setResults(data as unknown as MatchedPlugin[]); });
           }}
         />
