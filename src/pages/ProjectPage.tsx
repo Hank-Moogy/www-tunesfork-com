@@ -156,6 +156,7 @@ export default function ProjectPage() {
   const [downloading, setDownloading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [profileMap, setProfileMap] = useState<Map<string, { display_name: string | null; avatar_url: string | null }>>(new Map());
 
   const commentInputRef = useRef<HTMLInputElement>(null);
 
@@ -186,11 +187,15 @@ export default function ProjectPage() {
       }
 
       const { data: collabs } = await supabase.from("collaborators").select("*").eq("project_id", id);
+      const collabUserIds = collabs?.map((c) => c.user_id) ?? [];
+      const uploaderIds = (vers ?? []).map((v) => v.uploader_id);
+      const allIds = Array.from(new Set([...collabUserIds, ...uploaderIds, proj.owner_id].filter(Boolean)));
+      const { data: profiles } = await supabase
+        .from("profiles").select("user_id, display_name, avatar_url").in("user_id", allIds);
+      const pMap = new Map(profiles?.map((p) => [p.user_id, { display_name: p.display_name, avatar_url: p.avatar_url }]));
+      setProfileMap(pMap);
       if (collabs) {
-        const userIds = collabs.map((c) => c.user_id);
-        const { data: profiles } = await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", userIds);
-        const profileMap = new Map(profiles?.map((p) => [p.user_id, p]));
-        setCollaborators(collabs.map((c) => ({ ...c, profile: profileMap.get(c.user_id) ?? null })));
+        setCollaborators(collabs.map((c) => ({ ...c, profile: pMap.get(c.user_id) ?? null })));
       }
       setLoading(false);
     };
@@ -490,6 +495,20 @@ export default function ProjectPage() {
                                     <p className="text-[11px] text-muted-foreground mt-0.5 truncate font-mono">
                                       {new Date(v.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                                     </p>
+                                    {(() => {
+                                      const up = profileMap.get(v.uploader_id);
+                                      const name = up?.display_name || (v.uploader_id === project.owner_id ? "Owner" : "Contributor");
+                                      const initials = (name || "?").split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase();
+                                      return (
+                                        <div className="flex items-center gap-1.5 mt-1.5">
+                                          <Avatar className="h-4 w-4">
+                                            <AvatarImage src={up?.avatar_url ?? undefined} alt={name} />
+                                            <AvatarFallback className="text-[8px]">{initials}</AvatarFallback>
+                                          </Avatar>
+                                          <span className="text-[11px] text-muted-foreground truncate">{name}</span>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                   {isMain && (
                                     <span className="shrink-0 rounded-full bg-accent/15 text-accent text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5">
