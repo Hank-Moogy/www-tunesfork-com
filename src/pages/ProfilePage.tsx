@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
@@ -12,7 +12,8 @@ import Milestones from "@/components/profile/Milestones";
 import StorageCard from "@/components/profile/StorageCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Flame } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Flame, RefreshCw } from "lucide-react";
 
 export type UserStats = {
   user_id: string;
