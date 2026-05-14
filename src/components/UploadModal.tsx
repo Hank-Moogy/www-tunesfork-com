@@ -580,17 +580,23 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
         projectId = project.id;
       }
 
-      // Determine next version number
+      // Determine next version number + which "major" group this save belongs to.
+      // First save = V1, subsequent saves stay on the current max major until the
+      // user explicitly promotes a save to a new major (V2, V3...).
       let versionNumber = 1;
+      let majorVersion = 1;
+      let isFirstVersion = true;
       if (existingProjectId) {
         const { data: existingVersions } = await supabase
           .from("project_versions")
-          .select("version_number")
+          .select("version_number, major_version")
           .eq("project_id", existingProjectId)
           .order("version_number", { ascending: false })
           .limit(1);
         if (existingVersions && existingVersions.length > 0) {
           versionNumber = existingVersions[0].version_number + 1;
+          majorVersion = existingVersions[0].major_version ?? 1;
+          isFirstVersion = false;
         }
       }
 
