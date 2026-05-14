@@ -55,24 +55,75 @@ export default function ProfilePage() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [profile, setProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
+  const refresh = useCallback(
+    async (opts: { silent?: boolean } = {}) => {
+      if (!user) return;
+      if (opts.silent) setRefreshing(true);
       const [statsRes, profRes] = await Promise.all([
         supabase.rpc("get_user_stats", { p_user_id: user.id }),
         supabase.from("profiles").select("display_name, avatar_url").eq("user_id", user.id).maybeSingle(),
       ]);
-      if (cancelled) return;
       if (statsRes.error) console.error("get_user_stats", statsRes.error);
       else setStats(statsRes.data as UserStats);
       if (profRes.data) setProfile(profRes.data);
+      setLastUpdated(new Date());
       setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [user]);
+      setRefreshing(false);
+    },
+    [user]
+  );
+
+  // Initial load
+  useEffect(() => {
+    if (!user) return;
+    setLoading(true);
+    refresh();
+  }, [user, refresh]);
+
+  // Refetch when the tab regains focus / becomes visible (covers desktop saves
+  // happening while this tab was in the background or behind Ableton).
+  useEffect(() => {
+    const onFocus = () => refresh({ silent: true });
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh({ silent: true });
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refresh]);
+
+  // Realtime: bump stats a moment after any new save by this user lands.
+  // Debounced so a multi-row insert only triggers one refetch.
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`stats-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "project_versions",
+          filter: `uploader_id=eq.${user.id}`,
+        },
+        () => {
+          if (refetchTimer.current) clearTimeout(refetchTimer.current);
+          refetchTimer.current = setTimeout(() => refresh({ silent: true }), 800);
+        }
+      )
+      .subscribe();
+    return () => {
+      if (refetchTimer.current) clearTimeout(refetchTimer.current);
+      supabase.removeChannel(channel);
+    };
+  }, [user, refresh]);
 
   const memberSince = useMemo(() => {
     if (!stats?.first_save) return null;
