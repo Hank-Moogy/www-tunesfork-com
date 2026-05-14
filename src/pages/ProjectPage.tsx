@@ -156,6 +156,7 @@ export default function ProjectPage() {
   const [downloading, setDownloading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [profileMap, setProfileMap] = useState<Map<string, { display_name: string | null; avatar_url: string | null }>>(new Map());
 
   const commentInputRef = useRef<HTMLInputElement>(null);
 
