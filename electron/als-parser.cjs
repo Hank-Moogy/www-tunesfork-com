@@ -228,7 +228,7 @@ function parseAlsFile(alsPath) {
       samples.push({ relativePath, absolutePath, hasRelativePath });
     }
 
-    return { bpm, plugins: Array.from(plugins), tracks, samples };
+    return { bpm, plugins: Array.from(plugins), tracks, samples, abletonVersion };
   } catch (e) {
     return null;
   }
