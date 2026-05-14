@@ -28,6 +28,8 @@ export interface AlsMetadata {
   plugins: string[];
   tracks: Track[];
   samples: SampleRef[];
+  /** Ableton Live version that produced this .als (e.g. "Ableton Live 11.3.13"). */
+  abletonVersion: string | null;
 }
 
 // Ableton's 70-color palette (index → hex)
@@ -62,6 +64,19 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
     if (tempoMatch) {
       const parsed = parseFloat(tempoMatch[1]);
       if (!isNaN(parsed) && parsed > 0) bpm = Math.round(parsed);
+    }
+
+    // Extract Ableton Live version from the root <Ableton ... Creator="Ableton Live X.Y.Z" />
+    let abletonVersion: string | null = null;
+    const creatorMatch = xml.match(/<Ableton\b[^>]*\bCreator="([^"]+)"/);
+    if (creatorMatch) {
+      abletonVersion = creatorMatch[1];
+    } else {
+      const majMatch = xml.match(/<Ableton\b[^>]*\bMajorVersion="([^"]+)"/);
+      const minMatch = xml.match(/<Ableton\b[^>]*\bMinorVersion="([^"]+)"/);
+      if (majMatch || minMatch) {
+        abletonVersion = `Ableton Live ${majMatch?.[1] ?? ""}${minMatch ? ` (${minMatch[1]})` : ""}`.trim();
+      }
     }
 
     // Extract plugin names from <PluginDesc> → <VstPluginInfo> or <AuPluginInfo>
@@ -185,7 +200,7 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
       samples.push({ relativePath, absolutePath, hasRelativePath });
     });
 
-    return { projectName, bpm, plugins: Array.from(plugins), tracks, samples };
+    return { projectName, bpm, plugins: Array.from(plugins), tracks, samples, abletonVersion };
   } catch {
     // Parsing failed — skip silently per spec
     return null;

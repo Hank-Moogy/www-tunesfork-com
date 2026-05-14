@@ -303,6 +303,7 @@ async function processAlsSave(alsPath, archiver) {
       bpm: meta?.bpm ?? null,
       plugin_list: meta?.plugins ?? null,
       track_list: meta?.tracks ?? null,
+      ableton_version: meta?.abletonVersion ?? null,
     }),
   });
   if (!cv.ok) {
