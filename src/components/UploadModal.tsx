@@ -803,6 +803,17 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
             {validation &&
               validation.errors.length === 0 &&
+              validation.missingSamples.length === 0 &&
+              validation.nonRelativeSamples.length === 0 &&
+              (metadata?.samples?.length ?? 0) > 0 && (
+                <div className="flex items-center gap-2 rounded-md border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-accent">
+                  <Check className="h-3.5 w-3.5 shrink-0" />
+                  All {metadata!.samples.length} samples included
+                </div>
+              )}
+
+            {validation &&
+              validation.errors.length === 0 &&
               validation.warnings.length > 0 && (() => {
                 const isSingleAls =
                   validation.allFiles.length === 1 &&
