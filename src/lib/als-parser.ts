@@ -28,6 +28,8 @@ export interface AlsMetadata {
   plugins: string[];
   tracks: Track[];
   samples: SampleRef[];
+  /** Ableton Live version that produced this .als (e.g. "Ableton Live 11.3.13"). */
+  abletonVersion: string | null;
 }
 
 // Ableton's 70-color palette (index → hex)
