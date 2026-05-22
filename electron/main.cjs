@@ -66,12 +66,14 @@ function createTrayWindow() {
     skipTaskbar: true,
     alwaysOnTop: false,
     fullscreenable: false,
+    icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
   if (DEV_URL) {
     console.log("[tfsync] Loading dev URL:", DEV_URL);
     trayWindow.loadURL(DEV_URL);
