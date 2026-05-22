@@ -44,10 +44,14 @@
       "main.cjs",
       "preload.cjs",
       "als-parser.cjs",
+      "sample-check.cjs",
+      "assets/**",
+      "build/icon.png",
       "dist/**",
       "src/**",
       "package.json"
     ],
+
     "asarUnpack": [
       "node_modules/fsevents/**/*"
     ],
