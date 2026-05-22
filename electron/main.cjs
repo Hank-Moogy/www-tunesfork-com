@@ -66,12 +66,14 @@ function createTrayWindow() {
     skipTaskbar: true,
     alwaysOnTop: false,
     fullscreenable: false,
+    icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
   if (DEV_URL) {
     console.log("[tfsync] Loading dev URL:", DEV_URL);
     trayWindow.loadURL(DEV_URL);
@@ -470,17 +472,18 @@ app.whenReady().then(() => {
     const fallbackB64 =
       "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAAaklEQVR4Ae3UsQ2AMAxE0e9sgJiAERiBERiBERiBETICIzACI3hCKVKkSJEiufud5HOu7K6qIiL+Q0RsQAesQA/MQAvUwACMwAR0wALMwAq0wAQMwAi0wAxMwAJ0wAS0wAyMwAJ0wAQ0wAyMwAJUAFkfDcjK4M2pAAAAAElFTkSuQmCC";
     trayImage = nativeImage.createFromBuffer(Buffer.from(fallbackB64, "base64"));
+  }
+  // macOS menubar: render as a template image so it adapts to light/dark mode.
+  if (process.platform === "darwin") {
     trayImage.setTemplateImage(true);
   }
 
   tray = new Tray(trayImage);
   tray.setToolTip("Tunesfork Sync");
   if (process.platform === "darwin") {
-    // Text makes the menu-bar item easy to find even when macOS hides/dims
-    // low-contrast template icons or the menu bar is crowded.
-    tray.setTitle("TF");
     tray.setIgnoreDoubleClickEvents(true);
   }
+
   tray.on("click", toggleTrayWindow);
   tray.on("right-click", () => {
     tray.popUpContextMenu(Menu.buildFromTemplate([
