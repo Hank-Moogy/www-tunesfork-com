@@ -546,7 +546,7 @@ export default function ProjectPage() {
                   const isCurrent = groupIndex === 0;
                   const title = v.change_note?.split("\n")[0] || `Version ${v.version_number}`;
                   const subtitle = group.saves.length > 0
-                    ? `${group.saves.length + 1} saved versions`
+                    ? `Saved ${formatRelative(v.created_at)} · ${group.saves.length + 1} saved versions`
                     : isCurrent
                       ? `Modified ${formatRelative(v.created_at)}`
                       : "Initial upload";
