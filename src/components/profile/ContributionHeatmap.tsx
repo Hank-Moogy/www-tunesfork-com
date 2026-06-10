@@ -14,7 +14,7 @@ function intensity(c: number): string {
   return "bg-accent";
 }
 
-export default function ContributionHeatmap({ heatmap }: { heatmap: Entry[] }) {
+export default function ContributionHeatmap({ heatmap, title = "Activity" }: { heatmap: Entry[]; title?: string }) {
   const { weeks, monthLabels, totalThisYear } = useMemo(() => {
     const counts = new Map<string, number>();
     let total = 0;
@@ -62,7 +62,7 @@ export default function ContributionHeatmap({ heatmap }: { heatmap: Entry[] }) {
     <section className="glass-card p-6">
       <div className="mb-4 flex items-end justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Activity</h2>
+          <h2 className="text-lg font-semibold">{title}</h2>
           <p className="text-sm text-muted-foreground">
             <span className="font-mono font-semibold text-foreground">{totalThisYear}</span> saves in the last year
           </p>

@@ -54,7 +54,8 @@ export default function Onboarding() {
   usePageView("onboarding");
   const { user, setOnboardingCompleted } = useAuth();
   const navigate = useNavigate();
-  const [step, setStep] = useState(0); // 0-3 survey, 4-6 tour
+  const [step, setStep] = useState(0); // 0-4 survey, then tour
+  const [displayName, setDisplayName] = useState("");
   const [producerLevel, setProducerLevel] = useState("");
   const [usageMode, setUsageMode] = useState("");
   const [genres, setGenres] = useState<string[]>([]);
@@ -77,16 +78,26 @@ export default function Onboarding() {
       });
   }, [user, setOnboardingCompleted]);
 
-  const totalSteps = 4 + TOUR_CARDS.length;
-  const isSurvey = step < 4;
-  const tourIndex = step - 4;
+  const totalSteps = 5 + TOUR_CARDS.length;
+  const isSurvey = step < 5;
+  const tourIndex = step - 5;
   const isLastStep = step === totalSteps - 1;
 
+  // Prefill the artist name from the auth provider (Google) when available.
+  useEffect(() => {
+    const metaName =
+      (user?.user_metadata?.full_name as string | undefined) ??
+      (user?.user_metadata?.name as string | undefined) ??
+      "";
+    if (metaName) setDisplayName((prev) => prev || metaName);
+  }, [user]);
+
   const canProceed = () => {
-    if (step === 0) return !!producerLevel;
-    if (step === 1) return !!usageMode;
-    if (step === 2) return genres.length > 0;
-    if (step === 3) return !!referral;
+    if (step === 0) return displayName.trim().length >= 2;
+    if (step === 1) return !!producerLevel;
+    if (step === 2) return !!usageMode;
+    if (step === 3) return genres.length > 0;
+    if (step === 4) return !!referral;
     return true;
   };
 
@@ -106,9 +117,12 @@ export default function Onboarding() {
         music_genres: genres,
         referral_source: referral,
       });
-      await supabase.from("profiles").update({ onboarding_completed: true }).eq("user_id", user.id);
+      await supabase
+        .from("profiles")
+        .update({ onboarding_completed: true, display_name: displayName.trim() })
+        .eq("user_id", user.id);
       setOnboardingCompleted(true);
-      navigate("/dashboard", { replace: true });
+      navigate("/desktop-app?welcome=1", { replace: true });
     } catch (err: any) {
       setSaving(false);
       const { toast } = await import("sonner");
@@ -136,6 +150,23 @@ export default function Onboarding() {
         <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 min-h-[380px] flex flex-col">
           {/* Survey steps */}
           {step === 0 && (
+            <SurveyStep title="What should we call you?">
+              <p className="text-sm text-muted-foreground mb-4">
+                Your artist name — collaborators see it on invites, comments, and versions. You can change it later.
+              </p>
+              <input
+                autoFocus
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="e.g. Hank Moogy"
+                maxLength={50}
+                className="w-full rounded-xl border border-border bg-background px-4 py-3 text-base outline-none focus:border-primary"
+              />
+            </SurveyStep>
+          )}
+
+          {step === 1 && (
             <SurveyStep title="What kind of producer are you?">
               <div className="space-y-3">
                 {PRODUCER_LEVELS.map((l) => (
@@ -157,7 +188,7 @@ export default function Onboarding() {
             </SurveyStep>
           )}
 
-          {step === 1 && (
+          {step === 2 && (
             <SurveyStep title="How do you want to use TunesFork?">
               <div className="grid grid-cols-2 gap-3">
                 {USAGE_MODES.map((m) => {
@@ -185,7 +216,7 @@ export default function Onboarding() {
             </SurveyStep>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <SurveyStep title="What kind of music do you make?">
               <p className="text-sm text-muted-foreground mb-4">Select all that apply</p>
               <div className="flex flex-wrap gap-2">
@@ -207,7 +238,7 @@ export default function Onboarding() {
             </SurveyStep>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <SurveyStep title="How did you hear about us?">
               <div className="flex flex-wrap gap-2">
                 {REFERRAL_SOURCES.map((s) => (

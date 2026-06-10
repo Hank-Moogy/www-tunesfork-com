@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,19 @@ import {
 
 export default function DesktopAppPage() {
   const { user } = useAuth();
+  const [params] = useSearchParams();
+  const isWelcome = params.get("welcome") === "1";
+  const [welcomeName, setWelcomeName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isWelcome || !user) return;
+    supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => setWelcomeName(data?.display_name ?? null));
+  }, [isWelcome, user]);
   const { toast } = useToast();
   const [email, setEmail] = useState(user?.email ?? "");
   const [submitting, setSubmitting] = useState(false);
@@ -120,6 +134,23 @@ export default function DesktopAppPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="mx-auto max-w-5xl px-6 py-16 lg:px-10 lg:py-24">
+        {/* Post-onboarding welcome */}
+        {isWelcome && (
+          <div className="mb-12 rounded-2xl border border-primary/25 bg-primary/5 p-6 text-center">
+            <p className="text-lg font-semibold">
+              Welcome to Tunesfork{welcomeName ? `, ${welcomeName}` : ""} 🎉
+            </p>
+            <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              Your account is ready. One last step: install <strong>Tunesfork Sync</strong> below —
+              it watches your Ableton project folders and backs up every save automatically, so you
+              never lose a session again. macOS is supported today (Apple&nbsp;Silicon and Intel);
+              the Windows build is on the way. The alpha isn't code-signed yet, so if your Mac says
+              the app "can't be verified", that's expected — the first-launch instructions further
+              down this page walk you through it in 30 seconds.
+            </p>
+          </div>
+        )}
+
         {/* Hero */}
         <div className="text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
