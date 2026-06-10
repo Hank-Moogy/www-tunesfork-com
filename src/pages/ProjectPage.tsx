@@ -28,6 +28,7 @@ import {
   Download,
   Share2,
   Plus,
+  Star,
   Settings,
   Clock,
   UserPlus,
@@ -63,6 +64,12 @@ import { trackButtonClick, trackShareCompleted } from "@/lib/analytics";
 type Project = Tables<"projects">;
 type Version = Tables<"project_versions">;
 
+interface VersionGroup {
+  versionNumber: number;
+  main: Version;
+  saves: Version[];
+}
+
 interface Comment {
   id: string;
   body: string;
@@ -84,6 +91,24 @@ function formatRelative(iso: string): string {
   const diffDay = Math.round(diffHr / 24);
   if (diffDay < 7) return `${diffDay}d ago`;
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function groupVersions(versions: Version[]): VersionGroup[] {
+  const grouped = new Map<number, Version[]>();
+  for (const version of versions) {
+    const group = grouped.get(version.version_number) ?? [];
+    group.push(version);
+    grouped.set(version.version_number, group);
+  }
+
+  return Array.from(grouped.entries())
+    .sort(([a], [b]) => b - a)
+    .map(([versionNumber, group]) => {
+      const sortedDesc = [...group].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      const main = sortedDesc[0];
+      const saves = sortedDesc.slice(1);
+      return { versionNumber, main, saves };
+    });
 }
 
 function CollaboratorRow({
@@ -149,6 +174,7 @@ export default function ProjectPage() {
   const [downloading, setDownloading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [promoting, setPromoting] = useState(false);
 
   const commentInputRef = useRef<HTMLInputElement>(null);
 
@@ -162,7 +188,8 @@ export default function ProjectPage() {
 
       const { data: vers } = await supabase
         .from("project_versions").select("*").eq("project_id", id)
-        .order("version_number", { ascending: false });
+        .order("version_number", { ascending: false })
+        .order("created_at", { ascending: false });
       setVersions(vers ?? []);
       if (vers && vers.length > 0) setSelectedVersion(vers[0]);
 
@@ -345,6 +372,43 @@ export default function ProjectPage() {
     }
   };
 
+  const refreshVersions = async (selectedId?: string) => {
+    if (!project) return;
+    const { data } = await supabase
+      .from("project_versions")
+      .select("*")
+      .eq("project_id", project.id)
+      .order("version_number", { ascending: false })
+      .order("created_at", { ascending: false });
+    const nextVersions = data ?? [];
+    setVersions(nextVersions);
+    if (selectedId) {
+      setSelectedVersion(nextVersions.find((version) => version.id === selectedId) ?? nextVersions[0] ?? null);
+    } else {
+      setSelectedVersion(nextVersions[0] ?? null);
+    }
+  };
+
+  const handlePromoteVersion = async () => {
+    if (!selectedVersion || !project) return;
+    trackButtonClick("project_promote_saved_version", "project", {
+      project_id: project.id,
+      version_id: selectedVersion.id,
+      from_version_number: selectedVersion.version_number,
+    });
+    setPromoting(true);
+    const { data, error } = await (supabase as any).rpc("promote_project_version", {
+      _version_id: selectedVersion.id,
+    });
+    if (error) {
+      toast({ title: "Could not promote version", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Promoted to main version", description: `This save is now V${data.version_number}.` });
+      await refreshVersions(data.id);
+    }
+    setPromoting(false);
+  };
+
   const trackList: Track[] = selectedVersion?.track_list ? (selectedVersion.track_list as unknown as Track[]) : [];
   const pluginList: string[] = selectedVersion?.plugin_list ? (selectedVersion.plugin_list as unknown as string[]) : [];
 
@@ -364,6 +428,11 @@ export default function ProjectPage() {
   const currentVersionLabel = selectedVersion
     ? `V${selectedVersion.version_number}${selectedVersion.change_note ? ` - ${selectedVersion.change_note}` : ""}`
     : "";
+  const versionGroups = groupVersions(versions);
+  const selectedGroup = selectedVersion
+    ? versionGroups.find((group) => group.versionNumber === selectedVersion.version_number)
+    : null;
+  const selectedCanPromote = !!selectedVersion && !!selectedGroup && selectedGroup.saves.length > 0;
 
   const ownerInitials = "OW";
 
@@ -393,45 +462,80 @@ export default function ProjectPage() {
                 </Button>
               </div>
               <div className="px-2 pb-2 space-y-1 max-h-[420px] overflow-y-auto">
-                {versions.map((v, i) => {
+                {versionGroups.map((group, groupIndex) => {
+                  const v = group.main;
                   const isSelected = selectedVersion?.id === v.id;
-                  const isCurrent = i === 0;
+                  const isCurrent = groupIndex === 0;
                   const title = v.change_note?.split("\n")[0] || `Version ${v.version_number}`;
-                  const subtitle = isCurrent
-                    ? `Modified ${formatRelative(v.created_at)}`
-                    : i === versions.length - 1
-                      ? "Initial upload"
-                      : `Modified ${formatRelative(v.created_at)}`;
+                  const subtitle = group.saves.length > 0
+                    ? `${group.saves.length + 1} saved versions`
+                    : isCurrent
+                      ? `Modified ${formatRelative(v.created_at)}`
+                      : "Initial upload";
                   return (
-                    <button
-                      key={v.id}
-                      onClick={() => setSelectedVersion(v)}
-                      className={`w-full text-left rounded-xl px-3 py-2.5 transition-all border ${
-                        isSelected
-                          ? "bg-primary/10 border-primary/25"
-                          : "bg-transparent border-transparent hover:bg-secondary/60"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-sm font-semibold truncate ${isSelected ? "text-foreground" : "text-foreground/90"}`}>
-                              V{v.version_number} - {title}
-                            </span>
+                    <div key={group.versionNumber} className="space-y-1">
+                      <button
+                        onClick={() => setSelectedVersion(v)}
+                        className={`w-full text-left rounded-xl px-3 py-2.5 transition-all border ${
+                          isSelected
+                            ? "bg-primary/10 border-primary/25"
+                            : "bg-transparent border-transparent hover:bg-secondary/60"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-semibold truncate ${isSelected ? "text-foreground" : "text-foreground/90"}`}>
+                                V{v.version_number} - {title}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>
                           </div>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>
+                          {isCurrent ? (
+                            <span className="shrink-0 rounded-full bg-accent/15 text-accent text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5">
+                              Current
+                            </span>
+                          ) : (
+                            <span className="shrink-0 text-[10px] text-muted-foreground font-mono mt-0.5">
+                              {new Date(v.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                            </span>
+                          )}
                         </div>
-                        {isCurrent ? (
-                          <span className="shrink-0 rounded-full bg-accent/15 text-accent text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5">
-                            Current
-                          </span>
-                        ) : (
-                          <span className="shrink-0 text-[10px] text-muted-foreground font-mono mt-0.5">
-                            {new Date(v.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                          </span>
-                        )}
-                      </div>
-                    </button>
+                      </button>
+                      {group.saves.length > 0 && (
+                        <div className="ml-4 border-l border-border/70 pl-2 space-y-1">
+                          {group.saves.map((save) => {
+                            const saveSelected = selectedVersion?.id === save.id;
+                            const saveTitle = save.change_note?.split("\n")[0] || "Saved version";
+                            return (
+                              <button
+                                key={save.id}
+                                onClick={() => setSelectedVersion(save)}
+                                className={`w-full text-left rounded-lg px-2.5 py-2 transition-all border ${
+                                  saveSelected
+                                    ? "bg-primary/10 border-primary/25"
+                                    : "bg-transparent border-transparent hover:bg-secondary/50"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className={`text-xs font-medium truncate ${saveSelected ? "text-foreground" : "text-foreground/80"}`}>
+                                      {saveTitle}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                                      Saved {formatRelative(save.created_at)}
+                                    </p>
+                                  </div>
+                                  <span className="shrink-0 text-[10px] text-muted-foreground font-mono">
+                                    V{save.version_number}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
                 {versions.length === 0 && (
@@ -527,6 +631,17 @@ export default function ProjectPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                {selectedCanPromote && (
+                  <Button
+                    variant="outline"
+                    className="h-9 gap-2 rounded-xl bg-card/50 backdrop-blur-sm"
+                    onClick={handlePromoteVersion}
+                    disabled={promoting || !selectedVersion}
+                  >
+                    <Star className="h-4 w-4" />
+                    {promoting ? "Promoting..." : "Promote to main"}
+                  </Button>
+                )}
                 <OpenInAbletonButton
                   projectId={project.id}
                   versionId={selectedVersion?.id}
@@ -670,6 +785,7 @@ export default function ProjectPage() {
           supabase
             .from("project_versions").select("*").eq("project_id", project.id)
             .order("version_number", { ascending: false })
+            .order("created_at", { ascending: false })
             .then(({ data }) => {
               if (data) { setVersions(data); setSelectedVersion(data[0]); }
             });
