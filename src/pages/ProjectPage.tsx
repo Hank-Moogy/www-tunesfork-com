@@ -28,7 +28,6 @@ import {
   Download,
   Share2,
   Plus,
-  Star,
   Settings,
   Clock,
   UserPlus,
@@ -750,7 +749,6 @@ export default function ProjectPage() {
                     onClick={handlePromoteVersion}
                     disabled={promoting || !selectedVersion}
                   >
-                    <Star className="h-4 w-4" />
                     {promoting ? "Promoting..." : "Promote to main"}
                   </Button>
                 )}
