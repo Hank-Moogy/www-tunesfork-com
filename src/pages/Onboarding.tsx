@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,6 +60,22 @@ export default function Onboarding() {
   const [genres, setGenres] = useState<string[]>([]);
   const [referral, setReferral] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Onboarding is shown at most once per account: mark it as seen as soon as
+  // it renders, so abandoning mid-flow never brings it back on a later sign-in.
+  const markedSeen = useRef(false);
+  useEffect(() => {
+    if (!user || markedSeen.current) return;
+    markedSeen.current = true;
+    supabase
+      .from("profiles")
+      .update({ onboarding_completed: true })
+      .eq("user_id", user.id)
+      .then(({ error }) => {
+        if (error) console.warn("[onboarding] could not mark as seen", error);
+        else setOnboardingCompleted(true);
+      });
+  }, [user, setOnboardingCompleted]);
 
   const totalSteps = 4 + TOUR_CARDS.length;
   const isSurvey = step < 4;
