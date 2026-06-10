@@ -14,32 +14,43 @@ function intensity(c: number): string {
   return "bg-accent";
 }
 
-export default function ContributionHeatmap({ heatmap }: { heatmap: Entry[] }) {
-  const { weeks, monthLabels, totalThisYear } = useMemo(() => {
+export default function ContributionHeatmap({
+  heatmap,
+  title = "Activity",
+  weeks: weekCount = 53,
+}: {
+  heatmap: Entry[];
+  title?: string;
+  weeks?: number;
+}) {
+  const { weeks, monthLabels, windowTotal, windowLabel } = useMemo(() => {
     const counts = new Map<string, number>();
-    let total = 0;
     for (const e of heatmap) {
       counts.set(e.d, e.c);
-      total += e.c;
     }
-    // Build 53 weeks ending today (Sunday-start columns)
+    // Build weekCount weeks ending today (Sunday-start columns)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const end = new Date(today);
     // end of week (Saturday)
     end.setDate(end.getDate() + (6 - end.getDay()));
     const start = new Date(end);
-    start.setDate(end.getDate() - 53 * 7 + 1);
+    start.setDate(end.getDate() - weekCount * 7 + 1);
 
+    let total = 0;
     const weeksArr: { date: Date; count: number; isFuture: boolean }[][] = [];
     const monthSeen: { col: number; label: string }[] = [];
     let cursor = new Date(start);
-    for (let w = 0; w < 53; w++) {
+    for (let w = 0; w < weekCount; w++) {
       const week: { date: Date; count: number; isFuture: boolean }[] = [];
       for (let d = 0; d < 7; d++) {
-        const iso = cursor.toISOString().slice(0, 10);
+        // Key by the cell's local calendar date — toISOString() shifts to UTC,
+        // which mislabels every cell for users east/west of UTC and pushed
+        // "today" onto an invisible future cell.
+        const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
         const count = counts.get(iso) ?? 0;
         const isFuture = cursor > today;
+        if (!isFuture) total += count;
         week.push({ date: new Date(cursor), count, isFuture });
         if (d === 0) {
           // First day of column — record month change
@@ -52,16 +63,17 @@ export default function ContributionHeatmap({ heatmap }: { heatmap: Entry[] }) {
       }
       weeksArr.push(week);
     }
-    return { weeks: weeksArr, monthLabels: monthSeen, totalThisYear: total };
-  }, [heatmap]);
+    const label = weekCount >= 52 ? "in the last year" : `in the last ${Math.round(weekCount / 4.345)} months`;
+    return { weeks: weeksArr, monthLabels: monthSeen, windowTotal: total, windowLabel: label };
+  }, [heatmap, weekCount]);
 
   return (
     <section className="glass-card p-6">
       <div className="mb-4 flex items-end justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Activity</h2>
+          <h2 className="text-lg font-semibold">{title}</h2>
           <p className="text-sm text-muted-foreground">
-            <span className="font-mono font-semibold text-foreground">{totalThisYear}</span> saves in the last year
+            <span className="font-mono font-semibold text-foreground">{windowTotal}</span> saves {windowLabel}
           </p>
         </div>
         <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">

@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { Music2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { trackButtonClick } from "@/lib/analytics";
@@ -87,7 +86,6 @@ export default function OpenInAbletonButton({
       disabled={disabled}
       title="Open this project in Ableton via the TunesFork desktop app"
     >
-      <Music2 className="h-4 w-4" />
       Open in Ableton
     </Button>
   );

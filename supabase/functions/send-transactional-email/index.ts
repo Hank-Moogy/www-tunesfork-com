@@ -3,17 +3,8 @@ import { renderAsync } from 'npm:@react-email/components@0.0.22'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { TEMPLATES } from '../_shared/transactional-email-templates/registry.ts'
 
-// Configuration baked in at scaffold time — do NOT change these manually.
-// To update, re-run the email domain setup flow.
-const SITE_NAME = "www-tunesfork-com"
-// SENDER_DOMAIN is the verified sender subdomain FQDN (e.g., "notify.example.com").
-// It MUST match the subdomain delegated to Lovable's nameservers — never the root domain.
-// The email API looks up this exact domain; a mismatch causes "No email domain record found".
-const SENDER_DOMAIN = "notify.www.tunesfork.com"
-// FROM_DOMAIN is the domain shown in the From: header (e.g., "example.com").
-// When display_from_root is enabled, this can be the root domain for cleaner branding,
-// even though actual sending uses the subdomain above.
-const FROM_DOMAIN = "www.tunesfork.com"
+const SITE_NAME = Deno.env.get('EMAIL_SITE_NAME') || 'Tunesfork'
+const FROM_ADDRESS = Deno.env.get('EMAIL_FROM') || 'Tunesfork <noreply@www.tunesfork.com>'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -313,8 +304,7 @@ Deno.serve(async (req) => {
     payload: {
       message_id: messageId,
       to: effectiveRecipient,
-      from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
-      sender_domain: SENDER_DOMAIN,
+      from: FROM_ADDRESS,
       subject: resolvedSubject,
       html,
       text: plainText,

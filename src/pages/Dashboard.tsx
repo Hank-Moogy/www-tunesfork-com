@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Upload, Sparkles, ChevronDown, FolderOpen } from "lucide-react";
+import { Search, Upload, Download, ChevronDown, FolderOpen } from "lucide-react";
+import { Link } from "react-router-dom";
+import ContributionHeatmap from "@/components/profile/ContributionHeatmap";
 import type { Tables } from "@/integrations/supabase/types";
 import UploadModal from "@/components/UploadModal";
 import ShareAfterUploadModal from "@/components/ShareAfterUploadModal";
@@ -17,7 +19,12 @@ import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick } from "@/lib/analytics";
 
 type Project = Tables<"projects">;
-type Tab = "my" | "shared";
+type Tab = "all" | "my" | "shared";
+
+interface DashboardStats {
+  heatmap: { d: string; c: number }[];
+  current_streak: number;
+}
 
 const PAGE_SIZE = 12;
 const PROJECT_COLS =
@@ -36,7 +43,34 @@ export default function Dashboard() {
   usePageView("dashboard");
   const { user } = useAuth();
 
-  const [tab, setTab] = useState<Tab>("my");
+  const [tab, setTab] = useState<Tab>("all");
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [firstName, setFirstName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        const name = data?.display_name?.trim();
+        setFirstName(name ? name.split(" ")[0] : null);
+      });
+  }, [user]);
+
+  const greeting = useMemo(() => {
+    const now = new Date();
+    const h = now.getHours();
+    const d = now.getDay();
+    const n = firstName ? `, ${firstName}` : "";
+    if (h >= 23 || h < 5) return `Late-night session${n}?`;
+    if (h < 12) return d === 0 || d === 6 ? `Weekend sounds incoming${n}` : `Good morning${n}`;
+    if (h < 18) return `Good afternoon${n}`;
+    if (d === 5) return `Friday night${n} — make it count`;
+    return `Good evening${n}`;
+  }, [firstName]);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounced(search, 250);
   const [showArchived, setShowArchived] = useState(false);
@@ -100,7 +134,7 @@ export default function Dashboard() {
 
     if (tab === "my") {
       query = query.eq("owner_id", user.id);
-    } else {
+    } else if (tab === "shared") {
       const ids = await ensureSharedIds();
       if (ids.length === 0) {
         setProjects([]);
@@ -110,6 +144,12 @@ export default function Dashboard() {
         return;
       }
       query = query.in("id", ids);
+    } else {
+      // "all" — owned plus shared-with-me
+      const ids = await ensureSharedIds();
+      query = ids.length > 0
+        ? query.or(`owner_id.eq.${user.id},id.in.(${ids.join(",")})`)
+        : query.eq("owner_id", user.id);
     }
 
     if (!showArchived) query = query.eq("archived", false);
@@ -203,6 +243,28 @@ export default function Dashboard() {
       .then(({ count }) => setHasAnyProjectsEver((count ?? 0) > 0));
   }, [user]);
 
+  // Activity heatmap data
+  useEffect(() => {
+    if (!user) return;
+    supabase.rpc("get_user_stats", { p_user_id: user.id }).then(({ data, error }) => {
+      if (error) {
+        console.warn("get_user_stats", error);
+        return;
+      }
+      setStats(data as unknown as DashboardStats);
+    });
+  }, [user]);
+
+  const heatmapTitle = (() => {
+    if (!stats) return "Activity";
+    const now = new Date();
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const todayCount = stats.heatmap?.find((e) => e.d === todayKey)?.c ?? 0;
+    if (stats.current_streak >= 2) return `You're on a ${stats.current_streak}-day streak — keep it rolling 🔥`;
+    if (todayCount > 0) return `${todayCount} ${todayCount === 1 ? "save" : "saves"} today — nice work 🎧`;
+    return "Every save builds your story 🎵";
+  })();
+
   // Reset & refetch when filters change
   useEffect(() => {
     if (!user) return;
@@ -257,7 +319,7 @@ export default function Dashboard() {
   // the main fetch returns projects (e.g. transient RLS/auth timing on reload).
   const isFirstTime =
     hasAnyProjectsEver === false &&
-    tab === "my" &&
+    tab !== "shared" &&
     !debouncedSearch &&
     !loading &&
     projects.length === 0 &&
@@ -271,14 +333,19 @@ export default function Dashboard() {
           <FirstTimeEmpty onUpload={openUpload} />
         ) : (
           <>
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
-                <p className="text-muted-foreground mt-1">
-                  Manage and collaborate on your Ableton sessions.
-                </p>
+            {/* Greeting */}
+            <h1 className="text-3xl font-bold tracking-tight">{greeting}</h1>
+
+            {/* Activity */}
+            {stats?.heatmap && (
+              <div className="max-w-2xl">
+                <ContributionHeatmap heatmap={stats.heatmap} title={heatmapTitle} weeks={26} />
               </div>
+            )}
+
+            {/* Projects header */}
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pt-4">
+              <h2 className="text-2xl font-bold tracking-tight">Projects</h2>
               <Button
                 onClick={() => {
                   trackButtonClick("dashboard_new_project", "dashboard");
@@ -296,6 +363,9 @@ export default function Dashboard() {
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
                 <TabsList className="glass-pill h-11 p-1">
+                  <TabsTrigger value="all" className="rounded-full px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                    All
+                  </TabsTrigger>
                   <TabsTrigger value="my" className="rounded-full px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm">
                     My Projects
                   </TabsTrigger>
@@ -338,7 +408,7 @@ export default function Dashboard() {
                 setPendingFiles(files);
                 setUploadOpen(true);
               }}
-              showNewTile={tab === "my"}
+              showNewTile={tab !== "shared"}
             />
 
             {/* Show more */}
@@ -355,6 +425,7 @@ export default function Dashboard() {
                 </Button>
               </div>
             )}
+
           </>
         )}
 
@@ -383,23 +454,35 @@ function FirstTimeEmpty({ onUpload }: { onUpload: () => void }) {
   return (
     <div className="glass-card p-12 flex flex-col items-center justify-center text-center">
       <div className="mb-6 rounded-2xl bg-accent/15 p-6">
-        <Upload className="h-12 w-12 text-accent" />
+        <Download className="h-12 w-12 text-accent" />
       </div>
-      <h1 className="text-2xl font-bold mb-2">Save your first project</h1>
-      <p className="text-muted-foreground mb-8 max-w-sm">
-        Upload your Ableton project to back it up in the cloud and start collaborating.
+      <h1 className="text-2xl font-bold mb-2">Welcome to Tunesfork 👋</h1>
+      <p className="text-muted-foreground mb-8 max-w-md">
+        The best way to start: install <strong>Tunesfork Sync</strong>, point it at your Ableton
+        project folders, and every save backs up here automatically — no zipping, no uploading.
       </p>
       <Button
+        asChild
+        size="lg"
+        className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2 rounded-full"
+      >
+        <Link
+          to="/desktop-app"
+          onClick={() => trackButtonClick("dashboard_first_download_app", "dashboard_empty")}
+        >
+          <Download className="h-5 w-5" />
+          Download Tunesfork Sync
+        </Link>
+      </Button>
+      <button
         onClick={() => {
           trackButtonClick("dashboard_first_upload", "dashboard_empty");
           onUpload();
         }}
-        size="lg"
-        className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2 rounded-full"
+        className="mt-4 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
       >
-        <Sparkles className="h-5 w-5" />
-        Upload Project
-      </Button>
+        or upload a project manually
+      </button>
     </div>
   );
 }

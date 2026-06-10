@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,19 @@ import {
 
 export default function DesktopAppPage() {
   const { user } = useAuth();
+  const [params] = useSearchParams();
+  const isWelcome = params.get("welcome") === "1";
+  const [welcomeName, setWelcomeName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isWelcome || !user) return;
+    supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => setWelcomeName(data?.display_name ?? null));
+  }, [isWelcome, user]);
   const { toast } = useToast();
   const [email, setEmail] = useState(user?.email ?? "");
   const [submitting, setSubmitting] = useState(false);
@@ -122,18 +136,34 @@ export default function DesktopAppPage() {
       <main className="mx-auto max-w-5xl px-6 py-16 lg:px-10 lg:py-24">
         {/* Hero */}
         <div className="text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-            {checkingDownloads ? "Checking release" : hasAnyDownload ? "Alpha available" : "Release pending"}
-          </span>
-          <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-6xl">
-            Tunesfork <span className="text-primary">Sync</span>
-          </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
-            Hit save in Ableton. A new version appears on Tunesfork.
-            <br />
-            No drag, no zip, no upload modal. It just works.
-          </p>
+          {!isWelcome && (
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+              {checkingDownloads ? "Checking release" : hasAnyDownload ? "Alpha available" : "Release pending"}
+            </span>
+          )}
+          {isWelcome ? (
+            <>
+              <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
+                Welcome{welcomeName ? `, ${welcomeName}` : ""} 👋
+              </h1>
+              <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground">
+                One last step: install <strong className="text-foreground">Tunesfork Sync</strong>.
+                Every Ableton save backs up automatically.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-6xl">
+                Tunesfork <span className="text-primary">Sync</span>
+              </h1>
+              <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
+                Hit save in Ableton. A new version appears on Tunesfork.
+                <br />
+                No drag, no zip, no upload modal. It just works.
+              </p>
+            </>
+          )}
 
           {/* Download or waitlist */}
           <div className="mx-auto mt-10 max-w-md">
@@ -199,21 +229,13 @@ export default function DesktopAppPage() {
           </div>
         </div>
 
-        {/* Heads-up banner */}
-        {showDownloadControls && (
-          <div className="mx-auto mt-6 max-w-2xl">
-            <div className="rounded-lg border border-yellow-600/40 bg-yellow-100/80 p-4 text-sm text-yellow-900">
-              <strong className="text-yellow-950">Heads up:</strong> this alpha build isn't yet
-              code-signed, so macOS and Windows will show a security warning on first launch.
-              Takes ~30 seconds to bypass — instructions below.
-            </div>
-          </div>
-        )}
-
         {/* First-launch instructions */}
         {showDownloadControls && (
-          <div className="mx-auto mt-6 max-w-2xl">
-            <Accordion type="single" collapsible defaultValue="mac">
+          <div className="mx-auto mt-8 max-w-2xl">
+            <p className="mb-2 text-center text-xs text-muted-foreground">
+              Your computer will warn on first launch (the alpha isn't code-signed yet) — 30-second fix:
+            </p>
+            <Accordion type="single" collapsible>
               <AccordionItem value="mac" className="border-border">
                 <AccordionTrigger className="text-sm">
                   <span className="flex items-center gap-2">
@@ -279,7 +301,28 @@ export default function DesktopAppPage() {
           </div>
         )}
 
+        {/* After install: what happens next (welcome mode only) */}
+        {isWelcome && (
+          <div className="mx-auto mt-12 max-w-md">
+            <ol className="space-y-3 text-sm text-muted-foreground">
+              <li className="flex gap-3"><span className="font-mono text-primary">01</span> Open the app — it lives in your menu bar.</li>
+              <li className="flex gap-3"><span className="font-mono text-primary">02</span> Pair it with your account (one click).</li>
+              <li className="flex gap-3"><span className="font-mono text-primary">03</span> Pick your Ableton projects folder. Done.</li>
+            </ol>
+            <div className="mt-8 text-center">
+              <Link
+                to="/dashboard"
+                className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                onClick={() => trackButtonClick("welcome_skip_install", "desktop_app")}
+              >
+                I'll do this later — take me to my dashboard
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* Feature row */}
+        {!isWelcome && (
         <div className="mt-24 grid gap-6 md:grid-cols-3">
           {[
             { icon: Music, title: "Watches your Ableton folder", body: "Point it at where you keep your projects. It tracks every .als you save." },
@@ -293,8 +336,10 @@ export default function DesktopAppPage() {
             </div>
           ))}
         </div>
+        )}
 
         {/* How it works */}
+        {!isWelcome && (
         <div className="mt-24">
           <h2 className="text-2xl font-bold">How it works</h2>
           <ol className="mt-6 space-y-4 text-muted-foreground">
@@ -304,9 +349,10 @@ export default function DesktopAppPage() {
             <li className="flex gap-4"><span className="font-mono text-primary">04</span> Make music. Every save = new version on Tunesfork.</li>
           </ol>
         </div>
+        )}
 
         {/* Notify-me capture (always available, even when downloads are live) */}
-        {DOWNLOADS_AVAILABLE && !joined && (
+        {!isWelcome && DOWNLOADS_AVAILABLE && !joined && (
           <div className="mx-auto mt-20 max-w-md text-center">
             <h3 className="text-lg font-semibold">Get notified about new releases</h3>
             <form onSubmit={handleJoin} className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -326,10 +372,12 @@ export default function DesktopAppPage() {
         )}
 
         {/* Trust */}
+        {!isWelcome && (
         <div className="mt-20 rounded-xl border border-border bg-muted/20 p-6 text-sm text-muted-foreground">
           <Shield className="mb-2 inline h-4 w-4 text-primary" />{" "}
           <strong className="text-foreground">Private by default.</strong> Sync only watches the folders you choose. You can pause or revoke device access from settings at any time.
         </div>
+        )}
       </main>
     </div>
   );

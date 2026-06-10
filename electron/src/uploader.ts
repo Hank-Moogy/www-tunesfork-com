@@ -4,7 +4,7 @@ import * as tus from "tus-js-client";
 import fs from "node:fs";
 import path from "node:path";
 
-const SUPABASE_PROJECT_ID = "zkzupvjqyltvxrgixrpx";
+const SUPABASE_PROJECT_ID = process.env.TUNESFORK_SUPABASE_PROJECT_ID || "urrxrntdkmmmqqwaihfj";
 
 // We obtain a short-lived storage upload token by exchanging the desktop token for one.
 // For M2 alpha, we'll embed the storage anon key (publishable) and rely on RLS-equivalent

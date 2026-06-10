@@ -35,6 +35,9 @@ import {
   Music,
   ChevronLeft,
   Trash2,
+  Copy,
+  Mail,
+  X,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -64,6 +67,12 @@ import { trackButtonClick, trackShareCompleted } from "@/lib/analytics";
 type Project = Tables<"projects">;
 type Version = Tables<"project_versions">;
 
+interface VersionGroup {
+  versionNumber: number;
+  main: Version;
+  saves: Version[];
+}
+
 interface Comment {
   id: string;
   body: string;
@@ -85,6 +94,24 @@ function formatRelative(iso: string): string {
   const diffDay = Math.round(diffHr / 24);
   if (diffDay < 7) return `${diffDay}d ago`;
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function groupVersions(versions: Version[]): VersionGroup[] {
+  const grouped = new Map<number, Version[]>();
+  for (const version of versions) {
+    const group = grouped.get(version.version_number) ?? [];
+    group.push(version);
+    grouped.set(version.version_number, group);
+  }
+
+  return Array.from(grouped.entries())
+    .sort(([a], [b]) => b - a)
+    .map(([versionNumber, group]) => {
+      const sortedDesc = [...group].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      const main = sortedDesc[0];
+      const saves = sortedDesc.slice(1);
+      return { versionNumber, main, saves };
+    });
 }
 
 function CollaboratorRow({
@@ -127,6 +154,14 @@ interface Collaborator {
   profile?: { display_name: string | null; avatar_url: string | null } | null;
 }
 
+interface PendingInvite {
+  id: string;
+  email: string;
+  permission_level: "viewer" | "contributor";
+  token: string;
+  expires_at: string;
+}
+
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   usePageView("project", { project_id: id });
@@ -147,6 +182,8 @@ export default function ProjectPage() {
   const [collabEmail, setCollabEmail] = useState("");
   const [collabRole, setCollabRole] = useState<"viewer" | "contributor">("viewer");
   const [addingCollab, setAddingCollab] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [frequentCollabs, setFrequentCollabs] = useState<{
     user_id: string;
     email: string;
@@ -157,6 +194,7 @@ export default function ProjectPage() {
   const [downloading, setDownloading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [promoting, setPromoting] = useState(false);
   const [profileMap, setProfileMap] = useState<Map<string, { display_name: string | null; avatar_url: string | null }>>(new Map());
 
   const commentInputRef = useRef<HTMLInputElement>(null);
@@ -179,13 +217,11 @@ export default function ProjectPage() {
 
       const { data: vers } = await supabase
         .from("project_versions").select("*").eq("project_id", id)
-        .order("major_version", { ascending: false })
-        .order("version_number", { ascending: false });
+        .order("version_number", { ascending: false })
+        .order("created_at", { ascending: false });
       setVersions(vers ?? []);
-      if (vers && vers.length > 0) {
-        const main = vers.find((v) => v.is_main_version);
-        setSelectedVersion(main ?? vers[0]);
-      }
+      // Newest save of the latest major version (saves group by version_number).
+      if (vers && vers.length > 0) setSelectedVersion(vers[0]);
 
       const { data: collabs } = await supabase.from("collaborators").select("*").eq("project_id", id);
       const collabUserIds = collabs?.map((c) => c.user_id) ?? [];
@@ -198,6 +234,13 @@ export default function ProjectPage() {
       if (collabs) {
         setCollaborators(collabs.map((c) => ({ ...c, profile: pMap.get(c.user_id) ?? null })));
       }
+      // RLS limits these rows to the project owner; others get an empty list.
+      const { data: invites } = await (supabase as any)
+        .from("project_invites")
+        .select("id, email, permission_level, token, expires_at")
+        .eq("project_id", id)
+        .is("accepted_at", null);
+      setPendingInvites(invites ?? []);
       setLoading(false);
     };
     fetchAll();
@@ -296,6 +339,25 @@ export default function ProjectPage() {
     });
   };
 
+  const copyInviteLink = async (link: string) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      toast({ title: "Invite link copied", description: "Send it to your collaborator — it gets them set up and into this project." });
+    } catch {
+      toast({ title: "Couldn't copy", description: link, variant: "destructive" });
+    }
+  };
+
+  const handleRevokeInvite = async (inviteId: string) => {
+    const { error } = await (supabase as any).from("project_invites").delete().eq("id", inviteId);
+    if (error) {
+      toast({ title: "Could not revoke invite", description: error.message, variant: "destructive" });
+      return;
+    }
+    setPendingInvites((prev) => prev.filter((i) => i.id !== inviteId));
+    toast({ title: "Invite revoked", description: "The link no longer works." });
+  };
+
   const handleAddCollaborator = async () => {
     const email = collabEmail.trim().toLowerCase();
     if (!email || !project) return;
@@ -314,7 +376,24 @@ export default function ProjectPage() {
     }
     const targetUserId = matches && matches.length > 0 ? matches[0].user_id : null;
     if (!targetUserId) {
-      toast({ title: "User not found", description: "No account uses that email. Ask them to sign up first.", variant: "destructive" });
+      // No account yet — create a personal invite link the user shares directly.
+      const { data: invite, error: invErr } = await (supabase as any).rpc("create_project_invite", {
+        _project_id: project.id,
+        _email: email,
+        _permission: collabRole,
+      });
+      if (invErr || !invite) {
+        toast({ title: "Could not create invite", description: invErr?.message ?? "Please try again.", variant: "destructive" });
+      } else {
+        trackButtonClick("project_invite_link_created", "project", { project_id: project.id, role: collabRole });
+        setInviteLink(`${window.location.origin}/invite/${invite.token}`);
+        const { data: invites } = await (supabase as any)
+          .from("project_invites")
+          .select("id, email, permission_level, token, expires_at")
+          .eq("project_id", project.id)
+          .is("accepted_at", null);
+        setPendingInvites(invites ?? []);
+      }
       setAddingCollab(false);
       return;
     }
@@ -356,39 +435,6 @@ export default function ProjectPage() {
     setAddingCollab(false);
   };
 
-  const refreshVersions = async () => {
-    if (!id) return;
-    const { data: vers } = await supabase
-      .from("project_versions").select("*").eq("project_id", id)
-      .order("major_version", { ascending: false })
-      .order("version_number", { ascending: false });
-    setVersions(vers ?? []);
-    if (vers && selectedVersion) {
-      const updated = vers.find((v) => v.id === selectedVersion.id);
-      if (updated) setSelectedVersion(updated);
-    }
-  };
-
-  const handlePromoteVersion = async (versionId: string) => {
-    const { data, error } = await supabase.rpc("promote_version_to_major", { _version_id: versionId });
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-      return;
-    }
-    toast({ title: `Promoted to V${data}`, description: "Future saves will continue from this version." });
-    await refreshVersions();
-  };
-
-  const handleSetMainVersion = async (versionId: string) => {
-    const { error } = await supabase.rpc("set_main_version", { _version_id: versionId });
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-      return;
-    }
-    toast({ title: "Main version updated" });
-    await refreshVersions();
-  };
-
   const handleDeleteProject = async () => {
     if (!project) return;
     trackButtonClick("project_delete", "project", { project_id: project.id });
@@ -401,6 +447,43 @@ export default function ProjectPage() {
       toast({ title: "Project deleted" });
       navigate("/dashboard");
     }
+  };
+
+  const refreshVersions = async (selectedId?: string) => {
+    if (!project) return;
+    const { data } = await supabase
+      .from("project_versions")
+      .select("*")
+      .eq("project_id", project.id)
+      .order("version_number", { ascending: false })
+      .order("created_at", { ascending: false });
+    const nextVersions = data ?? [];
+    setVersions(nextVersions);
+    if (selectedId) {
+      setSelectedVersion(nextVersions.find((version) => version.id === selectedId) ?? nextVersions[0] ?? null);
+    } else {
+      setSelectedVersion(nextVersions[0] ?? null);
+    }
+  };
+
+  const handlePromoteVersion = async () => {
+    if (!selectedVersion || !project) return;
+    trackButtonClick("project_promote_saved_version", "project", {
+      project_id: project.id,
+      version_id: selectedVersion.id,
+      from_version_number: selectedVersion.version_number,
+    });
+    setPromoting(true);
+    const { data, error } = await (supabase as any).rpc("promote_project_version", {
+      _version_id: selectedVersion.id,
+    });
+    if (error) {
+      toast({ title: "Could not promote version", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Promoted to main version", description: `This save is now V${data.version_number}.` });
+      await refreshVersions(data.id);
+    }
+    setPromoting(false);
   };
 
   const trackList: Track[] = selectedVersion?.track_list ? (selectedVersion.track_list as unknown as Track[]) : [];
@@ -420,8 +503,13 @@ export default function ProjectPage() {
   if (!project) return null;
 
   const currentVersionLabel = selectedVersion
-    ? `V${(selectedVersion as any).major_version ?? 1}${selectedVersion.change_note ? ` - ${selectedVersion.change_note}` : ""}`
+    ? `V${selectedVersion.version_number}${selectedVersion.change_note ? ` - ${selectedVersion.change_note}` : ""}`
     : "";
+  const versionGroups = groupVersions(versions);
+  const selectedGroup = selectedVersion
+    ? versionGroups.find((group) => group.versionNumber === selectedVersion.version_number)
+    : null;
+  const selectedCanPromote = !!selectedVersion && !!selectedGroup && selectedGroup.saves.length > 0;
 
   const ownerInitials = "OW";
 
@@ -450,105 +538,83 @@ export default function ProjectPage() {
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="px-2 pb-2 space-y-3 max-h-[480px] overflow-y-auto">
-                {(() => {
-                  // Group versions by major_version (desc), within each group sorted by save time (desc)
-                  const groups = new Map<number, Version[]>();
-                  for (const v of versions) {
-                    const m = (v as any).major_version ?? 1;
-                    if (!groups.has(m)) groups.set(m, []);
-                    groups.get(m)!.push(v);
-                  }
-                  const sortedMajors = Array.from(groups.keys()).sort((a, b) => b - a);
-                  const canEdit = project.owner_id === user?.id;
-
-                  return sortedMajors.map((major) => {
-                    const saves = groups.get(major)!;
-                    return (
-                      <div key={major} className="space-y-1">
-                        <div className="px-2 pt-1 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                          V{major}
+              <div className="px-2 pb-2 space-y-1 max-h-[420px] overflow-y-auto">
+                {versionGroups.map((group, groupIndex) => {
+                  const v = group.main;
+                  const isSelected = selectedVersion?.id === v.id;
+                  const isCurrent = groupIndex === 0;
+                  const title = v.change_note?.split("\n")[0] || `Version ${v.version_number}`;
+                  const subtitle = group.saves.length > 0
+                    ? `Saved ${formatRelative(v.created_at)} · ${group.saves.length + 1} saved versions`
+                    : isCurrent
+                      ? `Modified ${formatRelative(v.created_at)}`
+                      : "Initial upload";
+                  return (
+                    <div key={group.versionNumber} className="space-y-1">
+                      <button
+                        onClick={() => setSelectedVersion(v)}
+                        className={`w-full text-left rounded-xl px-3 py-2.5 transition-all border ${
+                          isSelected
+                            ? "bg-primary/10 border-primary/25"
+                            : "bg-transparent border-transparent hover:bg-secondary/60"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-semibold truncate ${isSelected ? "text-foreground" : "text-foreground/90"}`}>
+                                V{v.version_number} - {title}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>
+                          </div>
+                          {isCurrent ? (
+                            <span className="shrink-0 rounded-full bg-accent/15 text-accent text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5">
+                              Current
+                            </span>
+                          ) : (
+                            <span className="shrink-0 text-[10px] text-muted-foreground font-mono mt-0.5">
+                              {new Date(v.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                            </span>
+                          )}
                         </div>
-                        {saves.map((v) => {
-                          const isSelected = selectedVersion?.id === v.id;
-                          const isMain = (v as any).is_main_version;
-                          const title = v.change_note?.split("\n")[0] || `Save ${new Date(v.created_at).toLocaleString()}`;
-                          return (
-                            <div
-                              key={v.id}
-                              className={`group relative w-full rounded-xl px-3 py-2.5 transition-all border ${
-                                isSelected
-                                  ? "bg-primary/10 border-primary/25"
-                                  : "bg-transparent border-transparent hover:bg-secondary/60"
-                              }`}
-                            >
+                      </button>
+                      {group.saves.length > 0 && (
+                        <div className="ml-4 border-l border-border/70 pl-2 space-y-1">
+                          {group.saves.map((save) => {
+                            const saveSelected = selectedVersion?.id === save.id;
+                            const saveTitle = save.change_note?.split("\n")[0] || "Saved version";
+                            return (
                               <button
-                                onClick={() => setSelectedVersion(v)}
-                                className="w-full text-left"
+                                key={save.id}
+                                onClick={() => setSelectedVersion(save)}
+                                className={`w-full text-left rounded-lg px-2.5 py-2 transition-all border ${
+                                  saveSelected
+                                    ? "bg-primary/10 border-primary/25"
+                                    : "bg-transparent border-transparent hover:bg-secondary/50"
+                                }`}
                               >
                                 <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className={`text-sm font-medium truncate ${isSelected ? "text-foreground" : "text-foreground/90"}`}>
-                                        {title}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <p className="text-[11px] text-muted-foreground truncate font-mono">
-                                        {new Date(v.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                                      </p>
-                                      <SampleCheckBadge check={(v as any).sample_check as SampleCheck | null} />
-                                    </div>
-                                    {(() => {
-                                      const up = profileMap.get(v.uploader_id);
-                                      const name = up?.display_name || (v.uploader_id === project.owner_id ? "Owner" : "Contributor");
-                                      const initials = (name || "?").split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase();
-                                      return (
-                                        <div className="flex items-center gap-1.5 mt-1.5">
-                                          <Avatar className="h-4 w-4">
-                                            <AvatarImage src={up?.avatar_url ?? undefined} alt={name} />
-                                            <AvatarFallback className="text-[8px]">{initials}</AvatarFallback>
-                                          </Avatar>
-                                          <span className="text-[11px] text-muted-foreground truncate">{name}</span>
-                                        </div>
-                                      );
-                                    })()}
+                                  <div className="min-w-0">
+                                    <p className={`text-xs font-medium truncate ${saveSelected ? "text-foreground" : "text-foreground/80"}`}>
+                                      {saveTitle}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                                      Saved {formatRelative(save.created_at)}
+                                    </p>
                                   </div>
-                                  {isMain && (
-                                    <span className="shrink-0 rounded-full bg-accent/15 text-accent text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5">
-                                      Main
-                                    </span>
-                                  )}
+                                  <span className="shrink-0 text-[10px] text-muted-foreground font-mono">
+                                    V{save.version_number}
+                                  </span>
                                 </div>
                               </button>
-                              {canEdit && (
-                                <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md">
-                                        <Settings className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-52">
-                                      {!isMain && (
-                                        <DropdownMenuItem onClick={() => handleSetMainVersion(v.id)}>
-                                          Mark as Main
-                                        </DropdownMenuItem>
-                                      )}
-                                      <DropdownMenuItem onClick={() => handlePromoteVersion(v.id)}>
-                                        Promote to new major version
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  });
-                })()}
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 {versions.length === 0 && (
                   <p className="text-xs text-muted-foreground text-center py-6">No versions yet.</p>
                 )}
@@ -647,6 +713,16 @@ export default function ProjectPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                {selectedCanPromote && (
+                  <Button
+                    variant="outline"
+                    className="h-9 gap-2 rounded-xl bg-card/50 backdrop-blur-sm"
+                    onClick={handlePromoteVersion}
+                    disabled={promoting || !selectedVersion}
+                  >
+                    {promoting ? "Promoting..." : "Promote to main"}
+                  </Button>
+                )}
                 <OpenInAbletonButton
                   projectId={project.id}
                   versionId={selectedVersion?.id}
@@ -790,13 +866,14 @@ export default function ProjectPage() {
           supabase
             .from("project_versions").select("*").eq("project_id", project.id)
             .order("version_number", { ascending: false })
+            .order("created_at", { ascending: false })
             .then(({ data }) => {
               if (data) { setVersions(data); setSelectedVersion(data[0]); }
             });
         }}
       />
 
-      <Dialog open={addCollabOpen} onOpenChange={setAddCollabOpen}>
+      <Dialog open={addCollabOpen} onOpenChange={(open) => { setAddCollabOpen(open); if (!open) setInviteLink(null); }}>
         <DialogContent className="sm:max-w-sm bg-card border-border">
           <DialogHeader>
             <DialogTitle>Add Collaborator</DialogTitle>
@@ -843,8 +920,8 @@ export default function ProjectPage() {
             })()}
             <div className="space-y-2">
               <label className="text-sm font-medium">Email address</label>
-              <Input type="email" value={collabEmail} onChange={(e) => setCollabEmail(e.target.value)} placeholder="name@example.com" className="bg-secondary border-border" autoComplete="off" />
-              <p className="text-[11px] text-muted-foreground">Exact match — they must already have an account.</p>
+              <Input type="email" value={collabEmail} onChange={(e) => { setCollabEmail(e.target.value); setInviteLink(null); }} placeholder="name@example.com" className="bg-secondary border-border" autoComplete="off" />
+              <p className="text-[11px] text-muted-foreground">Has an account? They're added right away. New to Tunesfork? You'll get an invite link to share.</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Permission</label>
@@ -858,9 +935,51 @@ export default function ProjectPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button className="w-full bg-pastel-green/20 text-pastel-green border border-pastel-green/30 hover:bg-pastel-green/30" variant="outline" onClick={handleAddCollaborator} disabled={!collabEmail.trim() || addingCollab}>
-              {addingCollab ? "Adding…" : "Add Collaborator"}
-            </Button>
+            {inviteLink ? (
+              <div className="space-y-2 rounded-xl border border-pastel-purple/30 bg-pastel-purple/5 p-3">
+                <p className="text-xs font-medium">No Tunesfork account yet for that email.</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Share this personal link with them — it signs them up and drops them straight into this project. It works once and expires in 14 days.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input readOnly value={inviteLink} className="bg-secondary border-border text-xs font-mono h-8" onFocus={(e) => e.currentTarget.select()} />
+                  <Button size="sm" variant="outline" className="h-8 px-2.5 shrink-0" onClick={() => copyInviteLink(inviteLink)}>
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <a
+                  className="inline-flex items-center gap-1.5 text-[11px] text-pastel-purple hover:underline"
+                  href={`mailto:${collabEmail.trim()}?subject=${encodeURIComponent(`Collaborate with me on ${project.name} (Tunesfork)`)}&body=${encodeURIComponent(`Hey,\n\nI'd like you to collaborate on my Ableton project "${project.name}" on Tunesfork. Use this link to join:\n\n${inviteLink}\n\nSee you there!`)}`}
+                >
+                  <Mail className="h-3 w-3" /> Send it from your email app
+                </a>
+              </div>
+            ) : (
+              <Button className="w-full bg-pastel-green/20 text-pastel-green border border-pastel-green/30 hover:bg-pastel-green/30" variant="outline" onClick={handleAddCollaborator} disabled={!collabEmail.trim() || addingCollab}>
+                {addingCollab ? "Adding…" : "Add Collaborator"}
+              </Button>
+            )}
+            {pendingInvites.length > 0 && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Pending invites</label>
+                {pendingInvites.map((inv) => (
+                  <div key={inv.id} className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium" title={inv.email}>{inv.email}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {inv.permission_level === "contributor" ? "Contributor" : "Viewer"} · joins when they accept the link
+                      </p>
+                    </div>
+                    <Button size="sm" variant="outline" className="h-7 px-2" title="Copy invite link" onClick={() => copyInviteLink(`${window.location.origin}/invite/${inv.token}`)}>
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground hover:text-destructive" title="Revoke invite" onClick={() => handleRevokeInvite(inv.id)}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

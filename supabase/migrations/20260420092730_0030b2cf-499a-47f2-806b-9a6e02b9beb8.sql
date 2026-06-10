@@ -24,7 +24,7 @@ BEGIN
     RETURN existing_token;
   END IF;
 
-  new_token := encode(gen_random_bytes(18), 'base64');
+  new_token := encode(extensions.gen_random_bytes(18), 'base64');
   new_token := replace(replace(replace(new_token, '+', ''), '/', ''), '=', '');
 
   UPDATE public.projects

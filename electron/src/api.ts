@@ -1,7 +1,7 @@
 // Talks to Tunesfork edge functions.
 // In production these point at the deployed Supabase Functions endpoint.
 const FUNCTIONS_URL = process.env.TUNESFORK_FUNCTIONS_URL
-  || "https://zkzupvjqyltvxrgixrpx.supabase.co/functions/v1";
+  || "https://urrxrntdkmmmqqwaihfj.supabase.co/functions/v1";
 
 export type PairInit = { code: string; pair_url: string; expires_in_seconds: number };
 export type PollResp =

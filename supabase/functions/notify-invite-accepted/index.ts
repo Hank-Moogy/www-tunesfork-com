@@ -15,11 +15,11 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const authHeader = req.headers.get('Authorization') ?? ''
 
-    // Authenticate caller (the user accepting the invite)
-    const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
-      global: { headers: { Authorization: authHeader } },
-    })
-    const { data: userData } = await userClient.auth.getUser()
+    // Authenticate caller (the user accepting the invite). Validate the JWT
+    // with the service-role client — the legacy SUPABASE_ANON_KEY injected
+    // into functions is not valid on projects using publishable/secret keys.
+    const authClient = createClient(supabaseUrl, serviceKey)
+    const { data: userData } = await authClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, '').trim())
     const acceptingUser = userData?.user
     if (!acceptingUser) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {

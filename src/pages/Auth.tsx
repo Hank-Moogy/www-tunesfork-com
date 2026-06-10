@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,14 +15,21 @@ import { ExternalLink, AlertTriangle } from "lucide-react";
 export default function Auth() {
   const [searchParams] = useSearchParams();
   const [isLogin, setIsLogin] = useState(searchParams.get("tab") !== "signup");
+  const [isResetMode, setIsResetMode] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   usePageView("auth");
 
   const inAppBrowser = useMemo(() => getInAppBrowserName(), []);
+  const redirectTo = searchParams.get("redirect") || "/";
+
+  useEffect(() => {
+    if (user) navigate(redirectTo, { replace: true });
+  }, [user, navigate, redirectTo]);
 
   // Persist invite token across the auth round-trip (incl. Google OAuth)
   const inviteToken = searchParams.get("invite");
@@ -48,14 +55,26 @@ export default function Auth() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    trackButtonClick(isLogin ? "auth_submit_signin" : "auth_submit_signup", "auth");
+    trackButtonClick(
+      isResetMode ? "auth_submit_password_reset" : isLogin ? "auth_submit_signin" : "auth_submit_signup",
+      "auth"
+    );
     setLoading(true);
 
     try {
-      if (isLogin) {
+      if (isResetMode) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth`,
+        });
+        if (error) throw error;
+        toast({
+          title: "Check your email",
+          description: "We sent you a password reset link.",
+        });
+      } else if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate("/");
+        navigate(redirectTo);
       } else {
         const { error } = await supabase.auth.signUp({
           email,
@@ -83,10 +102,13 @@ export default function Auth() {
     trackButtonClick("auth_google_continue", "auth");
     setLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth?redirect=${encodeURIComponent(redirectTo)}`,
+        },
       });
-      if (result.error) throw result.error;
+      if (error) throw error;
     } catch (error: any) {
       toast({
         title: "Error",
@@ -150,21 +172,40 @@ export default function Auth() {
               className="bg-secondary border-border"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="bg-secondary border-border"
-            />
-          </div>
+          {!isResetMode && (
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                className="bg-secondary border-border"
+              />
+            </div>
+          )}
+          {isResetMode && (
+            <p className="text-xs text-muted-foreground">
+              Enter your account email and we'll send a reset link.
+            </p>
+          )}
+          {!isResetMode && isLogin && (
+            <button
+              type="button"
+              onClick={() => {
+                trackButtonClick("auth_forgot_password", "auth");
+                setIsResetMode(true);
+              }}
+              className="text-xs text-primary hover:underline"
+            >
+              Forgot password?
+            </button>
+          )}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
+            {loading ? "Loading..." : isResetMode ? "Send reset link" : isLogin ? "Sign In" : "Sign Up"}
           </Button>
         </form>
 
@@ -209,16 +250,22 @@ export default function Auth() {
 
         {/* Toggle */}
         <p className="text-center text-sm text-muted-foreground">
-          {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
+          {isResetMode ? "Remembered your password?" : isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
           <button
             type="button"
             onClick={() => {
-              trackButtonClick("auth_toggle_mode", "auth", { to: isLogin ? "signup" : "signin" });
-              setIsLogin(!isLogin);
+              const to = isResetMode ? "signin" : isLogin ? "signup" : "signin";
+              trackButtonClick("auth_toggle_mode", "auth", { to });
+              if (isResetMode) {
+                setIsResetMode(false);
+                setIsLogin(true);
+              } else {
+                setIsLogin(!isLogin);
+              }
             }}
             className="text-primary hover:underline font-medium"
           >
-            {isLogin ? "Sign Up" : "Sign In"}
+            {isResetMode ? "Back to Sign In" : isLogin ? "Sign Up" : "Sign In"}
           </button>
         </p>
       </div>
