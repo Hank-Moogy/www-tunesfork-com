@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Bridge exposed by preload.cjs
 declare global {
@@ -6,11 +6,14 @@ declare global {
     tfsync: {
       openExternal: (url: string) => Promise<void>;
       pickFolder: () => Promise<string | null>;
+      pickFolders: () => Promise<string[]>;
       // Wired in step 2 below — see preload.cjs additions
       pairInit: (deviceName: string) => Promise<{ code: string; pair_url: string }>;
       pairPoll: (code: string) => Promise<unknown>;
+      cancelPairing: () => Promise<void>;
       getState: () => Promise<AppState>;
       setFolders: (folders: string[]) => Promise<void>;
+      importWatchedFolders: () => Promise<ImportSummary>;
       startSync: () => Promise<void>;
       stopSync: () => Promise<void>;
       signOut: () => Promise<void>;
@@ -19,44 +22,109 @@ declare global {
   }
 }
 
-type LogLine = { ts: number; level: "info" | "ok" | "err" | "busy"; msg: string };
+type LogLine = { ts: number; level: "info" | "ok" | "err" | "busy"; msg: string; key?: string | null };
+type ImportSummary = { found: number; uploaded: number; skipped: number; failed: { folder: string; error: string }[] };
 type AppState = {
   paired: boolean;
   deviceName: string | null;
   folders: string[];
   syncing: boolean;
+  importing: boolean;
+  importedProjectCount: number;
   recent: { name: string; version: number; at: number }[];
 };
 
 const TUNESFORK_URL = "https://tunesfork.com";
 
+function createDevBridge(): Window["tfsync"] {
+  return {
+    openExternal: async () => {},
+    pickFolder: async () => null,
+    pickFolders: async () => ["/Users/demo/Music/Ableton Projects"],
+    pairInit: async () => ({ code: "TF2026", pair_url: TUNESFORK_URL }),
+    pairPoll: async () => ({ status: "pending" }),
+    cancelPairing: async () => {},
+    getState: async () => ({
+      paired: true,
+      deviceName: "Preview",
+      folders: ["/Users/demo/Music/Ableton Projects"],
+      syncing: true,
+      importing: false,
+      importedProjectCount: 3,
+      recent: [
+        { name: "Midnight Sketch", version: 4, at: Date.now() - 45_000 },
+        { name: "Drum Idea", version: 1, at: Date.now() - 12 * 60_000 },
+      ],
+    }),
+    setFolders: async () => {},
+    importWatchedFolders: async () => ({ found: 3, uploaded: 0, skipped: 3, failed: [] }),
+    startSync: async () => {},
+    stopSync: async () => {},
+    signOut: async () => {},
+    onLog: () => {},
+  };
+}
+
+let devBridge: Window["tfsync"] | null = null;
+
+function getBridge(): Window["tfsync"] {
+  if (window.tfsync) return window.tfsync;
+  if (import.meta.env.DEV) {
+    devBridge = devBridge ?? createDevBridge();
+    return devBridge;
+  }
+  throw new Error("Tunesfork Sync bridge is unavailable.");
+}
+
 export default function App() {
+  const tfsync = getBridge();
   const [state, setState] = useState<AppState>({
-    paired: false, deviceName: null, folders: [], syncing: false, recent: [],
+    paired: false, deviceName: null, folders: [], syncing: false, importing: false, importedProjectCount: 0, recent: [],
   });
   const [pairCode, setPairCode] = useState<string | null>(null);
+  const [pairUrl, setPairUrl] = useState<string | null>(null);
   const [pairing, setPairing] = useState(false);
+  const pairRefreshInterval = useRef<number | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [lastImport, setLastImport] = useState<ImportSummary | null>(null);
   const [log, setLog] = useState<LogLine[]>([]);
 
   useEffect(() => {
-    window.tfsync.getState().then(setState);
-    window.tfsync.onLog((line) => setLog((l) => [...l.slice(-99), line]));
-  }, []);
+    tfsync.getState().then(setState);
+    tfsync.onLog((line) => setLog((l) => {
+      if (!line.key) return [...l.slice(-99), line];
+      const existingIndex = l.findIndex((item) => item.key === line.key);
+      if (existingIndex === -1) return [...l.slice(-99), line];
+      const next = [...l];
+      next[existingIndex] = line;
+      return next;
+    }));
+  }, [tfsync]);
 
-  const refreshState = () => window.tfsync.getState().then(setState);
+  const refreshState = () => tfsync.getState().then(setState);
+
+  const stopPairRefresh = () => {
+    if (pairRefreshInterval.current !== null) {
+      window.clearInterval(pairRefreshInterval.current);
+      pairRefreshInterval.current = null;
+    }
+  };
 
   const startPair = async () => {
+    stopPairRefresh();
     setPairing(true);
     try {
-      const { code, pair_url } = await window.tfsync.pairInit(deviceName());
+      const { code, pair_url } = await tfsync.pairInit(deviceName());
       setPairCode(code);
-      await window.tfsync.openExternal(pair_url);
+      setPairUrl(pair_url);
+      await tfsync.openExternal(pair_url);
       // Polling happens in main process; we just refresh state every 2s until paired
-      const interval = setInterval(async () => {
-        const s = await window.tfsync.getState();
+      pairRefreshInterval.current = window.setInterval(async () => {
+        const s = await tfsync.getState();
         if (s.paired) {
-          clearInterval(interval);
+          stopPairRefresh();
           setPairCode(null);
+          setPairUrl(null);
           setPairing(false);
           setState(s);
         }
@@ -67,28 +135,60 @@ export default function App() {
     }
   };
 
+  const reopenPairUrl = async () => {
+    if (pairUrl) await tfsync.openExternal(pairUrl);
+  };
+
+  const cancelPair = async () => {
+    stopPairRefresh();
+    await tfsync.cancelPairing();
+    setPairCode(null);
+    setPairUrl(null);
+    setPairing(false);
+    refreshState();
+  };
+
+  const restartPair = async () => {
+    await cancelPair();
+    await startPair();
+  };
+
   const addFolder = async () => {
-    const folder = await window.tfsync.pickFolder();
-    if (!folder) return;
-    const next = Array.from(new Set([...state.folders, folder]));
-    await window.tfsync.setFolders(next);
+    const folders = await tfsync.pickFolders();
+    if (!folders.length) return;
+    const next = Array.from(new Set([...state.folders, ...folders]));
+    await tfsync.setFolders(next);
     refreshState();
   };
 
   const removeFolder = async (f: string) => {
-    await window.tfsync.setFolders(state.folders.filter((x) => x !== f));
+    await tfsync.setFolders(state.folders.filter((x) => x !== f));
     refreshState();
   };
 
   const toggleSync = async () => {
-    if (state.syncing) await window.tfsync.stopSync();
-    else await window.tfsync.startSync();
+    if (state.syncing) await tfsync.stopSync();
+    else await tfsync.startSync();
     refreshState();
+  };
+
+  const importAndWatch = async () => {
+    setImporting(true);
+    setLastImport(null);
+    try {
+      const summary = await tfsync.importWatchedFolders();
+      setLastImport(summary);
+    } catch (e) {
+      alert(`Import failed: ${(e as Error).message}`);
+    } finally {
+      setImporting(false);
+      refreshState();
+    }
   };
 
   const signOut = async () => {
     if (!confirm("Sign out and unlink this device?")) return;
-    await window.tfsync.signOut();
+    await tfsync.signOut();
     refreshState();
   };
 
@@ -96,7 +196,7 @@ export default function App() {
     <div className="app">
       <div className="header">
         <div>
-          <span className={`dot ${state.syncing ? "live" : state.paired ? "idle" : "err"}`} />
+          <span className={`dot ${importing || state.importing ? "busy" : state.syncing ? "live" : state.paired ? "idle" : "err"}`} />
           <span className="brand">Tunesfork Sync</span>
         </div>
         {state.paired && (
@@ -126,6 +226,17 @@ export default function App() {
             <p className="muted" style={{ marginTop: 10, textAlign: "center" }}>
               Waiting for confirmation…
             </p>
+            <div className="pair-actions">
+              <button className="btn ghost sm" onClick={reopenPairUrl} disabled={!pairUrl}>
+                Open browser again
+              </button>
+              <button className="btn ghost sm" onClick={restartPair}>
+                Start over
+              </button>
+              <button className="btn danger sm" onClick={cancelPair}>
+                Cancel
+              </button>
+            </div>
           </div>
         )}
 
@@ -135,7 +246,7 @@ export default function App() {
             <h3>Watched folders</h3>
             {state.folders.length === 0 ? (
               <p className="muted" style={{ marginBottom: 8 }}>
-                Pick the folder where you keep Ableton projects.
+                Pick one or more folders where you keep Ableton projects.
               </p>
             ) : (
               state.folders.map((f) => (
@@ -146,8 +257,34 @@ export default function App() {
               ))
             )}
             <button className="btn ghost sm" onClick={addFolder} style={{ marginTop: 10, width: "100%" }}>
-              + Add folder
+              + Add folders
             </button>
+          </div>
+        )}
+
+        {/* Initial import */}
+        {state.paired && state.folders.length > 0 && (
+          <div className="card">
+            <h3>Import and watch</h3>
+            <p className="muted" style={{ marginBottom: 10 }}>
+              Upload current projects once. Tunesfork will keep watching these folders after the import.
+            </p>
+            <button className="btn" onClick={importAndWatch} disabled={importing || state.importing} style={{ width: "100%" }}>
+              {importing || state.importing ? "Importing…" : state.importedProjectCount > 0 ? "Import new folders" : "Import projects"}
+            </button>
+            {state.importedProjectCount > 0 && (
+              <p className="muted" style={{ marginTop: 8 }}>
+                {state.importedProjectCount} local project{state.importedProjectCount === 1 ? "" : "s"} linked for future saves.
+              </p>
+            )}
+            {lastImport && (
+              <div className="summary">
+                <div>{lastImport.found} found</div>
+                <div>{lastImport.uploaded} uploaded</div>
+                <div>{lastImport.skipped} already linked</div>
+                <div className={lastImport.failed.length ? "danger-text" : ""}>{lastImport.failed.length} failed</div>
+              </div>
+            )}
           </div>
         )}
 
@@ -158,7 +295,7 @@ export default function App() {
               <div>
                 <strong>{state.syncing ? "Syncing" : "Paused"}</strong>
                 <div className="muted">
-                  {state.syncing ? "Watching for Ableton saves…" : "Click resume to watch for saves"}
+                  {state.syncing ? "Watching for Ableton saves…" : "Click resume to watch for future saves"}
                 </div>
               </div>
               <button className={`btn ${state.syncing ? "ghost" : ""}`} onClick={toggleSync}>
@@ -201,7 +338,7 @@ export default function App() {
 
       <div className="footer">
         <span>v0.1.0 alpha</span>
-        <a href="#" onClick={(e) => { e.preventDefault(); window.tfsync.openExternal(TUNESFORK_URL); }}>
+        <a href="#" onClick={(e) => { e.preventDefault(); tfsync.openExternal(TUNESFORK_URL); }}>
           tunesfork.com →
         </a>
       </div>

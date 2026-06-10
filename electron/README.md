@@ -1,7 +1,7 @@
 # Tunesfork Sync — Desktop App
 
-Menu-bar Electron app that watches your Ableton project folders and uploads
-new versions to Tunesfork on every save.
+Menu-bar Electron app that imports your current Ableton projects, then watches
+those folders and uploads new versions to Tunesfork on every save.
 
 ## Develop locally
 
@@ -81,3 +81,32 @@ electron/
 | `create-version-from-desktop` | Authenticated upload registration |
 
 Plus storage bucket `project-zips` and DB tables `device_tokens`, `device_pair_codes`.
+
+## Import and watch flow
+
+Tunesfork Sync uses one setup flow for both existing and new users:
+
+```text
+Select folders -> Import current projects -> Keep watching for future saves
+```
+
+The first import scans the selected folders for Ableton project folders, uploads
+each unlinked project once, and stores a local folder-to-project mapping in the
+app's `state.json`. Future `.als` saves use that mapping so they create a new
+version instead of duplicating the project.
+
+Running import again is safe: folders that are already linked are skipped.
+
+## Backend configuration
+
+The packaged app currently defaults to the deployed Supabase Functions endpoint.
+For staging or migration builds, override these values at launch/build time:
+
+```bash
+TUNESFORK_URL=https://www.tunesfork.com
+TUNESFORK_FUNCTIONS_URL=https://<project-ref>.supabase.co/functions/v1
+TUNESFORK_STATE_DIR=/tmp/tunesfork-sync-staging-state
+```
+
+Do not switch production defaults until the owned backend has passed the
+acceptance checklist in `docs/OWNED_BACKEND_MIGRATION.md`.

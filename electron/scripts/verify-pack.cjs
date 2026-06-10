@@ -16,6 +16,7 @@ const REQUIRED = [
   "readable-stream",
   "adm-zip",
   "fast-xml-parser",
+  "tus-js-client",
 ];
 const releaseDir = path.join(__dirname, "..", "release");
 

@@ -1,6 +1,6 @@
 {
   "name": "tunesfork-sync",
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "description": "Tunesfork Sync — auto-upload Ableton projects on save",
   "main": "main.cjs",
   "scripts": {
@@ -28,10 +28,15 @@
   "dependencies": {
     "adm-zip": "^0.5.16",
     "archiver": "^7.0.1",
+    "archiver-utils": "^5.0.2",
     "chokidar": "^3.6.0",
+    "compress-commons": "^7.0.1",
     "fast-xml-parser": "^5.7.2",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "readable-stream": "^4.7.0",
+    "tus-js-client": "^4.3.1",
+    "zip-stream": "^7.0.5"
   },
   "build": {
     "appId": "com.tunesfork.sync",
@@ -44,6 +49,7 @@
       "main.cjs",
       "preload.cjs",
       "als-parser.cjs",
+      "assets/**",
       "dist/**",
       "src/**",
       "package.json"
@@ -63,7 +69,7 @@
         }
       ],
       "identity": null,
-      "icon": "build/icon.icns",
+      "icon": "build/icon.png",
       "artifactName": "Tunesfork-Sync-mac-universal.${ext}"
     },
     "win": {
