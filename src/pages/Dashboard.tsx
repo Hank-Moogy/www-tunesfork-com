@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
@@ -45,6 +45,32 @@ export default function Dashboard() {
 
   const [tab, setTab] = useState<Tab>("all");
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [firstName, setFirstName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        const name = data?.display_name?.trim();
+        setFirstName(name ? name.split(" ")[0] : null);
+      });
+  }, [user]);
+
+  const greeting = useMemo(() => {
+    const now = new Date();
+    const h = now.getHours();
+    const d = now.getDay();
+    const n = firstName ? `, ${firstName}` : "";
+    if (h >= 23 || h < 5) return `Late-night session${n}?`;
+    if (h < 12) return d === 0 || d === 6 ? `Weekend sounds incoming${n}` : `Good morning${n}`;
+    if (h < 18) return `Good afternoon${n}`;
+    if (d === 5) return `Friday night${n} — make it count`;
+    return `Good evening${n}`;
+  }, [firstName]);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounced(search, 250);
   const [showArchived, setShowArchived] = useState(false);
@@ -307,14 +333,19 @@ export default function Dashboard() {
           <FirstTimeEmpty onUpload={openUpload} />
         ) : (
           <>
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
-                <p className="text-muted-foreground mt-1">
-                  Manage and collaborate on your Ableton sessions.
-                </p>
+            {/* Greeting */}
+            <h1 className="text-3xl font-bold tracking-tight">{greeting}</h1>
+
+            {/* Activity */}
+            {stats?.heatmap && (
+              <div className="max-w-2xl">
+                <ContributionHeatmap heatmap={stats.heatmap} title={heatmapTitle} weeks={26} />
               </div>
+            )}
+
+            {/* Projects header */}
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pt-4">
+              <h2 className="text-2xl font-bold tracking-tight">Projects</h2>
               <Button
                 onClick={() => {
                   trackButtonClick("dashboard_new_project", "dashboard");
@@ -395,10 +426,6 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Activity heatmap */}
-            {stats?.heatmap && (
-              <ContributionHeatmap heatmap={stats.heatmap} title={heatmapTitle} />
-            )}
           </>
         )}
 
