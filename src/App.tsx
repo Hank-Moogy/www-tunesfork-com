@@ -39,6 +39,8 @@ const App = () => (
             <Route path="/welcome/gitsound" element={<LandingPageGithub />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/share/:token" element={<SharePage />} />
+            {/* Personal invite links ride the same share funnel */}
+            <Route path="/invite/:token" element={<SharePage />} />
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />

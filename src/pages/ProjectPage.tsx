@@ -36,6 +36,9 @@ import {
   Music,
   ChevronLeft,
   Trash2,
+  Copy,
+  Mail,
+  X,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -151,6 +154,14 @@ interface Collaborator {
   profile?: { display_name: string | null; avatar_url: string | null } | null;
 }
 
+interface PendingInvite {
+  id: string;
+  email: string;
+  permission_level: "viewer" | "contributor";
+  token: string;
+  expires_at: string;
+}
+
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   usePageView("project", { project_id: id });
@@ -171,6 +182,8 @@ export default function ProjectPage() {
   const [collabEmail, setCollabEmail] = useState("");
   const [collabRole, setCollabRole] = useState<"viewer" | "contributor">("viewer");
   const [addingCollab, setAddingCollab] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -200,6 +213,13 @@ export default function ProjectPage() {
         const profileMap = new Map(profiles?.map((p) => [p.user_id, p]));
         setCollaborators(collabs.map((c) => ({ ...c, profile: profileMap.get(c.user_id) ?? null })));
       }
+      // RLS limits these rows to the project owner; others get an empty list.
+      const { data: invites } = await (supabase as any)
+        .from("project_invites")
+        .select("id, email, permission_level, token, expires_at")
+        .eq("project_id", id)
+        .is("accepted_at", null);
+      setPendingInvites(invites ?? []);
       setLoading(false);
     };
     fetchAll();
@@ -298,6 +318,25 @@ export default function ProjectPage() {
     });
   };
 
+  const copyInviteLink = async (link: string) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      toast({ title: "Invite link copied", description: "Send it to your collaborator — it gets them set up and into this project." });
+    } catch {
+      toast({ title: "Couldn't copy", description: link, variant: "destructive" });
+    }
+  };
+
+  const handleRevokeInvite = async (inviteId: string) => {
+    const { error } = await (supabase as any).from("project_invites").delete().eq("id", inviteId);
+    if (error) {
+      toast({ title: "Could not revoke invite", description: error.message, variant: "destructive" });
+      return;
+    }
+    setPendingInvites((prev) => prev.filter((i) => i.id !== inviteId));
+    toast({ title: "Invite revoked", description: "The link no longer works." });
+  };
+
   const handleAddCollaborator = async () => {
     const email = collabEmail.trim().toLowerCase();
     if (!email || !project) return;
@@ -316,7 +355,24 @@ export default function ProjectPage() {
     }
     const targetUserId = matches && matches.length > 0 ? matches[0].user_id : null;
     if (!targetUserId) {
-      toast({ title: "User not found", description: "No account uses that email. Ask them to sign up first.", variant: "destructive" });
+      // No account yet — create a personal invite link the user shares directly.
+      const { data: invite, error: invErr } = await (supabase as any).rpc("create_project_invite", {
+        _project_id: project.id,
+        _email: email,
+        _permission: collabRole,
+      });
+      if (invErr || !invite) {
+        toast({ title: "Could not create invite", description: invErr?.message ?? "Please try again.", variant: "destructive" });
+      } else {
+        trackButtonClick("project_invite_link_created", "project", { project_id: project.id, role: collabRole });
+        setInviteLink(`${window.location.origin}/invite/${invite.token}`);
+        const { data: invites } = await (supabase as any)
+          .from("project_invites")
+          .select("id, email, permission_level, token, expires_at")
+          .eq("project_id", project.id)
+          .is("accepted_at", null);
+        setPendingInvites(invites ?? []);
+      }
       setAddingCollab(false);
       return;
     }
@@ -576,6 +632,35 @@ export default function ProjectPage() {
                     online={false}
                   />
                 ))}
+                {project.owner_id === user?.id && pendingInvites.map((inv) => (
+                  <div key={inv.id} className="flex items-center gap-2.5 rounded-xl px-2 py-1.5">
+                    <Avatar className="h-8 w-8 opacity-60">
+                      <AvatarFallback className="bg-secondary text-muted-foreground text-[10px] font-semibold">
+                        {inv.email.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium text-muted-foreground" title={inv.email}>{inv.email}</p>
+                      <p className="text-[10px] text-muted-foreground/70">
+                        Invited — link shared · {inv.permission_level === "contributor" ? "Contributor" : "Viewer"}
+                      </p>
+                    </div>
+                    <button
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      title="Copy invite link"
+                      onClick={() => copyInviteLink(`${window.location.origin}/invite/${inv.token}`)}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                      title="Revoke invite"
+                      onClick={() => handleRevokeInvite(inv.id)}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
               </div>
               {project.owner_id === user?.id && (
                 <div className="px-3 pb-3">
@@ -792,7 +877,7 @@ export default function ProjectPage() {
         }}
       />
 
-      <Dialog open={addCollabOpen} onOpenChange={setAddCollabOpen}>
+      <Dialog open={addCollabOpen} onOpenChange={(open) => { setAddCollabOpen(open); if (!open) setInviteLink(null); }}>
         <DialogContent className="sm:max-w-sm bg-card border-border">
           <DialogHeader>
             <DialogTitle>Add Collaborator</DialogTitle>
@@ -801,8 +886,8 @@ export default function ProjectPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Email address</label>
-              <Input type="email" value={collabEmail} onChange={(e) => setCollabEmail(e.target.value)} placeholder="name@example.com" className="bg-secondary border-border" autoComplete="off" />
-              <p className="text-[11px] text-muted-foreground">Exact match — they must already have an account.</p>
+              <Input type="email" value={collabEmail} onChange={(e) => { setCollabEmail(e.target.value); setInviteLink(null); }} placeholder="name@example.com" className="bg-secondary border-border" autoComplete="off" />
+              <p className="text-[11px] text-muted-foreground">Has an account? They're added right away. New to Tunesfork? You'll get an invite link to share.</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Permission</label>
@@ -816,9 +901,30 @@ export default function ProjectPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button className="w-full bg-pastel-green/20 text-pastel-green border border-pastel-green/30 hover:bg-pastel-green/30" variant="outline" onClick={handleAddCollaborator} disabled={!collabEmail.trim() || addingCollab}>
-              {addingCollab ? "Adding…" : "Add Collaborator"}
-            </Button>
+            {inviteLink ? (
+              <div className="space-y-2 rounded-xl border border-pastel-purple/30 bg-pastel-purple/5 p-3">
+                <p className="text-xs font-medium">No Tunesfork account yet for that email.</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Share this personal link with them — it signs them up and drops them straight into this project. It works once and expires in 14 days.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input readOnly value={inviteLink} className="bg-secondary border-border text-xs font-mono h-8" onFocus={(e) => e.currentTarget.select()} />
+                  <Button size="sm" variant="outline" className="h-8 px-2.5 shrink-0" onClick={() => copyInviteLink(inviteLink)}>
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <a
+                  className="inline-flex items-center gap-1.5 text-[11px] text-pastel-purple hover:underline"
+                  href={`mailto:${collabEmail.trim()}?subject=${encodeURIComponent(`Collaborate with me on ${project.name} (Tunesfork)`)}&body=${encodeURIComponent(`Hey,\n\nI'd like you to collaborate on my Ableton project "${project.name}" on Tunesfork. Use this link to join:\n\n${inviteLink}\n\nSee you there!`)}`}
+                >
+                  <Mail className="h-3 w-3" /> Send it from your email app
+                </a>
+              </div>
+            ) : (
+              <Button className="w-full bg-pastel-green/20 text-pastel-green border border-pastel-green/30 hover:bg-pastel-green/30" variant="outline" onClick={handleAddCollaborator} disabled={!collabEmail.trim() || addingCollab}>
+                {addingCollab ? "Adding…" : "Add Collaborator"}
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
