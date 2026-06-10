@@ -15,7 +15,9 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
   if (!user) return <Navigate to="/auth" replace />;
 
-  if (!onboardingCompleted && location.pathname !== "/onboarding") {
+  const canSkipOnboarding = location.pathname === "/onboarding" || location.pathname === "/desktop-pair";
+
+  if (!onboardingCompleted && !canSkipOnboarding) {
     return <Navigate to="/onboarding" replace />;
   }
 

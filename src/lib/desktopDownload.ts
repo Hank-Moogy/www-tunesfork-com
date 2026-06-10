@@ -2,8 +2,8 @@
 // Update REPO_SLUG once the GitHub repo exists. Until then, the page shows
 // a "coming soon" state instead of broken links.
 
-export const DESKTOP_APP_VERSION = "0.1.0-alpha.5";
-export const DESKTOP_APP_VERSION_LABEL = "v0.1.0 alpha.5 · unsigned build";
+export const DESKTOP_APP_VERSION = "0.1.0-alpha.6";
+export const DESKTOP_APP_VERSION_LABEL = "v0.1.0 alpha.6 · unsigned build";
 
 export const REPO_SLUG: string | null = "Hank-Moogy/www-tunesfork-com";
 

@@ -6,6 +6,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Loader2, Monitor } from "lucide-react";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+
 export default function DesktopPairPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -41,7 +43,7 @@ export default function DesktopPairPage() {
     try {
       const { data: session } = await supabase.auth.getSession();
       const res = await fetch(
-        `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/pair-device-confirm`,
+        `${SUPABASE_URL}/functions/v1/pair-device-confirm`,
         {
           method: "POST",
           headers: {
