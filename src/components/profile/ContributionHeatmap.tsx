@@ -37,7 +37,10 @@ export default function ContributionHeatmap({ heatmap }: { heatmap: Entry[] }) {
     for (let w = 0; w < 53; w++) {
       const week: { date: Date; count: number; isFuture: boolean }[] = [];
       for (let d = 0; d < 7; d++) {
-        const iso = cursor.toISOString().slice(0, 10);
+        // Key by the cell's local calendar date — toISOString() shifts to UTC,
+        // which mislabels every cell for users east/west of UTC and pushed
+        // "today" onto an invisible future cell.
+        const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
         const count = counts.get(iso) ?? 0;
         const isFuture = cursor > today;
         week.push({ date: new Date(cursor), count, isFuture });
