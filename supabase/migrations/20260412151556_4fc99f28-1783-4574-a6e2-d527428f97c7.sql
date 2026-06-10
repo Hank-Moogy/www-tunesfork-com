@@ -1,5 +1,8 @@
+-- Required for gen_random_bytes used by share_token defaults.
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
 -- Add a share token column to projects for public sharing
-ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS share_token text UNIQUE DEFAULT encode(gen_random_bytes(16), 'hex');
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS share_token text UNIQUE DEFAULT encode(extensions.gen_random_bytes(16), 'hex');
 
 -- Create index for fast lookup
 CREATE INDEX IF NOT EXISTS idx_projects_share_token ON public.projects(share_token);

@@ -88,7 +88,7 @@ async function handleSubscriptionCreated(subscription: any, env: StripeEnv) {
   }
 
   const item = subscription.items?.data?.[0];
-  const priceId = item?.price?.metadata?.lovable_external_id || item?.price?.id;
+  const priceId = item?.price?.lookup_key || item?.price?.id;
   const productId = item?.price?.product;
 
   const periodStart = subscription.current_period_start;
@@ -113,7 +113,7 @@ async function handleSubscriptionCreated(subscription: any, env: StripeEnv) {
 
 async function handleSubscriptionUpdated(subscription: any, env: StripeEnv) {
   const item = subscription.items?.data?.[0];
-  const priceId = item?.price?.metadata?.lovable_external_id || item?.price?.id;
+  const priceId = item?.price?.lookup_key || item?.price?.id;
   const productId = item?.price?.product;
 
   const periodStart = subscription.current_period_start;

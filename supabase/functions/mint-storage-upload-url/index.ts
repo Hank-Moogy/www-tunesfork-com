@@ -63,7 +63,12 @@ Deno.serve(async (req) => {
 
     await admin.from("device_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tokenRow.id);
 
-    return new Response(JSON.stringify({ objectPath, signedUrl: data.signedUrl, contentType: parsed.data.content_type }), {
+    return new Response(JSON.stringify({
+      objectPath,
+      signedUrl: data.signedUrl,
+      token: data.token,
+      contentType: parsed.data.content_type,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

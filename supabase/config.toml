@@ -1,4 +1,4 @@
-project_id = "zkzupvjqyltvxrgixrpx"
+project_id = "urrxrntdkmmmqqwaihfj"
 
 [functions]
   [functions.auth-email-hook]
@@ -14,6 +14,16 @@ project_id = "zkzupvjqyltvxrgixrpx"
   [functions.create-portal-session]
     verify_jwt = false
   [functions.get-version-download-url]
+    verify_jwt = false
+  [functions.pair-device-init]
+    verify_jwt = false
+  [functions.pair-device-poll]
+    verify_jwt = false
+  [functions.pair-device-confirm]
+    verify_jwt = false
+  [functions.mint-storage-upload-url]
+    verify_jwt = false
+  [functions.create-version-from-desktop]
     verify_jwt = false
   [functions.send-transactional-email]
     verify_jwt = true

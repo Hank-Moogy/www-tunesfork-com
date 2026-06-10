@@ -102,14 +102,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Next version number
+    // Desktop saves are snapshots within the current major version. A manual
+    // upload/promotion flow can create the next major version; autosync should
+    // not turn every Ableton save into V2, V3, V4...
     const { data: latest } = await admin
       .from("project_versions")
       .select("version_number")
       .eq("project_id", projectId)
       .order("version_number", { ascending: false })
       .limit(1);
-    const versionNumber = (latest && latest[0]?.version_number ? latest[0].version_number : 0) + 1;
+    const versionNumber = latest && latest[0]?.version_number ? latest[0].version_number : 1;
 
     const { data: version, error: vErr } = await admin
       .from("project_versions")

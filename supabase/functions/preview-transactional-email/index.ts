@@ -8,15 +8,15 @@ const corsHeaders = {
 }
 
 // Renders all registered templates with their previewData.
-// Gated by LOVABLE_API_KEY — only the Go API calls this.
+// Gated by EMAIL_PREVIEW_TOKEN for admin/internal preview usage.
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
-  const apiKey = Deno.env.get('LOVABLE_API_KEY')
-  if (!apiKey) {
+  const previewToken = Deno.env.get('EMAIL_PREVIEW_TOKEN')
+  if (!previewToken) {
     return new Response(
       JSON.stringify({ error: 'Server configuration error' }),
       {
@@ -26,10 +26,10 @@ Deno.serve(async (req) => {
     )
   }
 
-  // Verify the caller is authorized with LOVABLE_API_KEY
+  // Verify the caller is authorized with EMAIL_PREVIEW_TOKEN
   const authHeader = req.headers.get('Authorization')
   const token = authHeader?.replace(/^Bearer\s+/i, '')
-  if (token !== apiKey) {
+  if (token !== previewToken) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

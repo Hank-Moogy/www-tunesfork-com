@@ -1,27 +1,26 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { WebhookError, verifyWebhookRequest } from 'npm:@lovable.dev/webhooks-js'
+import { Webhook } from 'https://esm.sh/standardwebhooks@1.0.0'
 
-// Suppression event payload sent by the Go API when Mailgun reports
-// a bounce, complaint, or unsubscribe.
+type SuppressionReason = 'bounce' | 'complaint' | 'unsubscribe'
+
 interface SuppressionPayload {
   email: string
-  reason: 'bounce' | 'complaint' | 'unsubscribe'
+  reason: SuppressionReason
   message_id?: string
   metadata?: Record<string, unknown>
-  is_retry: boolean
-  retry_count: number
+  is_retry?: boolean
+  retry_count?: number
 }
 
-function parseSuppressionPayload(body: string): SuppressionPayload {
-  const parsed = JSON.parse(body)
-  if (!parsed.data) {
-    throw new Error('Missing data field in payload')
+interface ResendWebhookPayload {
+  type?: string
+  data?: {
+    email_id?: string
+    to?: string | string[]
+    recipient?: string
+    email?: string
+    [key: string]: unknown
   }
-  const data = parsed.data as SuppressionPayload
-  if (!data.email || !data.reason) {
-    throw new Error('Missing required fields: email, reason')
-  }
-  return data
 }
 
 function jsonResponse(data: Record<string, unknown>, status = 200): Response {
@@ -31,58 +30,105 @@ function jsonResponse(data: Record<string, unknown>, status = 200): Response {
   })
 }
 
+function getWebhookSecret(): string {
+  return Deno.env.get('RESEND_WEBHOOK_SECRET')
+    || Deno.env.get('SUPPRESSION_WEBHOOK_SECRET')
+    || ''
+}
+
+function firstEmail(value: unknown): string | null {
+  if (typeof value === 'string' && value.includes('@')) return value
+  if (Array.isArray(value)) {
+    const first = value.find((entry) => typeof entry === 'string' && entry.includes('@'))
+    return typeof first === 'string' ? first : null
+  }
+  return null
+}
+
+function mapResendEvent(payload: ResendWebhookPayload): SuppressionPayload | null {
+  const type = payload.type || ''
+  const data = payload.data || {}
+
+  let reason: SuppressionReason | null = null
+  if (type === 'email.bounced') reason = 'bounce'
+  if (type === 'email.complained') reason = 'complaint'
+  if (type === 'email.unsubscribed') reason = 'unsubscribe'
+  if (!reason) return null
+
+  const email = firstEmail(data.to) || firstEmail(data.recipient) || firstEmail(data.email)
+  if (!email) {
+    throw new Error('Resend webhook payload is missing recipient email')
+  }
+
+  return {
+    email,
+    reason,
+    message_id: typeof data.email_id === 'string' ? data.email_id : undefined,
+    metadata: { provider: 'resend', event_type: type, data },
+    is_retry: false,
+    retry_count: 0,
+  }
+}
+
+function parseSuppressionPayload(parsed: unknown): SuppressionPayload {
+  const envelope = parsed as { data?: unknown }
+
+  if (envelope.data && typeof envelope.data === 'object') {
+    const legacy = envelope.data as Partial<SuppressionPayload>
+    if (legacy.email && legacy.reason) {
+      return {
+        email: legacy.email,
+        reason: legacy.reason,
+        message_id: legacy.message_id,
+        metadata: legacy.metadata,
+        is_retry: legacy.is_retry ?? false,
+        retry_count: legacy.retry_count ?? 0,
+      }
+    }
+  }
+
+  const resend = mapResendEvent(parsed as ResendWebhookPayload)
+  if (resend) return resend
+
+  throw new Error('Unsupported suppression event')
+}
+
+async function verifyPayload(req: Request): Promise<SuppressionPayload> {
+  const secret = getWebhookSecret()
+  if (!secret) {
+    throw new Error('RESEND_WEBHOOK_SECRET is not configured')
+  }
+
+  const rawBody = await req.text()
+  const headers = Object.fromEntries(req.headers.entries())
+  const verified = new Webhook(secret).verify(rawBody, headers)
+  return parseSuppressionPayload(verified)
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
     return jsonResponse({ error: 'Method not allowed' }, 405)
   }
 
-  const apiKey = Deno.env.get('LOVABLE_API_KEY')
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-  if (!apiKey || !supabaseUrl || !supabaseServiceKey) {
+  if (!supabaseUrl || !supabaseServiceKey) {
     console.error('Missing required environment variables')
     return jsonResponse({ error: 'Server configuration error' }, 500)
   }
 
-  // Verify HMAC signature using the Lovable API Key (same as auth-email-hook)
   let payload: SuppressionPayload
   try {
-    const verified = await verifyWebhookRequest({
-      req,
-      secret: apiKey,
-      parser: parseSuppressionPayload,
-    })
-    payload = verified.payload
+    payload = await verifyPayload(req)
   } catch (error) {
-    if (error instanceof WebhookError) {
-      switch (error.code) {
-        case 'invalid_signature':
-          console.error('Invalid webhook signature')
-          return jsonResponse({ error: 'Invalid signature' }, 401)
-        case 'stale_timestamp':
-          console.error('Stale webhook timestamp')
-          return jsonResponse({ error: 'Stale timestamp' }, 401)
-        case 'invalid_payload':
-        case 'invalid_json':
-          console.error('Invalid payload', { code: error.code })
-          return jsonResponse({ error: 'Invalid payload' }, 400)
-        default:
-          console.error('Webhook verification failed', {
-            code: error.code,
-            message: error.message,
-          })
-          return jsonResponse({ error: 'Verification failed' }, 401)
-      }
-    }
-    console.error('Unexpected error during verification', { error })
-    return jsonResponse({ error: 'Internal error' }, 500)
+    console.error('Suppression webhook verification failed', { error })
+    return jsonResponse({ error: 'Invalid signature or payload' }, 401)
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   const normalizedEmail = payload.email.toLowerCase()
 
-  // 1. Upsert to suppressed_emails (idempotent — safe for retries)
   const { error: suppressError } = await supabase
     .from('suppressed_emails')
     .upsert(
@@ -102,7 +148,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Failed to write suppression' }, 500)
   }
 
-  // 2. Append a new log entry for the suppression event (never update existing rows)
   const sendLogStatus = mapReasonToStatus(payload.reason)
   const sendLogMessage = mapReasonToMessage(payload.reason)
 
@@ -118,17 +163,14 @@ Deno.serve(async (req) => {
     })
 
   if (insertError) {
-    // Non-fatal — log and continue. The suppression was already recorded.
-    console.warn('Failed to insert email_send_log', {
-      error: insertError,
-    })
+    console.warn('Failed to insert email_send_log', { error: insertError })
   }
 
   console.log('Suppression processed', {
     email_redacted: normalizedEmail[0] + '***@' + normalizedEmail.split('@')[1],
     reason: payload.reason,
-    is_retry: payload.is_retry,
-    retry_count: payload.retry_count,
+    is_retry: payload.is_retry ?? false,
+    retry_count: payload.retry_count ?? 0,
     has_message_id: !!payload.message_id,
   })
 
@@ -151,9 +193,9 @@ function mapReasonToStatus(
 function mapReasonToMessage(reason: string): string {
   switch (reason) {
     case 'bounce':
-      return 'Permanent bounce — email address is invalid or rejected'
+      return 'Permanent bounce - email address is invalid or rejected'
     case 'complaint':
-      return 'Spam complaint — recipient marked email as spam'
+      return 'Spam complaint - recipient marked email as spam'
     case 'unsubscribe':
       return 'Recipient unsubscribed'
     default:

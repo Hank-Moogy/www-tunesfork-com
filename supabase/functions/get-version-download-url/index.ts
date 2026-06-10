@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
       .select("id, version_number, zip_url")
       .eq("project_id", projectId);
     if (versionId) q = q.eq("id", versionId);
-    else q = q.order("version_number", { ascending: false }).limit(1);
+    else q = q.order("version_number", { ascending: false }).order("created_at", { ascending: false }).limit(1);
 
     const { data: versions } = await q;
     const version = versions?.[0];
