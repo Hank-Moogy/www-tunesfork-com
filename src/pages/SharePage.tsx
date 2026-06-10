@@ -92,17 +92,15 @@ export default function SharePage() {
       const proj = projArr[0];
       setProject(proj);
 
-      const [{ data: vers }, { data: ownerProfile }] = await Promise.all([
+      const [{ data: vers }, { data: ownerProfiles }] = await Promise.all([
         supabase.rpc("get_versions_by_share_token", { _token: token }),
-        supabase
-          .from("profiles")
-          .select("display_name,avatar_url")
-          .eq("user_id", proj.owner_id)
-          .maybeSingle(),
+        // profiles is RLS-protected and this page is usually viewed signed-out,
+        // so the owner's name comes through a token-scoped definer function.
+        (supabase as any).rpc("get_share_token_owner_profile", { _token: token }),
       ]);
 
       if (vers && vers.length > 0) setVersion(vers[0]);
-      if (ownerProfile) setOwner(ownerProfile);
+      if (ownerProfiles && ownerProfiles.length > 0) setOwner(ownerProfiles[0]);
       setLoading(false);
     };
     load();

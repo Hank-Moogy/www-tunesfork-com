@@ -653,35 +653,6 @@ export default function ProjectPage() {
                     online={false}
                   />
                 ))}
-                {project.owner_id === user?.id && pendingInvites.map((inv) => (
-                  <div key={inv.id} className="flex items-center gap-2.5 rounded-xl px-2 py-1.5">
-                    <Avatar className="h-8 w-8 opacity-60">
-                      <AvatarFallback className="bg-secondary text-muted-foreground text-[10px] font-semibold">
-                        {inv.email.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-medium text-muted-foreground" title={inv.email}>{inv.email}</p>
-                      <p className="text-[10px] text-muted-foreground/70">
-                        Invited — link shared · {inv.permission_level === "contributor" ? "Contributor" : "Viewer"}
-                      </p>
-                    </div>
-                    <button
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                      title="Copy invite link"
-                      onClick={() => copyInviteLink(`${window.location.origin}/invite/${inv.token}`)}
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      className="text-muted-foreground hover:text-destructive transition-colors"
-                      title="Revoke invite"
-                      onClick={() => handleRevokeInvite(inv.id)}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
               </div>
               {project.owner_id === user?.id && (
                 <div className="px-3 pb-3">
@@ -987,6 +958,27 @@ export default function ProjectPage() {
               <Button className="w-full bg-pastel-green/20 text-pastel-green border border-pastel-green/30 hover:bg-pastel-green/30" variant="outline" onClick={handleAddCollaborator} disabled={!collabEmail.trim() || addingCollab}>
                 {addingCollab ? "Adding…" : "Add Collaborator"}
               </Button>
+            )}
+            {pendingInvites.length > 0 && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Pending invites</label>
+                {pendingInvites.map((inv) => (
+                  <div key={inv.id} className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium" title={inv.email}>{inv.email}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {inv.permission_level === "contributor" ? "Contributor" : "Viewer"} · joins when they accept the link
+                      </p>
+                    </div>
+                    <Button size="sm" variant="outline" className="h-7 px-2" title="Copy invite link" onClick={() => copyInviteLink(`${window.location.origin}/invite/${inv.token}`)}>
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground hover:text-destructive" title="Revoke invite" onClick={() => handleRevokeInvite(inv.id)}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </DialogContent>
