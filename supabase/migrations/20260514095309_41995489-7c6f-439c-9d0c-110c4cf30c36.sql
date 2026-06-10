@@ -1,0 +1,1 @@
+ALTER TABLE public.project_versions ADD COLUMN IF NOT EXISTS ableton_version text;

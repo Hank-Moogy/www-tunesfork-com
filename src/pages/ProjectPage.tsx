@@ -9,7 +9,7 @@ import UploadModal from "@/components/UploadModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 // Badge import removed (no longer used in new layout)
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -60,6 +60,7 @@ import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
 import type { Tables } from "@/integrations/supabase/types";
 import PluginMatchSection from "@/components/PluginMatchSection";
+import { SampleCheckBadge, type SampleCheck } from "@/components/SampleCheckBadge";
 import OpenInAbletonButton from "@/components/OpenInAbletonButton";
 import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick, trackShareCompleted } from "@/lib/analytics";
@@ -184,12 +185,28 @@ export default function ProjectPage() {
   const [addingCollab, setAddingCollab] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [frequentCollabs, setFrequentCollabs] = useState<{
+    user_id: string;
+    email: string;
+    display_name: string | null;
+    avatar_url: string | null;
+    project_count: number;
+  }[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [promoting, setPromoting] = useState(false);
+  const [profileMap, setProfileMap] = useState<Map<string, { display_name: string | null; avatar_url: string | null }>>(new Map());
 
   const commentInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!addCollabOpen) return;
+    supabase.rpc("get_frequent_collaborators", { _limit: 8 }).then(({ data, error }) => {
+      if (error) { console.warn("frequent collabs", error); return; }
+      setFrequentCollabs((data ?? []) as typeof frequentCollabs);
+    });
+  }, [addCollabOpen]);
 
   useEffect(() => {
     if (!id || !user) return;
@@ -204,14 +221,19 @@ export default function ProjectPage() {
         .order("version_number", { ascending: false })
         .order("created_at", { ascending: false });
       setVersions(vers ?? []);
+      // Newest save of the latest major version (saves group by version_number).
       if (vers && vers.length > 0) setSelectedVersion(vers[0]);
 
       const { data: collabs } = await supabase.from("collaborators").select("*").eq("project_id", id);
+      const collabUserIds = collabs?.map((c) => c.user_id) ?? [];
+      const uploaderIds = (vers ?? []).map((v) => v.uploader_id);
+      const allIds = Array.from(new Set([...collabUserIds, ...uploaderIds, proj.owner_id].filter(Boolean)));
+      const { data: profiles } = await supabase
+        .from("profiles").select("user_id, display_name, avatar_url").in("user_id", allIds);
+      const pMap = new Map(profiles?.map((p) => [p.user_id, { display_name: p.display_name, avatar_url: p.avatar_url }]));
+      setProfileMap(pMap);
       if (collabs) {
-        const userIds = collabs.map((c) => c.user_id);
-        const { data: profiles } = await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", userIds);
-        const profileMap = new Map(profiles?.map((p) => [p.user_id, p]));
-        setCollaborators(collabs.map((c) => ({ ...c, profile: profileMap.get(c.user_id) ?? null })));
+        setCollaborators(collabs.map((c) => ({ ...c, profile: pMap.get(c.user_id) ?? null })));
       }
       // RLS limits these rows to the project owner; others get an empty list.
       const { data: invites } = await (supabase as any)
@@ -712,6 +734,11 @@ export default function ProjectPage() {
                         {pluginList.length} plugins
                       </span>
                     )}
+                    {selectedVersion?.ableton_version && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border px-2.5 py-1 text-[11px] font-mono">
+                        <Music className="h-3 w-3 text-muted-foreground" /> {selectedVersion.ableton_version}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -884,6 +911,44 @@ export default function ProjectPage() {
             <DialogDescription>Invite someone to view or contribute to this project.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {(() => {
+              const existingIds = new Set(collaborators.map((c) => c.user_id));
+              const suggestions = frequentCollabs.filter((f) => !existingIds.has(f.user_id));
+              if (suggestions.length === 0) return null;
+              return (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Frequent collaborators
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestions.map((s) => {
+                      const name = s.display_name ?? s.email.split("@")[0];
+                      const initials = (s.display_name ?? s.email).slice(0, 2).toUpperCase();
+                      const selected = collabEmail.trim().toLowerCase() === s.email.toLowerCase();
+                      return (
+                        <button
+                          key={s.user_id}
+                          type="button"
+                          onClick={() => setCollabEmail(s.email)}
+                          className={`flex items-center gap-2 rounded-full border px-2 py-1 text-xs transition-colors ${
+                            selected
+                              ? "border-pastel-green/60 bg-pastel-green/15 text-pastel-green"
+                              : "border-border bg-secondary hover:bg-secondary/70"
+                          }`}
+                          title={s.email}
+                        >
+                          <Avatar className="h-5 w-5">
+                            {s.avatar_url && <AvatarImage src={s.avatar_url} alt="" />}
+                            <AvatarFallback className="text-[9px]">{initials}</AvatarFallback>
+                          </Avatar>
+                          <span className="max-w-[120px] truncate">{name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             <div className="space-y-2">
               <label className="text-sm font-medium">Email address</label>
               <Input type="email" value={collabEmail} onChange={(e) => { setCollabEmail(e.target.value); setInviteLink(null); }} placeholder="name@example.com" className="bg-secondary border-border" autoComplete="off" />

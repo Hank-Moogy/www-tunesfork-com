@@ -102,9 +102,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Desktop saves are snapshots within the current major version. A manual
-    // upload/promotion flow can create the next major version; autosync should
-    // not turn every Ableton save into V2, V3, V4...
+    // Desktop saves are snapshots within the current major version: they reuse
+    // the highest version_number (saves group by duplicate version_number).
+    // promote_project_version() creates the next major; autosync must not turn
+    // every Ableton save into V2, V3, V4...
     const { data: latest } = await admin
       .from("project_versions")
       .select("version_number")
@@ -123,6 +124,8 @@ Deno.serve(async (req) => {
         zip_url: zipPath,
         plugin_list: body.plugin_list ?? null,
         track_list: body.track_list ?? null,
+        ableton_version: body.ableton_version ?? null,
+        sample_check: body.sample_check ?? null,
         file_size_bytes: fileSize,
       })
       .select()

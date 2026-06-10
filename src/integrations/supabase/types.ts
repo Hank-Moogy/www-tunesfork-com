@@ -382,39 +382,51 @@ export type Database = {
       }
       project_versions: {
         Row: {
+          ableton_version: string | null
           audio_preview_url: string | null
           change_note: string | null
           created_at: string
           file_size_bytes: number
           id: string
+          is_main_version: boolean
+          major_version: number
           plugin_list: Json | null
           project_id: string
+          sample_check: Json | null
           track_list: Json | null
           uploader_id: string
           version_number: number
           zip_url: string
         }
         Insert: {
+          ableton_version?: string | null
           audio_preview_url?: string | null
           change_note?: string | null
           created_at?: string
           file_size_bytes?: number
           id?: string
+          is_main_version?: boolean
+          major_version?: number
           plugin_list?: Json | null
           project_id: string
+          sample_check?: Json | null
           track_list?: Json | null
           uploader_id: string
           version_number: number
           zip_url: string
         }
         Update: {
+          ableton_version?: string | null
           audio_preview_url?: string | null
           change_note?: string | null
           created_at?: string
           file_size_bytes?: number
           id?: string
+          is_main_version?: boolean
+          major_version?: number
           plugin_list?: Json | null
           project_id?: string
+          sample_check?: Json | null
           track_list?: Json | null
           uploader_id?: string
           version_number?: number
@@ -675,6 +687,17 @@ export type Database = {
           user_email: string
         }[]
       }
+      get_frequent_collaborators: {
+        Args: { _limit?: number }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          email: string
+          last_added_at: string
+          project_count: number
+          user_id: string
+        }[]
+      }
       get_project_by_share_token: {
         Args: { _token: string }
         Returns: {
@@ -753,6 +776,10 @@ export type Database = {
         Returns: number
       }
       normalize_plugin_name: { Args: { raw_name: string }; Returns: string }
+      promote_version_to_major: {
+        Args: { _version_id: string }
+        Returns: number
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
@@ -761,6 +788,7 @@ export type Database = {
           read_ct: number
         }[]
       }
+      set_main_version: { Args: { _version_id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

@@ -5,6 +5,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
 const { parseAlsFile } = require("./als-parser.cjs");
+const { buildSampleCheck } = require("./sample-check.cjs");
 
 const TUNESFORK_URL = process.env.TUNESFORK_URL || "https://www.tunesfork.com";
 const FUNCTIONS_URL = process.env.TUNESFORK_FUNCTIONS_URL
@@ -97,12 +98,14 @@ function createTrayWindow() {
     skipTaskbar: true,
     alwaysOnTop: false,
     fullscreenable: false,
+    icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
   if (DEV_URL) {
     console.log("[tfsync] Loading dev URL:", DEV_URL);
     trayWindow.loadURL(DEV_URL);
@@ -379,6 +382,22 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
       log("info", `Parsed ${meta.tracks.length} tracks, ${clipCount} clips, ${meta.plugins.length} plugins${meta.bpm ? `, ${meta.bpm} BPM` : ""}`);
     }
 
+    // Sample integrity check — see how many referenced samples actually live in
+    // the project folder. Stored on the version so the web UI can flag missing
+    // samples before a collaborator opens the project.
+    let sampleCheck = null;
+    try {
+      sampleCheck = buildSampleCheck(projectFolder, meta?.samples ?? []);
+      if (sampleCheck.missing > 0 || sampleCheck.external > 0) {
+        log(
+          "warn",
+          `${sampleCheck.missing} missing / ${sampleCheck.external} external samples — collaborators may see "Media Files Missing". Run File → Collect All and Save in Ableton.`
+        );
+      }
+    } catch (e) {
+      log("warn", `Sample check failed: ${e.message}`);
+    }
+
     const body = {
       project_name: projectName,
       zip_storage_path: objectPath,
@@ -387,6 +406,8 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
       bpm: meta?.bpm ?? null,
       plugin_list: meta?.plugins ?? null,
       track_list: meta?.tracks ?? null,
+      ableton_version: meta?.abletonVersion ?? null,
+      sample_check: sampleCheck,
     };
     if (existingLink?.projectId) body.project_id = existingLink.projectId;
 
@@ -705,6 +726,9 @@ app.whenReady().then(() => {
     const fallbackB64 =
       "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAAaklEQVR4Ae3UsQ2AMAxE0e9sgJiAERiBERiBERiBETICIzACI3hCKVKkSJEiufud5HOu7K6qIiL+Q0RsQAesQA/MQAvUwACMwAR0wALMwAq0wAQMwAi0wAxMwAJ0wAS0wAyMwAJ0wAQ0wAyMwAJUAFkfDcjK4M2pAAAAAElFTkSuQmCC";
     trayImage = nativeImage.createFromBuffer(Buffer.from(fallbackB64, "base64"));
+  }
+  // macOS menubar: render as a template image so it adapts to light/dark mode.
+  if (process.platform === "darwin") {
     trayImage.setTemplateImage(true);
   }
 
@@ -713,6 +737,7 @@ app.whenReady().then(() => {
   if (process.platform === "darwin") {
     tray.setIgnoreDoubleClickEvents(true);
   }
+
   tray.on("click", toggleTrayWindow);
   tray.on("right-click", () => {
     tray.popUpContextMenu(Menu.buildFromTemplate([
