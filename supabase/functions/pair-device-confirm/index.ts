@@ -25,12 +25,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    const userClient = createClient(
+    const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const { data: userData, error: userErr } = await userClient.auth.getUser();
+
+    // Validate the caller's JWT with the service-role client. The legacy
+    // SUPABASE_ANON_KEY injected into functions is not valid on projects
+    // using the new publishable/secret key system.
+    const { data: userData, error: userErr } = await admin.auth.getUser(authHeader.slice(7).trim());
     if (userErr || !userData.user) {
       return new Response(JSON.stringify({ error: "Invalid session" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -44,11 +47,6 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
 
     const { data: pair, error: pairErr } = await admin
       .from("device_pair_codes")
