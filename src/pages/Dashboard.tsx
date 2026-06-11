@@ -338,7 +338,7 @@ export default function Dashboard() {
 
             {/* Activity */}
             {stats?.heatmap && (
-              <div className="max-w-2xl">
+              <div className="w-fit max-w-full">
                 <ContributionHeatmap heatmap={stats.heatmap} title={heatmapTitle} weeks={26} />
               </div>
             )}
