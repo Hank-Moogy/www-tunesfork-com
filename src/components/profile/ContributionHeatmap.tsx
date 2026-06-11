@@ -128,7 +128,7 @@ export default function ContributionHeatmap({
               ))}
             </div>
             {/* Legend */}
-            <div className="mt-2 flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
               <span>Less</span>
               <span className="h-3 w-3 rounded-sm bg-muted/50" />
               <span className="h-3 w-3 rounded-sm bg-accent/30" />
