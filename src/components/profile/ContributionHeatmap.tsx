@@ -69,22 +69,11 @@ export default function ContributionHeatmap({
 
   return (
     <section className="glass-card p-6">
-      <div className="mb-4 flex items-end justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <p className="text-sm text-muted-foreground">
-            <span className="font-mono font-semibold text-foreground">{windowTotal}</span> saves {windowLabel}
-          </p>
-        </div>
-        <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-          <span>Less</span>
-          <span className="h-3 w-3 rounded-sm bg-muted/50" />
-          <span className="h-3 w-3 rounded-sm bg-accent/30" />
-          <span className="h-3 w-3 rounded-sm bg-accent/55" />
-          <span className="h-3 w-3 rounded-sm bg-accent/80" />
-          <span className="h-3 w-3 rounded-sm bg-accent" />
-          <span>More</span>
-        </div>
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold">{title}</h2>
+        <p className="text-sm text-muted-foreground">
+          <span className="font-mono font-semibold text-foreground">{windowTotal}</span> saves {windowLabel}
+        </p>
       </div>
 
       <TooltipProvider delayDuration={50}>
@@ -137,6 +126,16 @@ export default function ContributionHeatmap({
                   ))}
                 </div>
               ))}
+            </div>
+            {/* Legend */}
+            <div className="mt-2 flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+              <span>Less</span>
+              <span className="h-3 w-3 rounded-sm bg-muted/50" />
+              <span className="h-3 w-3 rounded-sm bg-accent/30" />
+              <span className="h-3 w-3 rounded-sm bg-accent/55" />
+              <span className="h-3 w-3 rounded-sm bg-accent/80" />
+              <span className="h-3 w-3 rounded-sm bg-accent" />
+              <span>More</span>
             </div>
           </div>
         </div>
