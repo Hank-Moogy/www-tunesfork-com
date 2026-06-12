@@ -35,3 +35,5 @@ project_id = "urrxrntdkmmmqqwaihfj"
     verify_jwt = false
   [functions.notify-invite-accepted]
     verify_jwt = true
+  [functions.cleanup-orphaned-zips]
+    verify_jwt = false
