@@ -957,12 +957,12 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file && file.size <= 50 * 1024 * 1024) {
+                  if (file && file.size <= 500 * 1024 * 1024) {
                     setAudioFile(file);
                   } else if (file) {
                     toast({
                       title: "File too large",
-                      description: "Audio preview must be under 500MB.",
+                      description: "Audio preview must be 500MB or smaller.",
                       variant: "destructive",
                     });
                   }

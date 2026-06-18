@@ -257,6 +257,17 @@ export default function SharePage() {
 
         {/* Content preview card */}
         <div className="rounded-xl border border-border bg-card/60 overflow-hidden mb-8">
+          {/* Audio preview */}
+          {version?.audio_preview_url && (
+            <div className="border-b border-border px-4 py-3">
+              <div className="mb-2 flex items-center gap-2">
+                <Music className="h-3.5 w-3.5 text-pastel-purple" />
+                <span className="text-xs font-medium text-muted-foreground">Audio preview</span>
+              </div>
+              <audio controls preload="metadata" className="h-9 w-full" src={version.audio_preview_url} />
+            </div>
+          )}
+
           {/* Arrangement timeline */}
           {trackList.length > 0 && (
             <div className="border-b border-border">
@@ -281,7 +292,7 @@ export default function SharePage() {
           )}
 
           {/* Empty state if no data */}
-          {trackList.length === 0 && pluginList.length === 0 && !version?.change_note && (
+          {trackList.length === 0 && pluginList.length === 0 && !version?.change_note && !version?.audio_preview_url && (
             <div className="px-4 py-8 text-center">
               <Music className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">Project preview</p>
