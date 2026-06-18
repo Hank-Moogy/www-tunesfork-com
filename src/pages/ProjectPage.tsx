@@ -37,6 +37,7 @@ import {
   Trash2,
   Copy,
   Mail,
+  Upload,
   X,
 } from "lucide-react";
 import {
@@ -195,9 +196,13 @@ export default function ProjectPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [promoting, setPromoting] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [uploadingPreview, setUploadingPreview] = useState(false);
   const [profileMap, setProfileMap] = useState<Map<string, { display_name: string | null; avatar_url: string | null }>>(new Map());
 
   const commentInputRef = useRef<HTMLInputElement>(null);
+  const previewInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!addCollabOpen) return;
@@ -337,6 +342,62 @@ export default function ProjectPage() {
       description: "Please try again in a moment.",
       variant: "destructive",
     });
+  };
+
+  const handlePreviewUpload = async () => {
+    if (!previewFile || !selectedVersion || !user) return;
+    setUploadingPreview(true);
+
+    try {
+      const extension = previewFile.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "mp3";
+      const audioPath = `${user.id}/${selectedVersion.id}-${Date.now()}.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from("audio-previews")
+        .upload(audioPath, previewFile, {
+          cacheControl: "3600",
+          contentType: previewFile.type || undefined,
+          upsert: false,
+        });
+      if (uploadError) throw uploadError;
+
+      const { data: publicAudio } = supabase.storage
+        .from("audio-previews")
+        .getPublicUrl(audioPath);
+
+      const { data: updatedVersion, error: updateError } = await supabase
+        .rpc("set_version_audio_preview", {
+          _version_id: selectedVersion.id,
+          _audio_preview_url: publicAudio.publicUrl,
+        });
+      if (updateError) {
+        await supabase.storage.from("audio-previews").remove([audioPath]);
+        throw updateError;
+      }
+
+      const nextVersion = (updatedVersion ?? {
+        ...selectedVersion,
+        audio_preview_url: publicAudio.publicUrl,
+      }) as Version;
+      setSelectedVersion(nextVersion);
+      setVersions((current) =>
+        current.map((version) => version.id === nextVersion.id ? nextVersion : version)
+      );
+      setPreviewFile(null);
+      setPreviewOpen(false);
+      toast({
+        title: "Audio preview added",
+        description: "The demo is now playable from this project and its share link.",
+      });
+    } catch (error) {
+      console.error("[audio-preview] upload failed", error);
+      toast({
+        title: "Could not add preview",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingPreview(false);
+    }
   };
 
   const copyInviteLink = async (link: string) => {
@@ -510,6 +571,12 @@ export default function ProjectPage() {
     ? versionGroups.find((group) => group.versionNumber === selectedVersion.version_number)
     : null;
   const selectedCanPromote = !!selectedVersion && !!selectedGroup && selectedGroup.saves.length > 0;
+  const canAddPreview = !!project && !!user && (
+    project.owner_id === user.id ||
+    collaborators.some((collaborator) =>
+      collaborator.user_id === user.id && collaborator.permission_level === "contributor"
+    )
+  );
 
   const ownerInitials = "OW";
 
@@ -763,13 +830,34 @@ export default function ProjectPage() {
             </div>
 
             {/* Audio preview */}
-            {selectedVersion?.audio_preview_url && (
+            {selectedVersion && (selectedVersion.audio_preview_url || canAddPreview) && (
               <div className="glass-card rounded-2xl px-4 py-3">
                 <div className="flex items-center gap-2 mb-2">
                   <Music className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs font-medium text-muted-foreground">Audio Preview</span>
+                  {canAddPreview && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto h-7 gap-1.5 px-2 text-xs"
+                      onClick={() => setPreviewOpen(true)}
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      {selectedVersion.audio_preview_url ? "Replace preview" : "Add preview"}
+                    </Button>
+                  )}
                 </div>
-                <audio controls className="w-full h-8" src={selectedVersion.audio_preview_url} />
+                {selectedVersion.audio_preview_url ? (
+                  <audio controls className="w-full h-8" src={selectedVersion.audio_preview_url} />
+                ) : (
+                  <button
+                    type="button"
+                    className="w-full rounded-xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground transition-colors hover:border-muted-foreground hover:text-foreground"
+                    onClick={() => setPreviewOpen(true)}
+                  >
+                    Upload an exported mix so this version can be heard in the browser.
+                  </button>
+                )}
               </div>
             )}
 
@@ -872,6 +960,79 @@ export default function ProjectPage() {
             });
         }}
       />
+
+      <Dialog
+        open={previewOpen}
+        onOpenChange={(open) => {
+          if (uploadingPreview) return;
+          setPreviewOpen(open);
+          if (!open) setPreviewFile(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedVersion?.audio_preview_url ? "Replace audio preview" : "Add audio preview"}
+            </DialogTitle>
+            <DialogDescription>
+              Upload your exported mix for the selected save. It will be playable on the project and public share pages.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <button
+              type="button"
+              className="flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-border p-8 transition-colors hover:border-muted-foreground"
+              onClick={() => previewInputRef.current?.click()}
+              disabled={uploadingPreview}
+            >
+              <Music className="mb-2 h-8 w-8 text-muted-foreground" />
+              {previewFile ? (
+                <>
+                  <span className="max-w-full truncate text-sm font-medium">{previewFile.name}</span>
+                  <span className="text-xs text-muted-foreground">{formatBytes(previewFile.size)}</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-sm font-medium">Choose an audio file</span>
+                  <span className="text-xs text-muted-foreground">MP3, WAV, M4A, AAC or OGG · up to 500MB</span>
+                </>
+              )}
+            </button>
+            <input
+              ref={previewInputRef}
+              type="file"
+              accept="audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/aac,audio/ogg,.mp3,.wav,.m4a,.aac,.ogg"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (!file) return;
+                if (file.size > 500 * 1024 * 1024) {
+                  toast({
+                    title: "File too large",
+                    description: "Audio previews must be 500MB or smaller.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                setPreviewFile(file);
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setPreviewOpen(false)}
+                disabled={uploadingPreview}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handlePreviewUpload} disabled={!previewFile || uploadingPreview}>
+                {uploadingPreview ? "Uploading…" : "Upload preview"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={addCollabOpen} onOpenChange={(open) => { setAddCollabOpen(open); if (!open) setInviteLink(null); }}>
         <DialogContent className="sm:max-w-sm bg-card border-border">

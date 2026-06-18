@@ -788,6 +788,10 @@ export type Database = {
           read_ct: number
         }[]
       }
+      set_version_audio_preview: {
+        Args: { _audio_preview_url: string; _version_id: string }
+        Returns: Database["public"]["Tables"]["project_versions"]["Row"]
+      }
       set_main_version: { Args: { _version_id: string }; Returns: undefined }
     }
     Enums: {
