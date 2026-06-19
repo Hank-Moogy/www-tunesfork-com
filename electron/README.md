@@ -15,6 +15,9 @@ npm run dev:all   # runs vite for the tray UI + electron in parallel
 
 We ship via **GitHub Releases** with **unsigned** alpha builds.
 Code-signing (Apple Developer ID + Windows EV cert) is on the roadmap.
+macOS alpha builds receive a stable ad-hoc bundle signature so Files & Folders
+permissions and the `tunesfork://` protocol remain attached to
+`com.tunesfork.sync` across rebuilds.
 
 ### macOS (run on a Mac)
 
@@ -22,6 +25,9 @@ Code-signing (Apple Developer ID + Windows EV cert) is on the roadmap.
 npm run dist:mac
 # → release/Tunesfork-Sync-mac-universal.dmg
 ```
+
+`dist:mac` also verifies runtime dependencies, required app files, the macOS
+bundle identifier/signature, and Files & Folders usage descriptions.
 
 ### Windows (run on Windows, or cross-compile from Mac)
 
@@ -97,6 +103,10 @@ version instead of duplicating the project.
 
 Running import again is safe: folders that are already linked are skipped.
 
+If macOS later revokes folder access, the tray UI shows a recovery card. The
+user can choose the folder again or jump directly to Files & Folders settings;
+the app does not silently fall back to uploading/opening a duplicate project.
+
 ## Backend configuration
 
 The packaged app currently defaults to the deployed Supabase Functions endpoint.
@@ -110,3 +120,15 @@ TUNESFORK_STATE_DIR=/tmp/tunesfork-sync-staging-state
 
 Do not switch production defaults until the owned backend has passed the
 acceptance checklist in `docs/OWNED_BACKEND_MIGRATION.md`.
+
+## Release smoke test
+
+With an already paired local profile:
+
+```bash
+npm run smoke:backend
+```
+
+This checks the latest GitHub installer URL, pairing initialization, paired
+device authentication, and a signed project ZIP download. It does not upload a
+new version.

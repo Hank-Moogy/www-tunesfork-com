@@ -9,10 +9,11 @@ declare global {
       pickFolders: () => Promise<string[]>;
       // Wired in step 2 below — see preload.cjs additions
       pairInit: (deviceName: string) => Promise<{ code: string; pair_url: string }>;
-      pairPoll: (code: string) => Promise<unknown>;
       cancelPairing: () => Promise<void>;
       getState: () => Promise<AppState>;
       setFolders: (folders: string[]) => Promise<void>;
+      repairFolderAccess: (folder: string) => Promise<{ ok: boolean; cancelled?: boolean; message?: string; folder?: string }>;
+      openFolderPrivacySettings: () => Promise<boolean>;
       importWatchedFolders: () => Promise<ImportSummary>;
       startSync: () => Promise<void>;
       stopSync: () => Promise<void>;
@@ -22,7 +23,7 @@ declare global {
   }
 }
 
-type LogLine = { ts: number; level: "info" | "ok" | "err" | "busy"; msg: string; key?: string | null };
+type LogLine = { ts: number; level: "info" | "ok" | "err" | "busy" | "warn"; msg: string; key?: string | null };
 type ImportSummary = { found: number; uploaded: number; skipped: number; failed: { folder: string; error: string }[] };
 type AppState = {
   paired: boolean;
@@ -32,6 +33,7 @@ type AppState = {
   importing: boolean;
   importedProjectCount: number;
   recent: { name: string; version: number; at: number }[];
+  folderAccessIssues: { folder: string; code: string; message: string }[];
 };
 
 const TUNESFORK_URL = "https://tunesfork.com";
@@ -42,7 +44,6 @@ function createDevBridge(): Window["tfsync"] {
     pickFolder: async () => null,
     pickFolders: async () => ["/Users/demo/Music/Ableton Projects"],
     pairInit: async () => ({ code: "TF2026", pair_url: TUNESFORK_URL }),
-    pairPoll: async () => ({ status: "pending" }),
     cancelPairing: async () => {},
     getState: async () => ({
       paired: true,
@@ -51,12 +52,15 @@ function createDevBridge(): Window["tfsync"] {
       syncing: true,
       importing: false,
       importedProjectCount: 3,
+      folderAccessIssues: [],
       recent: [
         { name: "Midnight Sketch", version: 4, at: Date.now() - 45_000 },
         { name: "Drum Idea", version: 1, at: Date.now() - 12 * 60_000 },
       ],
     }),
     setFolders: async () => {},
+    repairFolderAccess: async (folder) => ({ ok: true, folder }),
+    openFolderPrivacySettings: async () => true,
     importWatchedFolders: async () => ({ found: 3, uploaded: 0, skipped: 3, failed: [] }),
     startSync: async () => {},
     stopSync: async () => {},
@@ -79,7 +83,7 @@ function getBridge(): Window["tfsync"] {
 export default function App() {
   const tfsync = getBridge();
   const [state, setState] = useState<AppState>({
-    paired: false, deviceName: null, folders: [], syncing: false, importing: false, importedProjectCount: 0, recent: [],
+    paired: false, deviceName: null, folders: [], syncing: false, importing: false, importedProjectCount: 0, recent: [], folderAccessIssues: [],
   });
   const [pairCode, setPairCode] = useState<string | null>(null);
   const [pairUrl, setPairUrl] = useState<string | null>(null);
@@ -92,6 +96,9 @@ export default function App() {
   useEffect(() => {
     tfsync.getState().then(setState);
     tfsync.onLog((line) => setLog((l) => {
+      if (line.key?.startsWith("folder-access:")) {
+        tfsync.getState().then(setState);
+      }
       if (!line.key) return [...l.slice(-99), line];
       const existingIndex = l.findIndex((item) => item.key === line.key);
       if (existingIndex === -1) return [...l.slice(-99), line];
@@ -99,6 +106,10 @@ export default function App() {
       next[existingIndex] = line;
       return next;
     }));
+    const refreshInterval = window.setInterval(() => {
+      tfsync.getState().then(setState);
+    }, 5000);
+    return () => window.clearInterval(refreshInterval);
   }, [tfsync]);
 
   const refreshState = () => tfsync.getState().then(setState);
@@ -157,18 +168,39 @@ export default function App() {
     const folders = await tfsync.pickFolders();
     if (!folders.length) return;
     const next = Array.from(new Set([...state.folders, ...folders]));
-    await tfsync.setFolders(next);
-    refreshState();
+    try {
+      await tfsync.setFolders(next);
+    } catch (e) {
+      alert(`Could not watch that folder: ${(e as Error).message}`);
+    } finally {
+      refreshState();
+    }
   };
 
   const removeFolder = async (f: string) => {
-    await tfsync.setFolders(state.folders.filter((x) => x !== f));
-    refreshState();
+    try {
+      await tfsync.setFolders(state.folders.filter((x) => x !== f));
+    } catch (e) {
+      alert(`Could not update watched folders: ${(e as Error).message}`);
+    } finally {
+      refreshState();
+    }
   };
 
   const toggleSync = async () => {
-    if (state.syncing) await tfsync.stopSync();
-    else await tfsync.startSync();
+    try {
+      if (state.syncing) await tfsync.stopSync();
+      else await tfsync.startSync();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      refreshState();
+    }
+  };
+
+  const repairFolderAccess = async (folder: string) => {
+    const result = await tfsync.repairFolderAccess(folder);
+    if (!result.ok && !result.cancelled && result.message) alert(result.message);
     refreshState();
   };
 
@@ -193,7 +225,7 @@ export default function App() {
   };
 
   return (
-    <div className="app">
+    <div className={`app ${navigator.platform.toLowerCase().includes("mac") ? "mac" : ""}`}>
       <div className="header">
         <div>
           <span className={`dot ${importing || state.importing ? "busy" : state.syncing ? "live" : state.paired ? "idle" : "err"}`} />
@@ -259,6 +291,28 @@ export default function App() {
             <button className="btn ghost sm" onClick={addFolder} style={{ marginTop: 10, width: "100%" }}>
               + Add folders
             </button>
+          </div>
+        )}
+
+        {state.paired && state.folderAccessIssues.length > 0 && (
+          <div className="card access-warning">
+            <h3>Folder access needed</h3>
+            <p className="muted">
+              macOS is blocking one or more Ableton folders. Saves cannot sync until access is restored.
+            </p>
+            {state.folderAccessIssues.map((issue) => (
+              <div className="access-issue" key={issue.folder}>
+                <div className="path">{issue.folder}</div>
+                <div className="pair-actions">
+                  <button className="btn sm" onClick={() => repairFolderAccess(issue.folder)}>
+                    Choose folder again
+                  </button>
+                  <button className="btn ghost sm" onClick={() => tfsync.openFolderPrivacySettings()}>
+                    Privacy settings
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -337,7 +391,7 @@ export default function App() {
       </div>
 
       <div className="footer">
-        <span>v0.1.0 alpha</span>
+        <span>v0.1.0 alpha.7</span>
         <a href="#" onClick={(e) => { e.preventDefault(); tfsync.openExternal(TUNESFORK_URL); }}>
           tunesfork.com →
         </a>

@@ -1,9 +1,10 @@
 // Centralized desktop-app download config.
-// Update REPO_SLUG once the GitHub repo exists. Until then, the page shows
-// a "coming soon" state instead of broken links.
+// Do not gate downloads on the GitHub releases API in the browser: that
+// request can be rate-limited or blocked and previously left production stuck
+// on "Checking latest release…". The stable /releases/latest/download URLs
+// redirect directly to the current published asset.
 
-export const DESKTOP_APP_VERSION = "0.1.0-alpha.6";
-export const DESKTOP_APP_VERSION_LABEL = "v0.1.0 alpha.6 · unsigned build";
+export const DESKTOP_APP_VERSION_LABEL = "Latest alpha · unsigned build";
 
 export const REPO_SLUG: string | null = "Hank-Moogy/www-tunesfork-com";
 
@@ -14,15 +15,16 @@ export const DESKTOP_ASSETS = {
   windows: WIN_ASSET,
 };
 
-export const GITHUB_LATEST_RELEASE_API = REPO_SLUG
-  ? `https://api.github.com/repos/${REPO_SLUG}/releases/latest`
-  : null;
+export const PUBLISHED_DESKTOP_ASSETS = {
+  mac: true,
+  windows: false,
+} as const;
 
 export const DOWNLOAD_URLS = {
-  mac: REPO_SLUG
+  mac: REPO_SLUG && PUBLISHED_DESKTOP_ASSETS.mac
     ? `https://github.com/${REPO_SLUG}/releases/latest/download/${MAC_ASSET}`
     : null,
-  windows: REPO_SLUG
+  windows: REPO_SLUG && PUBLISHED_DESKTOP_ASSETS.windows
     ? `https://github.com/${REPO_SLUG}/releases/latest/download/${WIN_ASSET}`
     : null,
 };
@@ -38,6 +40,6 @@ export function detectPlatform(): DesktopPlatform {
   return "other";
 }
 
-export const DOWNLOADS_AVAILABLE = REPO_SLUG !== null;
+export const DOWNLOADS_AVAILABLE = Boolean(DOWNLOAD_URLS.mac || DOWNLOAD_URLS.windows);
 
 export type DesktopDownloadUrls = typeof DOWNLOAD_URLS;

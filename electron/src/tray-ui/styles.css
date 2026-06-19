@@ -16,7 +16,17 @@ html, body, #root { height: 100%; }
 body { background: var(--bg); color: var(--text); font-size: 13px; -webkit-font-smoothing: antialiased; }
 
 .app { display: flex; flex-direction: column; height: 100vh; }
-.header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+.header button, .header a { -webkit-app-region: no-drag; }
+.app.mac .header { padding-left: 76px; }
 .brand { font-weight: 600; letter-spacing: -0.01em; }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
 .dot.idle { background: var(--muted); }
@@ -35,6 +45,8 @@ body { background: var(--bg); color: var(--text); font-size: 13px; -webkit-font-
 .summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 10px; font-size: 11px; color: var(--muted); }
 .summary div { border: 1px solid var(--border); border-radius: 6px; padding: 6px; background: #111; text-align: center; }
 .danger-text { color: var(--red); }
+.access-warning { border-color: rgba(239, 68, 68, 0.55); background: rgba(239, 68, 68, 0.06); }
+.access-issue { margin-top: 10px; border-top: 1px solid rgba(239, 68, 68, 0.2); padding-top: 10px; }
 
 button { border: 0; cursor: pointer; font: inherit; }
 .btn { padding: 8px 12px; border-radius: 6px; background: var(--primary); color: white; font-weight: 500; transition: opacity 0.15s; }
@@ -53,6 +65,7 @@ button { border: 0; cursor: pointer; font: inherit; }
 .log-line.ok { color: var(--green); }
 .log-line.err { color: var(--red); }
 .log-line.busy { color: var(--primary); }
+.log-line.warn { color: #f59e0b; }
 
 .footer { border-top: 1px solid var(--border); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--muted); }
 .footer a { color: var(--muted); text-decoration: none; }
