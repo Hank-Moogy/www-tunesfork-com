@@ -199,6 +199,7 @@ export default function ProjectPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [uploadingPreview, setUploadingPreview] = useState(false);
+  const [pinnedPreviewVersionId, setPinnedPreviewVersionId] = useState<string | null>(null);
   const [profileMap, setProfileMap] = useState<Map<string, { display_name: string | null; avatar_url: string | null }>>(new Map());
 
   const commentInputRef = useRef<HTMLInputElement>(null);
@@ -382,6 +383,7 @@ export default function ProjectPage() {
       setVersions((current) =>
         current.map((version) => version.id === nextVersion.id ? nextVersion : version)
       );
+      setPinnedPreviewVersionId(nextVersion.id);
       setPreviewFile(null);
       setPreviewOpen(false);
       toast({
@@ -577,6 +579,23 @@ export default function ProjectPage() {
       collaborator.user_id === user.id && collaborator.permission_level === "contributor"
     )
   );
+  // The audio preview is project-level in the UI: keep the newest available
+  // preview pinned while the user browses other versions and saved snapshots.
+  const versionsWithPreview = versions
+    .filter((version) => !!version.audio_preview_url)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const previewVersion = versionsWithPreview.find(
+    (version) => version.id === pinnedPreviewVersionId
+  ) ?? versionsWithPreview[0] ?? null;
+  const previewVersionLabel = previewVersion
+    ? `V${previewVersion.version_number}${
+        previewVersion.change_note ? ` · ${previewVersion.change_note.split("\n")[0]}` : ""
+      } · ${new Date(previewVersion.created_at).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })}`
+    : null;
 
   const ownerInitials = "OW";
 
@@ -830,11 +849,18 @@ export default function ProjectPage() {
             </div>
 
             {/* Audio preview */}
-            {selectedVersion && (selectedVersion.audio_preview_url || canAddPreview) && (
+            {(previewVersion || (selectedVersion && canAddPreview)) && (
               <div className="glass-card rounded-2xl px-4 py-3">
                 <div className="flex items-center gap-2 mb-2">
                   <Music className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium text-muted-foreground">Audio Preview</span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Audio Preview
+                    {previewVersionLabel && (
+                      <span className="ml-1.5 font-mono text-foreground/70">
+                        · {previewVersionLabel}
+                      </span>
+                    )}
+                  </span>
                   {canAddPreview && (
                     <Button
                       variant="ghost"
@@ -843,12 +869,12 @@ export default function ProjectPage() {
                       onClick={() => setPreviewOpen(true)}
                     >
                       <Upload className="h-3.5 w-3.5" />
-                      {selectedVersion.audio_preview_url ? "Replace preview" : "Add preview"}
+                      {selectedVersion?.audio_preview_url ? "Replace preview" : "Add preview"}
                     </Button>
                   )}
                 </div>
-                {selectedVersion.audio_preview_url ? (
-                  <audio controls className="w-full h-8" src={selectedVersion.audio_preview_url} />
+                {previewVersion?.audio_preview_url ? (
+                  <audio controls className="w-full h-8" src={previewVersion.audio_preview_url} />
                 ) : (
                   <button
                     type="button"
@@ -956,7 +982,11 @@ export default function ProjectPage() {
             .order("version_number", { ascending: false })
             .order("created_at", { ascending: false })
             .then(({ data }) => {
-              if (data) { setVersions(data); setSelectedVersion(data[0]); }
+              if (data) {
+                setVersions(data);
+                setSelectedVersion(data[0]);
+                if (data[0]?.audio_preview_url) setPinnedPreviewVersionId(data[0].id);
+              }
             });
         }}
       />
