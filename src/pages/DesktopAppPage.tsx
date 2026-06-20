@@ -1,26 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { Apple, ArrowRight, Download, ShieldAlert } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Apple, Monitor, Music, RefreshCw, Shield, Zap, Download } from "lucide-react";
 import { trackButtonClick } from "@/lib/analytics";
 import {
   DESKTOP_APP_VERSION_LABEL,
-  DOWNLOADS_AVAILABLE,
   DOWNLOAD_URLS,
-  detectPlatform,
-  type DesktopDownloadUrls,
-  type DesktopPlatform,
 } from "@/lib/desktopDownload";
 
 export default function DesktopAppPage() {
@@ -38,313 +26,109 @@ export default function DesktopAppPage() {
       .maybeSingle()
       .then(({ data }) => setWelcomeName(data?.display_name ?? null));
   }, [isWelcome, user]);
-  const { toast } = useToast();
-  const [email, setEmail] = useState(user?.email ?? "");
-  const [submitting, setSubmitting] = useState(false);
-  const [joined, setJoined] = useState(false);
-  const [platform, setPlatform] = useState<DesktopPlatform>("other");
-  const [downloadUrls] = useState<DesktopDownloadUrls>(DOWNLOAD_URLS);
 
-  useEffect(() => {
-    setPlatform(detectPlatform());
-  }, []);
-
-  const primary = useMemo(() => {
-    if (platform === "mac") {
-      return { label: "Download for Mac", sub: "Apple Silicon + Intel · .dmg", url: downloadUrls.mac, key: "mac" as const };
-    }
-    if (platform === "windows") {
-      return { label: "Download for Windows", sub: "64-bit installer · .exe", url: downloadUrls.windows, key: "windows" as const };
-    }
-    return null;
-  }, [downloadUrls.mac, downloadUrls.windows, platform]);
-
-  const hasAnyDownload = Boolean(downloadUrls.mac || downloadUrls.windows);
-  const showDownloadControls = DOWNLOADS_AVAILABLE && hasAnyDownload;
-
-  const handleDownload = (key: "mac" | "windows", url: string | null) => {
-    trackButtonClick("desktop_download", "desktop_app", { platform: key });
-    if (url) {
-      window.location.href = url;
-      return;
-    }
-
-    toast({
-      title: "Download not published yet",
-      description: `The ${key === "mac" ? "Mac" : "Windows"} installer hasn't been attached to the latest GitHub release yet.`,
-      variant: "destructive",
-    });
-  };
-
-  const handleJoin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) return;
-    setSubmitting(true);
-    try {
-      const { error } = await supabase.from("sync_waitlist").insert({
-        email: email.trim().toLowerCase(),
-        platform: platform === "other" ? null : platform,
-        user_id: user?.id ?? null,
-      });
-      if (error && !String(error.message).toLowerCase().includes("duplicate")) {
-        throw error;
-      }
-      setJoined(true);
-      toast({ title: "You're on the list!", description: "We'll email you about new releases." });
-    } catch (err: any) {
-      toast({ title: "Couldn't join", description: err.message ?? String(err), variant: "destructive" });
-    } finally {
-      setSubmitting(false);
-    }
+  const downloadMac = () => {
+    trackButtonClick("desktop_download", "desktop_app", { platform: "mac" });
+    if (DOWNLOAD_URLS.mac) window.location.href = DOWNLOAD_URLS.mac;
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="mx-auto max-w-5xl px-6 py-16 lg:px-10 lg:py-24">
-        {/* Hero */}
-        <div className="text-center">
-          {!isWelcome && (
-            <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-              {hasAnyDownload ? "Alpha available" : "Release pending"}
-            </span>
-          )}
-          {isWelcome ? (
-            <>
-              <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
-                Welcome{welcomeName ? `, ${welcomeName}` : ""} 👋
-              </h1>
-              <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground">
-                One last step: install <strong className="text-foreground">Tunesfork Sync</strong>.
-                Every Ableton save backs up automatically.
-              </p>
-            </>
-          ) : (
-            <>
-              <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-6xl">
-                Tunesfork <span className="text-primary">Sync</span>
-              </h1>
-              <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
-                Hit save in Ableton. A new version appears on Tunesfork.
-                <br />
-                No drag, no zip, no upload modal. It just works.
-              </p>
-            </>
-          )}
 
-          {/* Download or waitlist */}
-          <div className="mx-auto mt-10 max-w-md">
-            {showDownloadControls ? (
-              <div className="space-y-4">
-                {primary ? (
-                  <Button
-                    size="lg"
-                    onClick={() => handleDownload(primary.key, primary.url)}
-                    disabled={!primary.url}
-                    className="w-full h-14 text-base bg-primary hover:bg-primary/90 gap-2"
-                  >
-                    <Download className="h-5 w-5" />
-                    {primary.url ? primary.label : "Installer coming soon"}
-                  </Button>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    We don't recognize your OS — pick a build below.
-                  </p>
-                )}
+      <main className="mx-auto max-w-4xl px-6 py-14 lg:py-20">
+        <section className="text-center">
+          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
+            <Apple className="h-3.5 w-3.5" />
+            macOS only · Apple Silicon + Intel
+          </div>
 
-                <div className="flex justify-center gap-3 text-sm">
-                  <button
-                    onClick={() => handleDownload("mac", downloadUrls.mac)}
-                    disabled={!downloadUrls.mac}
-                    className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 hover:border-primary/50 hover:text-primary transition"
-                  >
-                    <Apple className="h-4 w-4" /> macOS
-                  </button>
-                  <button
-                    onClick={() => handleDownload("windows", downloadUrls.windows)}
-                    disabled={!downloadUrls.windows}
-                    className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 hover:border-primary/50 hover:text-primary transition"
-                  >
-                    <Monitor className="h-4 w-4" /> Windows
-                  </button>
-                </div>
-
-                <div className="font-mono text-xs text-muted-foreground">
-                  {DESKTOP_APP_VERSION_LABEL}
-                  {primary?.sub && <> · {primary.sub}</>}
-                </div>
-              </div>
-            ) : joined ? (
-              <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-6 text-green-400">
-                ✓ You're on the list. We'll be in touch.
-              </div>
+          <h1 className="mx-auto mt-7 max-w-3xl text-4xl font-bold tracking-tight md:text-6xl">
+            {isWelcome ? (
+              <>Welcome{welcomeName ? `, ${welcomeName}` : ""}. Install Tunesfork Sync.</>
             ) : (
-              <form onSubmit={handleJoin} className="flex flex-col gap-3 sm:flex-row">
-                <Input
-                  type="email"
-                  required
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="flex-1"
-                />
-                <Button type="submit" disabled={submitting} className="bg-primary">
-                  {submitting ? "Joining…" : "Get early access"}
-                </Button>
-              </form>
+              <>Save in Ableton.<br /><span className="text-primary">Tunesfork keeps the versions.</span></>
             )}
-          </div>
-        </div>
+          </h1>
 
-        {/* First-launch instructions */}
-        {showDownloadControls && (
-          <div className="mx-auto mt-8 max-w-2xl">
-            <p className="mb-2 text-center text-xs text-muted-foreground">
-              Your computer will warn on first launch (the alpha isn't code-signed yet) — 30-second fix:
+          <p className="mx-auto mt-5 max-w-xl text-base text-muted-foreground md:text-lg">
+            A lightweight menu-bar app that watches the Ableton folders you choose
+            and uploads a new snapshot whenever you save.
+          </p>
+
+          <div className="mx-auto mt-9 max-w-xl">
+            <Button
+              size="lg"
+              onClick={downloadMac}
+              disabled={!DOWNLOAD_URLS.mac}
+              className="h-20 w-full rounded-2xl bg-primary text-lg font-semibold shadow-[0_18px_50px_-18px_hsl(var(--primary)/0.8)] transition hover:-translate-y-0.5 hover:bg-primary/90 md:text-xl"
+            >
+              <Download className="mr-2 h-6 w-6" />
+              Download Tunesfork Sync for Mac
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+            <p className="mt-3 font-mono text-xs text-muted-foreground">
+              {DESKTOP_APP_VERSION_LABEL} · Universal macOS DMG
             </p>
-            <Accordion type="single" collapsible>
-              <AccordionItem value="mac" className="border-border">
-                <AccordionTrigger className="text-sm">
-                  <span className="flex items-center gap-2">
-                    <Apple className="h-4 w-4" /> macOS — first launch instructions
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="text-sm text-muted-foreground space-y-4">
-                  <div>
-                    When you double-click the app you'll see <em>"Apple could not verify
-                    'Tunesfork Sync' is free of malware"</em>. That's macOS's Gatekeeper blocking
-                    unsigned apps — the build is safe, just not yet signed with an Apple Developer
-                    ID.
-                  </div>
-
-                  <div>
-                    <div className="font-semibold text-foreground mb-2">
-                      Recommended: System Settings bypass
-                    </div>
-                    <ol className="list-decimal list-inside space-y-1.5 ml-1">
-                      <li>Try to open the app — let macOS show the warning, then click <em>Done</em>.</li>
-                      <li>Open <strong className="text-foreground">System Settings → Privacy & Security</strong>.</li>
-                      <li>Scroll down. You'll see <em>"Tunesfork Sync was blocked to protect your Mac"</em>.</li>
-                      <li>Click <strong className="text-foreground">Open Anyway</strong>, then confirm with your password.</li>
-                      <li>The app will launch. You only need to do this once.</li>
-                    </ol>
-                  </div>
-
-                  <div>
-                    <div className="font-semibold text-foreground mb-2">
-                      Still stuck? Run this in Terminal:
-                    </div>
-                    <pre className="rounded-md bg-muted/40 border border-border p-3 text-xs text-foreground overflow-x-auto">
-{`xattr -cr /Applications/Tunesfork\\ Sync.app`}
-                    </pre>
-                    <div className="mt-2 text-xs">
-                      This removes the quarantine flag macOS adds to downloaded files. After
-                      running it, double-click the app normally.
-                    </div>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="windows" className="border-border">
-                <AccordionTrigger className="text-sm">
-                  <span className="flex items-center gap-2">
-                    <Monitor className="h-4 w-4" /> Windows — first launch instructions
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="text-sm text-muted-foreground space-y-3">
-                  <div>
-                    SmartScreen will show <em>"Windows protected your PC"</em>. Click{" "}
-                    <strong className="text-foreground">More info</strong> →{" "}
-                    <strong className="text-foreground">Run anyway</strong>. The build isn't yet
-                    signed with an EV certificate, so Windows doesn't recognize it.
-                  </div>
-                  <div className="text-xs">
-                    Code-signing for both platforms is on the roadmap — these warnings will
-                    disappear in a future release.
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
           </div>
-        )}
 
-        {/* After install: what happens next (welcome mode only) */}
-        {isWelcome && (
-          <div className="mx-auto mt-12 max-w-md">
-            <ol className="space-y-3 text-sm text-muted-foreground">
-              <li className="flex gap-3"><span className="font-mono text-primary">01</span> Open the app — it lives in your menu bar.</li>
-              <li className="flex gap-3"><span className="font-mono text-primary">02</span> Pair it with your account (one click).</li>
-              <li className="flex gap-3"><span className="font-mono text-primary">03</span> Pick your Ableton projects folder. Done.</li>
+          <div className="mx-auto mt-8 flex max-w-xl flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+            <span>1. Install</span>
+            <span>2. Pair your account</span>
+            <span>3. Choose your Ableton folder</span>
+          </div>
+        </section>
+
+        <section className="mx-auto mt-16 max-w-2xl overflow-hidden rounded-2xl border border-amber-500/30 bg-amber-500/[0.06]">
+          <div className="flex gap-4 border-b border-amber-500/20 p-6">
+            <ShieldAlert className="mt-0.5 h-6 w-6 shrink-0 text-amber-400" />
+            <div>
+              <h2 className="text-lg font-semibold">macOS may block the first launch</h2>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                This alpha is not Apple-notarized yet. The warning is expected and
+                only needs to be bypassed once.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-6 p-6">
+            <ol className="space-y-4 text-sm text-muted-foreground">
+              {[
+                <>Move <strong className="text-foreground">Tunesfork Sync</strong> into Applications and try to open it.</>,
+                <>When Apple shows the warning, click <strong className="text-foreground">Done</strong>.</>,
+                <>Open <strong className="text-foreground">System Settings → Privacy & Security</strong>.</>,
+                <>Scroll down, click <strong className="text-foreground">Open Anyway</strong>, then confirm.</>,
+              ].map((step, index) => (
+                <li key={index} className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500/15 font-mono text-xs text-amber-300">
+                    {index + 1}
+                  </span>
+                  <span className="pt-0.5">{step}</span>
+                </li>
+              ))}
             </ol>
-            <div className="mt-8 text-center">
-              <Link
-                to="/dashboard"
-                className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                onClick={() => trackButtonClick("welcome_skip_install", "desktop_app")}
-              >
-                I'll do this later — take me to my dashboard
-              </Link>
+
+            <div className="rounded-xl border border-border bg-background/70 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Still blocked? Run once in Terminal
+              </p>
+              <code className="mt-3 block overflow-x-auto rounded-lg bg-black/40 p-3 text-sm text-foreground">
+                xattr -cr /Applications/Tunesfork\ Sync.app
+              </code>
             </div>
           </div>
-        )}
+        </section>
 
-        {/* Feature row */}
-        {!isWelcome && (
-        <div className="mt-24 grid gap-6 md:grid-cols-3">
-          {[
-            { icon: Music, title: "Watches your Ableton folder", body: "Point it at where you keep your projects. It tracks every .als you save." },
-            { icon: RefreshCw, title: "Auto-zips & uploads", body: "Whole project folder — samples, recordings, metadata — sent to Tunesfork on every save." },
-            { icon: Zap, title: "Lives in your menu bar", body: "Tiny app. No window to keep open. Pause anytime." },
-          ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-border bg-card/40 p-6">
-              <f.icon className="h-6 w-6 text-primary" />
-              <h3 className="mt-4 font-semibold">{f.title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{f.body}</p>
-            </div>
-          ))}
-        </div>
-        )}
-
-        {/* How it works */}
-        {!isWelcome && (
-        <div className="mt-24">
-          <h2 className="text-2xl font-bold">How it works</h2>
-          <ol className="mt-6 space-y-4 text-muted-foreground">
-            <li className="flex gap-4"><span className="font-mono text-primary">01</span> Download Tunesfork Sync (Mac or Windows).</li>
-            <li className="flex gap-4"><span className="font-mono text-primary">02</span> Sign in with one click — same Tunesfork account.</li>
-            <li className="flex gap-4"><span className="font-mono text-primary">03</span> Pick the folder where you keep Ableton projects.</li>
-            <li className="flex gap-4"><span className="font-mono text-primary">04</span> Make music. Every save = new version on Tunesfork.</li>
-          </ol>
-        </div>
-        )}
-
-        {/* Notify-me capture (always available, even when downloads are live) */}
-        {!isWelcome && DOWNLOADS_AVAILABLE && !joined && (
-          <div className="mx-auto mt-20 max-w-md text-center">
-            <h3 className="text-lg font-semibold">Get notified about new releases</h3>
-            <form onSubmit={handleJoin} className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <Input
-                type="email"
-                required
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="flex-1"
-              />
-              <Button type="submit" disabled={submitting} variant="outline">
-                {submitting ? "Joining…" : "Notify me"}
-              </Button>
-            </form>
+        {isWelcome && (
+          <div className="mt-10 text-center">
+            <Link
+              to="/dashboard"
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              onClick={() => trackButtonClick("welcome_skip_install", "desktop_app")}
+            >
+              I’ll install it later — go to my dashboard
+            </Link>
           </div>
-        )}
-
-        {/* Trust */}
-        {!isWelcome && (
-        <div className="mt-20 rounded-xl border border-border bg-muted/20 p-6 text-sm text-muted-foreground">
-          <Shield className="mb-2 inline h-4 w-4 text-primary" />{" "}
-          <strong className="text-foreground">Private by default.</strong> Sync only watches the folders you choose. You can pause or revoke device access from settings at any time.
-        </div>
         )}
       </main>
     </div>
