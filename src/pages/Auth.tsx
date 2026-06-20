@@ -26,6 +26,7 @@ export default function Auth() {
 
   const inAppBrowser = useMemo(() => getInAppBrowserName(), []);
   const redirectTo = searchParams.get("redirect") || "/";
+  const isDesktopPairing = redirectTo.startsWith("/desktop-pair");
 
   useEffect(() => {
     if (user) navigate(redirectTo, { replace: true });
@@ -56,13 +57,32 @@ export default function Auth() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     trackButtonClick(
-      isResetMode ? "auth_submit_password_reset" : isLogin ? "auth_submit_signin" : "auth_submit_signup",
+      isDesktopPairing
+        ? "auth_submit_desktop_magic_link"
+        : isResetMode
+          ? "auth_submit_password_reset"
+          : isLogin
+            ? "auth_submit_signin"
+            : "auth_submit_signup",
       "auth"
     );
     setLoading(true);
 
     try {
-      if (isResetMode) {
+      if (isDesktopPairing) {
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            shouldCreateUser: true,
+            emailRedirectTo: `${window.location.origin}/auth?redirect=${encodeURIComponent(redirectTo)}`,
+          },
+        });
+        if (error) throw error;
+        toast({
+          title: "Check your email",
+          description: "Use the secure link we sent to continue connecting Tunesfork Sync.",
+        });
+      } else if (isResetMode) {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/auth`,
         });
@@ -79,7 +99,9 @@ export default function Auth() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth?redirect=${encodeURIComponent(redirectTo)}`,
+          },
         });
         if (error) throw error;
         toast({
@@ -126,11 +148,13 @@ export default function Auth() {
         {/* Logo */}
         <div className="text-center space-y-4">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            TunesFork
+            {isDesktopPairing ? "Connect Tunesfork Sync" : "TunesFork"}
           </h1>
           <img src="/logo.png" alt="TunesFork" className="h-16 w-auto mx-auto" />
           <p className="text-sm text-muted-foreground">
-            your ableton collaborative workspace
+            {isDesktopPairing
+              ? "One secure flow for new and existing accounts."
+              : "your ableton collaborative workspace"}
           </p>
         </div>
 
@@ -172,7 +196,7 @@ export default function Auth() {
               className="bg-secondary border-border"
             />
           </div>
-          {!isResetMode && (
+          {!isDesktopPairing && !isResetMode && (
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -192,7 +216,7 @@ export default function Auth() {
               Enter your account email and we'll send a reset link.
             </p>
           )}
-          {!isResetMode && isLogin && (
+          {!isDesktopPairing && !isResetMode && isLogin && (
             <button
               type="button"
               onClick={() => {
@@ -205,7 +229,15 @@ export default function Auth() {
             </button>
           )}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Loading..." : isResetMode ? "Send reset link" : isLogin ? "Sign In" : "Sign Up"}
+            {loading
+              ? "Loading..."
+              : isDesktopPairing
+                ? "Email me a secure sign-in link"
+                : isResetMode
+                  ? "Send reset link"
+                  : isLogin
+                    ? "Sign In"
+                    : "Sign Up"}
           </Button>
         </form>
 
@@ -249,7 +281,7 @@ export default function Auth() {
         </Button>
 
         {/* Toggle */}
-        <p className="text-center text-sm text-muted-foreground">
+        {!isDesktopPairing && <p className="text-center text-sm text-muted-foreground">
           {isResetMode ? "Remembered your password?" : isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
           <button
             type="button"
@@ -267,7 +299,7 @@ export default function Auth() {
           >
             {isResetMode ? "Back to Sign In" : isLogin ? "Sign Up" : "Sign In"}
           </button>
-        </p>
+        </p>}
       </div>
     </div>
   );

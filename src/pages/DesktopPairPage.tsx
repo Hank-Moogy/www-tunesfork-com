@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -15,13 +15,41 @@ export default function DesktopPairPage() {
   const code = (params.get("code") ?? "").toUpperCase();
   const [state, setState] = useState<"idle" | "confirming" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [deviceName, setDeviceName] = useState("");
+  const confirm = useCallback(async () => {
+    if (!user || !code || state === "confirming" || state === "done") return;
+    setState("confirming");
+    setError(null);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${SUPABASE_URL}/functions/v1/pair-device-confirm`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.session?.access_token}`,
+          },
+          body: JSON.stringify({ code }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Pairing failed");
+      setState("done");
+    } catch (e: any) {
+      setError(e.message);
+      setState("error");
+    }
+  }, [code, state, user]);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate(`/auth?redirect=${encodeURIComponent(`/desktop-pair?code=${code}`)}`);
     }
   }, [loading, user, code, navigate]);
+
+  useEffect(() => {
+    if (!loading && user && code && state === "idle") confirm();
+  }, [loading, user, code, state, confirm]);
 
   if (!code) {
     return (
@@ -37,31 +65,6 @@ export default function DesktopPairPage() {
     );
   }
 
-  const confirm = async () => {
-    setState("confirming");
-    setError(null);
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/pair-device-confirm`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.session?.access_token}`,
-          },
-          body: JSON.stringify({ code, device_name: deviceName || undefined }),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Pairing failed");
-      setState("done");
-    } catch (e: any) {
-      setError(e.message);
-      setState("error");
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -74,30 +77,19 @@ export default function DesktopPairPage() {
             {code}
           </div>
 
-          {state !== "done" && (
+          {(state === "idle" || state === "confirming") && (
+            <div className="mt-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Connecting your account to Tunesfork Sync…
+            </div>
+          )}
+
+          {state === "error" && (
             <>
-              <p className="text-sm text-muted-foreground">
-                Confirm this code matches the one shown in your desktop app.
-              </p>
-
-              <input
-                type="text"
-                placeholder="Name this device (optional)"
-                value={deviceName}
-                onChange={(e) => setDeviceName(e.target.value)}
-                className="mt-6 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                maxLength={80}
-              />
-
-              <Button
-                onClick={confirm}
-                disabled={state === "confirming"}
-                className="mt-4 w-full bg-primary"
-              >
-                {state === "confirming" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Pairing…</> : "Confirm pairing"}
+              <p className="mt-3 text-sm text-destructive">{error}</p>
+              <Button onClick={confirm} className="mt-4 w-full bg-primary">
+                Try again
               </Button>
-
-              {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
             </>
           )}
 

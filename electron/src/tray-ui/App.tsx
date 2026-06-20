@@ -71,13 +71,18 @@ function createDevBridge(): Window["tfsync"] {
     pickFolders: async () => ["/Users/demo/Music/Ableton Projects"],
     pairInit: async () => ({ code: "TF2026", pair_url: TUNESFORK_URL }),
     cancelPairing: async () => {},
-    getState: async () => baseState,
-    setFolders: async () => {},
+    getState: async () => ({
+      ...baseState,
+      folders: [...baseState.folders],
+      recent: [...baseState.recent],
+      folderAccessIssues: [...baseState.folderAccessIssues],
+    }),
+    setFolders: async (folders) => { baseState.folders = folders; },
     repairFolderAccess: async (folder) => ({ ok: true, folder }),
     openFolderPrivacySettings: async () => true,
     importWatchedFolders: async () => ({ found: 3, uploaded: 0, skipped: 3, failed: [] }),
-    startSync: async () => {},
-    stopSync: async () => {},
+    startSync: async () => { baseState.syncing = true; },
+    stopSync: async () => { baseState.syncing = false; },
     signOut: async () => {},
     onLog: (callback) => {
       for (const [index, line] of (previewLogs[preview] ?? []).entries()) {
@@ -103,10 +108,13 @@ export default function App() {
   const [state, setState] = useState<AppState>({
     paired: false, deviceName: null, folders: [], syncing: false, importing: false, importedProjectCount: 0, recent: [], folderAccessIssues: [],
   });
+  const [stateLoaded, setStateLoaded] = useState(false);
   const [pairCode, setPairCode] = useState<string | null>(null);
   const [pairUrl, setPairUrl] = useState<string | null>(null);
   const [pairing, setPairing] = useState(false);
   const pairRefreshInterval = useRef<number | null>(null);
+  const readyTimer = useRef<number | null>(null);
+  const [showReady, setShowReady] = useState(false);
   const [importing, setImporting] = useState(false);
   const [lastImport, setLastImport] = useState<ImportSummary | null>(null);
   const [log, setLog] = useState<LogLine[]>([]);
@@ -114,7 +122,10 @@ export default function App() {
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
   useEffect(() => {
-    tfsync.getState().then(setState);
+    tfsync.getState().then((next) => {
+      setState(next);
+      setStateLoaded(true);
+    });
     tfsync.onLog((line) => setLog((l) => {
       if (line.key?.startsWith("folder-access:")) {
         tfsync.getState().then(setState);
@@ -129,7 +140,10 @@ export default function App() {
     const refreshInterval = window.setInterval(() => {
       tfsync.getState().then(setState);
     }, 5000);
-    return () => window.clearInterval(refreshInterval);
+    return () => {
+      window.clearInterval(refreshInterval);
+      if (readyTimer.current !== null) window.clearTimeout(readyTimer.current);
+    };
   }, [tfsync]);
 
   const refreshState = () => tfsync.getState().then(setState);
@@ -197,6 +211,24 @@ export default function App() {
     }
   };
 
+  const completeFolderSetup = async () => {
+    const folders = await tfsync.pickFolders();
+    if (!folders.length) return;
+    try {
+      await tfsync.setFolders(Array.from(new Set(folders)));
+      await tfsync.startSync();
+      setShowReady(true);
+      readyTimer.current = window.setTimeout(() => {
+        setShowReady(false);
+        readyTimer.current = null;
+      }, 1400);
+    } catch (e) {
+      alert(`Could not start watching that folder: ${(e as Error).message}`);
+    } finally {
+      refreshState();
+    }
+  };
+
   const removeFolder = async (f: string) => {
     try {
       await tfsync.setFolders(state.folders.filter((x) => x !== f));
@@ -246,13 +278,18 @@ export default function App() {
 
   const latestLog = log[log.length - 1] ?? null;
   const recentUpload = state.recent[0] ?? null;
-  const status = getDisplayStatus({
-    state,
-    pairing: pairing || !!pairCode,
-    importing: importing || state.importing,
-    latestLog,
-    recentUpload,
-  });
+  const onboardingStep = !state.paired ? 1 : state.folders.length === 0 ? 2 : 3;
+  const visibleOnboardingStep = showReady ? 3 : onboardingStep;
+  const onboarding = stateLoaded && (onboardingStep < 3 || showReady);
+  const status = !stateLoaded
+    ? { kicker: "POWER ON", title: "INITIALIZING", detail: "CHECKING DEVICE STATE", footer: "Starting Tunesfork Sync", tone: "cyan", animated: true }
+    : getDisplayStatus({
+        state,
+        pairing: pairing || !!pairCode,
+        importing: importing || state.importing,
+        latestLog,
+        recentUpload,
+      });
   const isMac = navigator.platform.toLowerCase().includes("mac");
   const fallbackLog: LogLine[] = [
     {
@@ -327,37 +364,80 @@ export default function App() {
             </div>
           </section>
 
-          <section className="telemetry-strip">
-            <div>
-              <span>FOLDERS</span>
-              <strong>{String(state.folders.length).padStart(2, "0")}</strong>
-            </div>
-            <div>
-              <span>PROJECTS</span>
-              <strong>{String(state.importedProjectCount).padStart(2, "0")}</strong>
-            </div>
-            <div>
-              <span>LAST SAVE</span>
-              <strong>{recentUpload ? relTime(recentUpload.at).toUpperCase() : "—"}</strong>
-            </div>
-          </section>
+          {onboarding ? (
+            <section className="setup-controls onboarding-panel">
+              <div className="onboarding-progress" aria-label={`Setup step ${visibleOnboardingStep} of 3`}>
+                <div className={visibleOnboardingStep > 1 ? "complete" : "active"}><span>1</span><b>ACCOUNT</b></div>
+                <i />
+                <div className={visibleOnboardingStep > 2 ? "complete" : visibleOnboardingStep === 2 ? "active" : ""}><span>2</span><b>FOLDER</b></div>
+                <i />
+                <div className={visibleOnboardingStep === 3 ? "active" : ""}><span>3</span><b>READY</b></div>
+              </div>
 
-          {!state.paired ? (
-            <section className="setup-controls">
-              {!pairCode ? (
-                <button className="hardware-button primary wide" onClick={startPair} disabled={pairing}>
-                  <span className="button-led" />
-                  {pairing ? "OPENING BROWSER" : "PAIR THIS UNIT"}
-                </button>
-              ) : (
-                <div className="pair-grid">
-                  <button className="hardware-button" onClick={reopenPairUrl} disabled={!pairUrl}>OPEN BROWSER</button>
-                  <button className="hardware-button" onClick={restartPair}>NEW CODE</button>
-                  <button className="hardware-button danger" onClick={cancelPair}>CANCEL</button>
+              {!showReady && onboardingStep === 1 && (
+                <div className="onboarding-copy">
+                  <span className="panel-label">STEP 1 · CONNECT ACCOUNT</span>
+                  <h2>Sign in or create your account</h2>
+                  <p>We’ll open Tunesfork in your browser. Both options use the same secure flow.</p>
+                  {!pairCode ? (
+                    <button className="hardware-button primary wide" onClick={startPair} disabled={pairing}>
+                      <span className="button-led" />
+                      {pairing ? "OPENING BROWSER" : "CONTINUE IN BROWSER"}
+                    </button>
+                  ) : (
+                    <>
+                      <div className="onboarding-wait">
+                        <span className="tiny-light amber" />
+                        Waiting for browser sign-in · code {pairCode}
+                      </div>
+                      <div className="pair-grid">
+                        <button className="hardware-button primary" onClick={reopenPairUrl} disabled={!pairUrl}>OPEN BROWSER</button>
+                        <button className="hardware-button" onClick={restartPair}>NEW CODE</button>
+                        <button className="hardware-button danger" onClick={cancelPair}>CANCEL</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {!showReady && onboardingStep === 2 && (
+                <div className="onboarding-copy">
+                  <span className="panel-label">STEP 2 · CHOOSE FOLDER</span>
+                  <h2>Where are your Ableton projects?</h2>
+                  <p>Choose the parent folder that contains your Ableton Project folders. Tunesfork only watches what you select.</p>
+                  <button className="hardware-button primary wide" onClick={completeFolderSetup}>
+                    <span className="button-led" />
+                    CHOOSE ABLETON FOLDER
+                  </button>
+                </div>
+              )}
+
+              {showReady && (
+                <div className="onboarding-copy onboarding-ready">
+                  <span className="panel-label">SETUP COMPLETE</span>
+                  <h2>You’re ready to make music</h2>
+                  <p>Tunesfork Sync is watching your folder. Your next Ableton save will become a cloud snapshot.</p>
+                  <span className="ready-pulse"><i /> SYNC ENGINE ONLINE</span>
                 </div>
               )}
             </section>
-          ) : (
+          ) : stateLoaded ? (
+            <>
+              <section className="telemetry-strip">
+                <div>
+                  <span>FOLDERS</span>
+                  <strong>{String(state.folders.length).padStart(2, "0")}</strong>
+                </div>
+                <div>
+                  <span>PROJECTS</span>
+                  <strong>{String(state.importedProjectCount).padStart(2, "0")}</strong>
+                </div>
+                <div>
+                  <span>LAST SAVE</span>
+                  <strong>{recentUpload ? relTime(recentUpload.at).toUpperCase() : "—"}</strong>
+                </div>
+              </section>
+
             <section className="control-deck">
               <button
                 className={`footswitch ${state.syncing ? "engaged" : ""}`}
@@ -385,6 +465,11 @@ export default function App() {
                   FOLDERS
                 </button>
               </div>
+            </section>
+            </>
+          ) : (
+            <section className="setup-controls">
+              <button className="hardware-button wide" disabled>STARTING SYNC ENGINE…</button>
             </section>
           )}
 
@@ -434,7 +519,7 @@ export default function App() {
             </section>
           )}
 
-          <section className={`diagnostics ${diagnosticsOpen ? "open" : ""}`}>
+          {!onboarding && stateLoaded && <section className={`diagnostics ${diagnosticsOpen ? "open" : ""}`}>
             <button className="diagnostics-toggle" onClick={() => setDiagnosticsOpen((open) => !open)}>
               <span>DIAGNOSTICS / EVENT LOG</span>
               <span className="diagnostics-action">{diagnosticsOpen ? "MINIMIZE −" : "EXPAND +"}</span>
@@ -447,7 +532,7 @@ export default function App() {
                 </div>
               ))}
             </div>
-          </section>
+          </section>}
         </main>
 
         <footer className="footer">
@@ -477,7 +562,7 @@ function getDisplayStatus({
     return { kicker: "AUTH CHANNEL", title: "CONFIRM PAIRING", detail: "MATCH THIS CODE IN YOUR BROWSER", footer: "Pairing request active", tone: "amber", animated: true };
   }
   if (!state.paired) {
-    return { kicker: "OFFLINE", title: "PAIR DEVICE", detail: "CONNECT THIS UNIT TO YOUR TUNESFORK ACCOUNT", footer: "Press PAIR THIS UNIT to begin", tone: "idle", animated: false };
+    return { kicker: "OFFLINE", title: "PAIR DEVICE", detail: "CONNECT THIS UNIT TO YOUR TUNESFORK ACCOUNT", footer: "Continue in your browser to begin", tone: "idle", animated: false };
   }
   if (state.folderAccessIssues.length > 0) {
     return { kicker: "INPUT FAULT", title: "ACCESS NEEDED", detail: "RECONNECT THE BLOCKED ABLETON FOLDER", footer: "Folder permission interrupted", tone: "red", animated: false };
