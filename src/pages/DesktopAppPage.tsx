@@ -15,9 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Apple, Monitor, Music, RefreshCw, Shield, Zap, Download } from "lucide-react";
 import { trackButtonClick } from "@/lib/analytics";
 import {
-  DESKTOP_ASSETS,
   DESKTOP_APP_VERSION_LABEL,
-  GITHUB_LATEST_RELEASE_API,
   DOWNLOADS_AVAILABLE,
   DOWNLOAD_URLS,
   detectPlatform,
@@ -45,40 +43,10 @@ export default function DesktopAppPage() {
   const [submitting, setSubmitting] = useState(false);
   const [joined, setJoined] = useState(false);
   const [platform, setPlatform] = useState<DesktopPlatform>("other");
-  const [downloadUrls, setDownloadUrls] = useState<DesktopDownloadUrls>(DOWNLOAD_URLS);
-  const [checkingDownloads, setCheckingDownloads] = useState(DOWNLOADS_AVAILABLE);
+  const [downloadUrls] = useState<DesktopDownloadUrls>(DOWNLOAD_URLS);
 
   useEffect(() => {
     setPlatform(detectPlatform());
-  }, []);
-
-  useEffect(() => {
-    if (!GITHUB_LATEST_RELEASE_API) {
-      setCheckingDownloads(false);
-      return;
-    }
-
-    let cancelled = false;
-    fetch(GITHUB_LATEST_RELEASE_API)
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error("No release found"))))
-      .then((release) => {
-        if (cancelled) return;
-        const assets = Array.isArray(release.assets) ? release.assets : [];
-        setDownloadUrls({
-          mac: assets.find((asset: { name?: string }) => asset.name === DESKTOP_ASSETS.mac)?.browser_download_url ?? null,
-          windows: assets.find((asset: { name?: string }) => asset.name === DESKTOP_ASSETS.windows)?.browser_download_url ?? null,
-        });
-      })
-      .catch(() => {
-        if (!cancelled) setDownloadUrls({ mac: null, windows: null });
-      })
-      .finally(() => {
-        if (!cancelled) setCheckingDownloads(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   const primary = useMemo(() => {
@@ -92,7 +60,7 @@ export default function DesktopAppPage() {
   }, [downloadUrls.mac, downloadUrls.windows, platform]);
 
   const hasAnyDownload = Boolean(downloadUrls.mac || downloadUrls.windows);
-  const showDownloadControls = DOWNLOADS_AVAILABLE && (checkingDownloads || hasAnyDownload);
+  const showDownloadControls = DOWNLOADS_AVAILABLE && hasAnyDownload;
 
   const handleDownload = (key: "mac" | "windows", url: string | null) => {
     trackButtonClick("desktop_download", "desktop_app", { platform: key });
@@ -139,7 +107,7 @@ export default function DesktopAppPage() {
           {!isWelcome && (
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
               <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-              {checkingDownloads ? "Checking release" : hasAnyDownload ? "Alpha available" : "Release pending"}
+              {hasAnyDownload ? "Alpha available" : "Release pending"}
             </span>
           )}
           {isWelcome ? (
@@ -173,11 +141,11 @@ export default function DesktopAppPage() {
                   <Button
                     size="lg"
                     onClick={() => handleDownload(primary.key, primary.url)}
-                    disabled={checkingDownloads || !primary.url}
+                    disabled={!primary.url}
                     className="w-full h-14 text-base bg-primary hover:bg-primary/90 gap-2"
                   >
-                    {checkingDownloads ? <RefreshCw className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
-                    {checkingDownloads ? "Checking latest release…" : primary.url ? primary.label : "Installer coming soon"}
+                    <Download className="h-5 w-5" />
+                    {primary.url ? primary.label : "Installer coming soon"}
                   </Button>
                 ) : (
                   <p className="text-sm text-muted-foreground">
@@ -188,14 +156,14 @@ export default function DesktopAppPage() {
                 <div className="flex justify-center gap-3 text-sm">
                   <button
                     onClick={() => handleDownload("mac", downloadUrls.mac)}
-                    disabled={checkingDownloads || !downloadUrls.mac}
+                    disabled={!downloadUrls.mac}
                     className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 hover:border-primary/50 hover:text-primary transition"
                   >
                     <Apple className="h-4 w-4" /> macOS
                   </button>
                   <button
                     onClick={() => handleDownload("windows", downloadUrls.windows)}
-                    disabled={checkingDownloads || !downloadUrls.windows}
+                    disabled={!downloadUrls.windows}
                     className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 hover:border-primary/50 hover:text-primary transition"
                   >
                     <Monitor className="h-4 w-4" /> Windows

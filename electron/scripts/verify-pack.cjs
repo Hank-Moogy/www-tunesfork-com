@@ -18,6 +18,14 @@ const REQUIRED = [
   "fast-xml-parser",
   "tus-js-client",
 ];
+const REQUIRED_APP_FILES = [
+  "/main.cjs",
+  "/preload.cjs",
+  "/folder-access.cjs",
+  "/als-parser.cjs",
+  "/sample-check.cjs",
+  "/dist/index.html",
+];
 const releaseDir = path.join(__dirname, "..", "release");
 
 if (!fs.existsSync(releaseDir)) {
@@ -78,6 +86,58 @@ for (const asar of asars) {
       failed = true;
     } else {
       console.log(`[verify-pack]   ok: ${dep}`);
+    }
+  }
+  for (const appFile of REQUIRED_APP_FILES) {
+    if (!listing.includes(appFile)) {
+      console.error(`[verify-pack]   MISSING APP FILE: ${appFile}`);
+      failed = true;
+    } else {
+      console.log(`[verify-pack]   ok: ${appFile}`);
+    }
+  }
+}
+
+if (process.platform === "darwin") {
+  const apps = [];
+  const findApps = (dir, depth = 0) => {
+    if (depth > 4) return;
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory() && entry.name.endsWith(".app")) apps.push(full);
+      else if (entry.isDirectory()) findApps(full, depth + 1);
+    }
+  };
+  findApps(releaseDir);
+
+  for (const app of apps) {
+    try {
+      execSync(`codesign --verify --deep --strict "${app}"`, { stdio: "pipe" });
+      const details = execSync(`codesign -dv --verbose=4 "${app}" 2>&1`, { encoding: "utf8" });
+      if (!details.includes("Identifier=com.tunesfork.sync")) {
+        console.error(`[verify-pack]   INVALID SIGNING IDENTITY: ${app}`);
+        failed = true;
+      } else {
+        console.log(`[verify-pack]   ok: ad-hoc signature com.tunesfork.sync`);
+      }
+      const info = execSync(`plutil -p "${path.join(app, "Contents", "Info.plist")}"`, { encoding: "utf8" });
+      for (const key of [
+        "NSDocumentsFolderUsageDescription",
+        "NSDesktopFolderUsageDescription",
+        "NSDownloadsFolderUsageDescription",
+      ]) {
+        if (!info.includes(key)) {
+          console.error(`[verify-pack]   MISSING INFO.PLIST KEY: ${key}`);
+          failed = true;
+        } else {
+          console.log(`[verify-pack]   ok: ${key}`);
+        }
+      }
+    } catch (error) {
+      console.error(`[verify-pack]   macOS bundle verification failed: ${error.message}`);
+      failed = true;
     }
   }
 }

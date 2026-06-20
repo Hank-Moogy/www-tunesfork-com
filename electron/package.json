@@ -1,13 +1,16 @@
 {
   "name": "tunesfork-sync",
-  "version": "0.1.0-alpha.6",
+  "version": "0.1.0-alpha.7",
   "description": "Tunesfork Sync — auto-upload Ableton projects on save",
+  "author": "Tunesfork",
   "main": "main.cjs",
   "scripts": {
     "dev:ui": "vite",
     "dev": "VITE_DEV_SERVER_URL=http://localhost:5180 electron .",
     "dev:win": "set VITE_DEV_SERVER_URL=http://localhost:5180&& electron .",
     "dev:all": "concurrently -k -n ui,electron -c blue,green \"npm run dev:ui\" \"wait-on http://localhost:5180 && npm run dev\"",
+    "test": "node scripts/test-folder-access.cjs",
+    "smoke:backend": "node scripts/smoke-backend.cjs",
     "build:ui": "vite build",
     "verify:pack": "node scripts/verify-pack.cjs",
     "dist": "npm run build:ui && electron-builder && npm run verify:pack",
@@ -41,6 +44,7 @@
   "build": {
     "appId": "com.tunesfork.sync",
     "productName": "Tunesfork Sync",
+    "afterPack": "scripts/after-pack.cjs",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -48,6 +52,7 @@
     "files": [
       "main.cjs",
       "preload.cjs",
+      "folder-access.cjs",
       "als-parser.cjs",
       "sample-check.cjs",
       "assets/**",
@@ -72,6 +77,11 @@
         }
       ],
       "identity": null,
+      "extendInfo": {
+        "NSDocumentsFolderUsageDescription": "Tunesfork Sync needs access to the Ableton project folders you choose so it can back up saves.",
+        "NSDesktopFolderUsageDescription": "Tunesfork Sync needs access to Ableton projects you choose from your Desktop.",
+        "NSDownloadsFolderUsageDescription": "Tunesfork Sync needs access when you choose an Ableton project inside Downloads."
+      },
       "icon": "build/icon.png",
       "artifactName": "Tunesfork-Sync-mac-universal.${ext}"
     },

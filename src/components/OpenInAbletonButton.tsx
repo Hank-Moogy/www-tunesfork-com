@@ -13,13 +13,9 @@ interface Props {
 
 /**
  * Hands the project off to the TunesFork desktop app via the
- * `tunesfork://` URL protocol. Triggers the protocol with a hidden
- * iframe (so the page never navigates away) and shows a dismissable
- * "Didn't open?" toast after 2.5s pointing at the desktop-app page.
- *
- * We deliberately do NOT auto-show a blocking dialog — visibility/blur
- * detection is unreliable on macOS Chrome/Safari and would interrupt
- * users who already have the app installed.
+ * `tunesfork://` URL protocol. Custom protocols must be launched from
+ * the top-level page in direct response to a user gesture; browsers often
+ * block launches from hidden frames.
  */
 export default function OpenInAbletonButton({
   projectId,
@@ -28,11 +24,12 @@ export default function OpenInAbletonButton({
   disabled,
 }: Props) {
   const navigate = useNavigate();
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const timerRef = useRef<number | null>(null);
+  const cleanupLaunchListenersRef = useRef<(() => void) | null>(null);
 
   useEffect(() => () => {
     if (timerRef.current) window.clearTimeout(timerRef.current);
+    cleanupLaunchListenersRef.current?.();
   }, []);
 
   const handleClick = () => {
@@ -45,20 +42,31 @@ export default function OpenInAbletonButton({
       versionId ? `?version=${versionId}` : ""
     }`;
 
-    // Trigger via hidden iframe — works even when the protocol isn't registered
-    // (no "page can't be displayed" error, no top-level navigation).
-    if (!iframeRef.current) {
-      const f = document.createElement("iframe");
-      f.style.display = "none";
-      document.body.appendChild(f);
-      iframeRef.current = f;
-    }
-    iframeRef.current.src = url;
-
-    // Non-blocking nudge after 2.5s. If the app did open, the user can
-    // ignore/dismiss the toast — nothing is interrupted.
     if (timerRef.current) window.clearTimeout(timerRef.current);
+    cleanupLaunchListenersRef.current?.();
+
+    // Opening the desktop app normally blurs or hides the browser. Cancel the
+    // fallback toast when that happens instead of showing it after every click.
+    const cancelFallback = () => {
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      cleanupLaunchListenersRef.current?.();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") cancelFallback();
+    };
+    window.addEventListener("blur", cancelFallback, { once: true });
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    cleanupLaunchListenersRef.current = () => {
+      window.removeEventListener("blur", cancelFallback);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      cleanupLaunchListenersRef.current = null;
+    };
+
     timerRef.current = window.setTimeout(() => {
+      cleanupLaunchListenersRef.current?.();
       toast("Didn't open in Ableton?", {
         description: "Make sure the Tunesfork Sync desktop app is installed and running.",
         action: {
@@ -72,7 +80,11 @@ export default function OpenInAbletonButton({
         },
         duration: 8000,
       });
-    }, 2500);
+    }, 3500);
+
+    // Top-level navigation is the most reliable custom-protocol launch in
+    // Chrome and Safari. The web page remains open while the OS handles it.
+    window.location.href = url;
   };
 
   return (

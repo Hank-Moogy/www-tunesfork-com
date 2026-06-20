@@ -33,6 +33,8 @@ const parser = new XMLParser({
     name === "MidiTrack" ||
     name === "ReturnTrack" ||
     name === "GroupTrack" ||
+    name === "Scene" ||
+    name === "ClipSlot" ||
     name === "SampleRef" ||
     name === "RelativePathElement",
 });
@@ -79,29 +81,35 @@ function collectAll(node, name, out) {
   }
 }
 
-function parseClips(trackEl) {
+function parseClipNode(clip, fallbackColor = 0) {
+  const startNode = findFirst(clip, "CurrentStart");
+  const endNode = findFirst(clip, "CurrentEnd");
+  const start = parseFloat(attrValue(startNode, "Value"));
+  const end = parseFloat(attrValue(endNode, "Value"));
+  const nameNode = findFirst(clip, "Name");
+  const effectiveNameNode = findFirst(nameNode, "EffectiveName") || findFirst(clip, "EffectiveName");
+  const name = attrValue(effectiveNameNode, "Value") || attrValue(nameNode, "Value") || "";
+  const colorRaw = attrValue(clip.Color, "Value");
+  const color = colorRaw == null ? fallbackColor : parseInt(colorRaw, 10);
+  return { name, start, end, color: Number.isFinite(color) ? color : fallbackColor };
+}
+
+function parseArrangementClips(trackEl) {
   const clips = [];
-  // Audio + MIDI clips both live somewhere under the track. The exact path
-  // changes between Live versions (Sample / MainSequencer / ClipSlotList /
-  // Arrangement…), so just walk the whole subtree.
+  const sequencer = findFirst(trackEl, "MainSequencer");
+  if (!sequencer) return clips;
+  const arrangerRoots = [];
+  if (sequencer.Sample?.ArrangerAutomation) arrangerRoots.push(sequencer.Sample.ArrangerAutomation);
+  if (sequencer.ClipTimeable?.ArrangerAutomation) arrangerRoots.push(sequencer.ClipTimeable.ArrangerAutomation);
   const audio = [];
   const midi = [];
-  collectAll(trackEl, "AudioClip", audio);
-  collectAll(trackEl, "MidiClip", midi);
+  for (const root of arrangerRoots) {
+    collectAll(root, "AudioClip", audio);
+    collectAll(root, "MidiClip", midi);
+  }
 
   for (const clip of [...audio, ...midi]) {
-    // In Ableton XML these fields are not always direct children of the clip.
-    // The web parser uses querySelector(), so mirror that by finding them at
-    // any depth inside the AudioClip/MidiClip node.
-    const startNode = findFirst(clip, "CurrentStart");
-    const endNode = findFirst(clip, "CurrentEnd");
-    const start = parseFloat(attrValue(startNode, "Value"));
-    const end = parseFloat(attrValue(endNode, "Value"));
-
-    const nameNode = findFirst(clip, "Name");
-    const effectiveNameNode = findFirst(nameNode, "EffectiveName") || findFirst(clip, "EffectiveName");
-    const name = attrValue(effectiveNameNode, "Value") || attrValue(nameNode, "Value") || "";
-
+    const { name, start, end } = parseClipNode(clip);
     if (!isNaN(start) && !isNaN(end) && end > start) {
       clips.push({ name, start, end });
     }
@@ -109,7 +117,31 @@ function parseClips(trackEl) {
   return clips;
 }
 
-function parseTrackElement(trackEl, type) {
+function parseSessionClips(trackEl, fallbackColor, sceneNames) {
+  const list = findFirst(trackEl, "ClipSlotList");
+  const slots = Array.isArray(list?.ClipSlot) ? list.ClipSlot : [];
+  const sessionClips = [];
+  for (const slot of slots) {
+    const sceneIndex = parseInt(attrValue(slot, "Id"), 10);
+    if (!Number.isFinite(sceneIndex)) continue;
+    const clips = [];
+    collectAll(slot, "AudioClip", clips);
+    collectAll(slot, "MidiClip", clips);
+    const clip = clips[0];
+    if (!clip) continue;
+    const parsed = parseClipNode(clip, fallbackColor);
+    sessionClips.push({
+      name: parsed.name,
+      sceneIndex,
+      sceneName: sceneNames[sceneIndex] || `Scene ${sceneIndex + 1}`,
+      length: !isNaN(parsed.start) && !isNaN(parsed.end) ? Math.max(0, parsed.end - parsed.start) : 0,
+      color: parsed.color,
+    });
+  }
+  return sessionClips;
+}
+
+function parseTrackElement(trackEl, type, sceneNames) {
   // Name: <Name><EffectiveName Value="…"/></Name>
   let name = `${type} track`;
   if (trackEl.Name) {
@@ -122,7 +154,13 @@ function parseTrackElement(trackEl, type) {
     attrValue(trackEl.Color, "Value");
   const color = colorRaw ? parseInt(colorRaw, 10) || 0 : 0;
 
-  return { name, type, color, clips: parseClips(trackEl) };
+  return {
+    name,
+    type,
+    color,
+    clips: parseArrangementClips(trackEl),
+    sessionClips: parseSessionClips(trackEl, color, sceneNames),
+  };
 }
 
 function parseAlsFile(alsPath) {
@@ -173,6 +211,14 @@ function parseAlsFile(alsPath) {
       if (n) plugins.add(n);
     }
 
+    const scenesContainer = findFirst(doc, "Scenes");
+    const sceneList = Array.isArray(scenesContainer?.Scene)
+      ? scenesContainer.Scene
+      : scenesContainer?.Scene ? [scenesContainer.Scene] : [];
+    const sceneNames = sceneList.map((scene, index) =>
+      attrValue(scene?.Name, "Value") || `Scene ${index + 1}`
+    );
+
     // Tracks: walk <Tracks> container if present, else search anywhere.
     const tracks = [];
     const tracksContainer = findFirst(doc, "Tracks") || doc;
@@ -180,7 +226,7 @@ function parseAlsFile(alsPath) {
       const list = tracksContainer[tag];
       if (!list) continue;
       const arr = Array.isArray(list) ? list : [list];
-      for (const t of arr) tracks.push(parseTrackElement(t, TRACK_TYPE_MAP[tag]));
+      for (const t of arr) tracks.push(parseTrackElement(t, TRACK_TYPE_MAP[tag], sceneNames));
     }
 
     // Sample references — supports Live ≤11 (nested RelativePathElement + HasRelativePath)

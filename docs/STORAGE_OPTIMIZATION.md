@@ -13,7 +13,7 @@ snapshots of a ~148 MB folder. ~90% of stored bytes are duplicated samples.
   ⌘S even without edits. If the hash matches the last successful upload for
   that folder (`projectLinks[].lastContentHash` in sync state), the upload is
   skipped. Fail-open: hashing errors fall back to uploading.
-- **Orphan GC** (`cleanup-orphaned-zips` edge function): deletes project-zips
+- **Orphan GC** (`cleanup-orphaned-zips` edge function): deletes project-zips and audio-previews
   objects no `project_versions.zip_url` references. Dry-run by default
   (`?confirm=true` to delete), never touches objects < 24h old (in-flight
   uploads), auth = `CLEANUP_TOKEN` function secret as bearer. Run it manually
