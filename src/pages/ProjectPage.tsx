@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import ArrangementTimeline from "@/components/ArrangementTimeline";
+import SessionGrid from "@/components/SessionGrid";
 import UploadModal from "@/components/UploadModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -196,6 +197,7 @@ export default function ProjectPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [promoting, setPromoting] = useState(false);
+  const [projectView, setProjectView] = useState<"arrangement" | "session">("arrangement");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [uploadingPreview, setUploadingPreview] = useState(false);
@@ -551,6 +553,8 @@ export default function ProjectPage() {
 
   const trackList: Track[] = selectedVersion?.track_list ? (selectedVersion.track_list as unknown as Track[]) : [];
   const pluginList: string[] = selectedVersion?.plugin_list ? (selectedVersion.plugin_list as unknown as string[]) : [];
+  const arrangementClipCount = trackList.reduce((sum, track) => sum + track.clips.length, 0);
+  const sessionClipCount = trackList.reduce((sum, track) => sum + (track.sessionClips?.length ?? 0), 0);
 
   if (loading) {
     return (
@@ -887,15 +891,39 @@ export default function ProjectPage() {
               </div>
             )}
 
-            {/* Arrangement Timeline */}
+            {/* Ableton project views */}
             {trackList.length > 0 && (
               <div className="glass-card rounded-2xl overflow-hidden">
                 <div className="px-4 py-2.5 flex items-center gap-2 border-b border-border/60">
                   <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium text-muted-foreground">Arrangement</span>
+                  <span className="text-xs font-medium text-muted-foreground">Ableton View</span>
+                  <div className="ml-2 flex rounded-lg border border-border bg-secondary/40 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setProjectView("arrangement")}
+                      className={`rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors ${
+                        projectView === "arrangement" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                      }`}
+                    >
+                      Arrangement · {arrangementClipCount}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProjectView("session")}
+                      className={`rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors ${
+                        projectView === "session" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                      }`}
+                    >
+                      Session · {sessionClipCount}
+                    </button>
+                  </div>
                   <span className="text-[10px] text-muted-foreground font-mono ml-auto">{trackList.length} tracks</span>
                 </div>
-                <ArrangementTimeline tracks={trackList} />
+                {projectView === "arrangement" ? (
+                  <ArrangementTimeline tracks={trackList} />
+                ) : (
+                  <SessionGrid tracks={trackList} />
+                )}
               </div>
             )}
 

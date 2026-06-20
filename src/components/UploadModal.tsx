@@ -594,7 +594,9 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
           .order("version_number", { ascending: false })
           .limit(1);
         if (existingVersions && existingVersions.length > 0) {
-          versionNumber = existingVersions[0].version_number + 1;
+          // A regular upload is another save inside the current major version.
+          // Only promote_project_version() creates V2, V3, and so on.
+          versionNumber = existingVersions[0].version_number;
           majorVersion = existingVersions[0].major_version ?? 1;
           isFirstVersion = false;
         }

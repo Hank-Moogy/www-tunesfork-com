@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import ArrangementTimeline from "@/components/ArrangementTimeline";
+import SessionGrid from "@/components/SessionGrid";
 import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
 import { Music, Users, Layers, ArrowRight, Sparkles, AlertTriangle, ExternalLink } from "lucide-react";
@@ -28,6 +29,7 @@ export default function SharePage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [projectView, setProjectView] = useState<"arrangement" | "session">("arrangement");
   const inAppBrowser = useMemo(() => getInAppBrowserName(), []);
 
   const handleOpenExternal = async () => {
@@ -116,6 +118,8 @@ export default function SharePage() {
   const pluginList: string[] = version?.plugin_list
     ? (version.plugin_list as unknown as string[])
     : [];
+  const arrangementClipCount = trackList.reduce((sum, track) => sum + track.clips.length, 0);
+  const sessionClipCount = trackList.reduce((sum, track) => sum + (track.sessionClips?.length ?? 0), 0);
 
   if (loading) {
     return (
@@ -268,15 +272,39 @@ export default function SharePage() {
             </div>
           )}
 
-          {/* Arrangement timeline */}
+          {/* Ableton project views */}
           {trackList.length > 0 && (
             <div className="border-b border-border">
               <div className="px-4 py-2.5 flex items-center gap-2">
                 <Music className="h-3.5 w-3.5 text-pastel-orange" />
-                <span className="text-xs font-medium text-muted-foreground">Arrangement</span>
+                <span className="text-xs font-medium text-muted-foreground">Ableton View</span>
+                <div className="ml-2 flex rounded-lg border border-border bg-secondary/40 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setProjectView("arrangement")}
+                    className={`rounded-md px-2 py-1 text-[10px] ${
+                      projectView === "arrangement" ? "bg-card text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    Arrangement · {arrangementClipCount}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProjectView("session")}
+                    className={`rounded-md px-2 py-1 text-[10px] ${
+                      projectView === "session" ? "bg-card text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    Session · {sessionClipCount}
+                  </button>
+                </div>
                 <span className="text-[10px] text-muted-foreground font-mono ml-auto">{trackList.length} tracks</span>
               </div>
-              <ArrangementTimeline tracks={trackList} />
+              {projectView === "arrangement" ? (
+                <ArrangementTimeline tracks={trackList} />
+              ) : (
+                <SessionGrid tracks={trackList} />
+              )}
             </div>
           )}
 

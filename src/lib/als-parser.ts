@@ -6,11 +6,20 @@ export interface Clip {
   end: number;   // in beats
 }
 
+export interface SessionClip {
+  name: string;
+  sceneIndex: number;
+  sceneName: string;
+  length: number;
+  color: number;
+}
+
 export interface Track {
   name: string;
   type: "audio" | "midi" | "return" | "group";
   color: number; // Ableton color index
-  clips: Clip[];
+  clips: Clip[]; // Arrangement View clips
+  sessionClips?: SessionClip[];
 }
 
 export interface SampleRef {
@@ -115,8 +124,29 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
       const colorEl = directChild(trackEl, "ColorIndex") || directChild(trackEl, "Color");
       const color = colorEl ? parseInt(colorEl.getAttribute("Value") || "0") : 0;
 
-      // Clips: find all AudioClip / MidiClip descendants
+      const hasAncestor = (el: Element, tag: string): boolean => {
+        let current = el.parentElement;
+        while (current && current !== trackEl) {
+          if (current.tagName === tag) return true;
+          current = current.parentElement;
+        }
+        return false;
+      };
+      const findSceneIndex = (clipEl: Element): number | null => {
+        let current = clipEl.parentElement;
+        while (current && current !== trackEl) {
+          if (current.tagName === "ClipSlot" && current.parentElement?.tagName === "ClipSlotList") {
+            const parsed = Number.parseInt(current.getAttribute("Id") || "", 10);
+            return Number.isFinite(parsed) ? parsed : null;
+          }
+          current = current.parentElement;
+        }
+        return null;
+      };
+
+      // Arrangement clips and Session slots live under separate XML branches.
       const clips: Clip[] = [];
+      const sessionClips: SessionClip[] = [];
       const clipEls = trackEl.querySelectorAll("AudioClip, MidiClip");
       clipEls.forEach((clipEl) => {
         const startEl = clipEl.querySelector("CurrentStart");
@@ -125,12 +155,26 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
         const start = startEl ? parseFloat(startEl.getAttribute("Value") || "") : NaN;
         const end = endEl ? parseFloat(endEl.getAttribute("Value") || "") : NaN;
         const clipName = clipNameEl?.getAttribute("Value") || "";
-        if (!isNaN(start) && !isNaN(end) && end > start) {
+        if (hasAncestor(clipEl, "ClipSlotList")) {
+          const sceneIndex = findSceneIndex(clipEl);
+          if (sceneIndex === null) return;
+          const clipColor = Number.parseInt(
+            clipEl.querySelector(":scope > Color")?.getAttribute("Value") || `${color}`,
+            10,
+          );
+          sessionClips.push({
+            name: clipName,
+            sceneIndex,
+            sceneName: "",
+            length: !isNaN(start) && !isNaN(end) ? Math.max(0, end - start) : 0,
+            color: Number.isFinite(clipColor) ? clipColor : color,
+          });
+        } else if (hasAncestor(clipEl, "ArrangerAutomation") && !isNaN(start) && !isNaN(end) && end > start) {
           clips.push({ name: clipName, start, end });
         }
       });
 
-      return { name, type, color, clips };
+      return { name, type, color, clips, sessionClips };
     };
 
     // Find the <Tracks> container and iterate direct children
@@ -142,6 +186,16 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
         if (type) {
           tracks.push(parseTrackElement(child, type));
         }
+      }
+    }
+
+    const scenes = Array.from(doc.querySelectorAll("LiveSet > Scenes > Scene")).map((scene, index) => ({
+      index,
+      name: scene.querySelector(":scope > Name")?.getAttribute("Value") || "",
+    }));
+    for (const track of tracks) {
+      for (const clip of track.sessionClips ?? []) {
+        clip.sceneName = scenes[clip.sceneIndex]?.name || `Scene ${clip.sceneIndex + 1}`;
       }
     }
 

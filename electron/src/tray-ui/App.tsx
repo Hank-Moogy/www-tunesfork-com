@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import tunesforkLogo from "../../build/icon.png";
 
 // Bridge exposed by preload.cjs
 declare global {
@@ -39,25 +40,38 @@ type AppState = {
 const TUNESFORK_URL = "https://tunesfork.com";
 
 function createDevBridge(): Window["tfsync"] {
+  const preview = new URLSearchParams(window.location.search).get("preview") || "uploaded";
+  const baseState: AppState = {
+    paired: preview !== "unpaired",
+    deviceName: "Preview",
+    folders: preview === "empty" || preview === "unpaired" ? [] : ["/Users/demo/Music/Ableton Projects"],
+    syncing: !["paused", "empty", "unpaired", "permission"].includes(preview),
+    importing: preview === "importing",
+    importedProjectCount: preview === "empty" || preview === "unpaired" ? 0 : 3,
+    folderAccessIssues: preview === "permission"
+      ? [{ folder: "/Users/demo/Documents/Ableton", code: "EPERM", message: "Folder access blocked" }]
+      : [],
+    recent: preview === "uploaded"
+      ? [{ name: "Midnight Sketch", version: 4, at: Date.now() - 45_000 }]
+      : [],
+  };
+  const previewLogs: Record<string, LogLine[]> = {
+    uploading: [
+      { ts: Date.now() - 3000, level: "info", msg: "Save detected: Midnight Sketch.als" },
+      { ts: Date.now() - 1500, level: "busy", msg: "Uploading archive 60%" },
+      { ts: Date.now(), level: "busy", msg: "Uploading project snapshot" },
+    ],
+    error: [
+      { ts: Date.now() - 1000, level: "err", msg: "Upload failed: network unavailable" },
+    ],
+  };
   return {
     openExternal: async () => {},
     pickFolder: async () => null,
     pickFolders: async () => ["/Users/demo/Music/Ableton Projects"],
     pairInit: async () => ({ code: "TF2026", pair_url: TUNESFORK_URL }),
     cancelPairing: async () => {},
-    getState: async () => ({
-      paired: true,
-      deviceName: "Preview",
-      folders: ["/Users/demo/Music/Ableton Projects"],
-      syncing: true,
-      importing: false,
-      importedProjectCount: 3,
-      folderAccessIssues: [],
-      recent: [
-        { name: "Midnight Sketch", version: 4, at: Date.now() - 45_000 },
-        { name: "Drum Idea", version: 1, at: Date.now() - 12 * 60_000 },
-      ],
-    }),
+    getState: async () => baseState,
     setFolders: async () => {},
     repairFolderAccess: async (folder) => ({ ok: true, folder }),
     openFolderPrivacySettings: async () => true,
@@ -65,7 +79,11 @@ function createDevBridge(): Window["tfsync"] {
     startSync: async () => {},
     stopSync: async () => {},
     signOut: async () => {},
-    onLog: () => {},
+    onLog: (callback) => {
+      for (const [index, line] of (previewLogs[preview] ?? []).entries()) {
+        window.setTimeout(() => callback(line), index * 30);
+      }
+    },
   };
 }
 
@@ -92,6 +110,8 @@ export default function App() {
   const [importing, setImporting] = useState(false);
   const [lastImport, setLastImport] = useState<ImportSummary | null>(null);
   const [log, setLog] = useState<LogLine[]>([]);
+  const [patchBayOpen, setPatchBayOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
   useEffect(() => {
     tfsync.getState().then(setState);
@@ -224,180 +244,264 @@ export default function App() {
     refreshState();
   };
 
+  const latestLog = log[log.length - 1] ?? null;
+  const recentUpload = state.recent[0] ?? null;
+  const status = getDisplayStatus({
+    state,
+    pairing: pairing || !!pairCode,
+    importing: importing || state.importing,
+    latestLog,
+    recentUpload,
+  });
+  const isMac = navigator.platform.toLowerCase().includes("mac");
+  const fallbackLog: LogLine[] = [
+    {
+      ts: Date.now() - 2000,
+      level: state.paired ? "ok" : "info",
+      msg: state.paired ? `Link established${state.deviceName ? ` · ${state.deviceName}` : ""}` : "Device is not paired",
+    },
+    {
+      ts: Date.now() - 1000,
+      level: state.folderAccessIssues.length ? "err" : state.folders.length ? "ok" : "warn",
+      msg: state.folderAccessIssues.length
+        ? "Folder access needs attention"
+        : state.folders.length
+          ? `${state.folders.length} folder${state.folders.length === 1 ? "" : "s"} armed`
+          : "No Ableton folder connected",
+    },
+    {
+      ts: Date.now(),
+      level: status.tone === "red" ? "err" : state.syncing ? "info" : "warn",
+      msg: status.footer,
+    },
+  ];
+  const visibleLog = log.length ? (diagnosticsOpen ? log : log.slice(-3)) : fallbackLog;
+
   return (
-    <div className={`app ${navigator.platform.toLowerCase().includes("mac") ? "mac" : ""}`}>
-      <div className="header">
-        <div>
-          <span className={`dot ${importing || state.importing ? "busy" : state.syncing ? "live" : state.paired ? "idle" : "err"}`} />
-          <span className="brand">Tunesfork Sync</span>
-        </div>
-        {state.paired && (
-          <button className="btn ghost sm" onClick={signOut}>Sign out</button>
-        )}
-      </div>
+    <div className={`app ${isMac ? "mac" : ""}`}>
+      <div className="gear-shell">
+        <span className="screw screw-tl" />
+        <span className="screw screw-tr" />
+        <span className="screw screw-bl" />
+        <span className="screw screw-br" />
 
-      <div className="body">
-        {/* Not paired yet */}
-        {!state.paired && !pairCode && (
-          <div className="card">
-            <h3>Get started</h3>
-            <p className="muted" style={{ marginBottom: 12 }}>
-              Pair this app with your Tunesfork account. Takes 10 seconds.
-            </p>
-            <button className="btn" onClick={startPair} disabled={pairing} style={{ width: "100%" }}>
-              {pairing ? "Opening browser…" : "Sign in"}
-            </button>
-          </div>
-        )}
-
-        {/* Pairing in progress */}
-        {pairCode && (
-          <div className="card">
-            <h3>Confirm in your browser</h3>
-            <div className="code-display">{pairCode}</div>
-            <p className="muted" style={{ marginTop: 10, textAlign: "center" }}>
-              Waiting for confirmation…
-            </p>
-            <div className="pair-actions">
-              <button className="btn ghost sm" onClick={reopenPairUrl} disabled={!pairUrl}>
-                Open browser again
-              </button>
-              <button className="btn ghost sm" onClick={restartPair}>
-                Start over
-              </button>
-              <button className="btn danger sm" onClick={cancelPair}>
-                Cancel
-              </button>
+        <header className="header">
+          <div className="brand-cluster">
+            <div className="maker-badge">
+              <img src={tunesforkLogo} alt="Tunesfork" />
+            </div>
+            <div className="identity">
+              <span className="eyebrow">Cloud version recorder</span>
+              <span className="brand">TUNESFORK <b>SYNC—01</b></span>
             </div>
           </div>
-        )}
-
-        {/* Folders */}
-        {state.paired && (
-          <div className="card">
-            <h3>Watched folders</h3>
-            {state.folders.length === 0 ? (
-              <p className="muted" style={{ marginBottom: 8 }}>
-                Pick one or more folders where you keep Ableton projects.
-              </p>
-            ) : (
-              state.folders.map((f) => (
-                <div className="row" key={f}>
-                  <span className="path">{f}</span>
-                  <button className="btn ghost sm" onClick={() => removeFolder(f)}>Remove</button>
-                </div>
-              ))
-            )}
-            <button className="btn ghost sm" onClick={addFolder} style={{ marginTop: 10, width: "100%" }}>
-              + Add folders
-            </button>
+          <div className="link-state">
+            <span className={`pilot-light ${status.tone}`} />
+            <span>{state.paired ? "LINKED" : "UNLINKED"}</span>
           </div>
-        )}
+        </header>
 
-        {state.paired && state.folderAccessIssues.length > 0 && (
-          <div className="card access-warning">
-            <h3>Folder access needed</h3>
-            <p className="muted">
-              macOS is blocking one or more Ableton folders. Saves cannot sync until access is restored.
-            </p>
-            {state.folderAccessIssues.map((issue) => (
-              <div className="access-issue" key={issue.folder}>
-                <div className="path">{issue.folder}</div>
-                <div className="pair-actions">
-                  <button className="btn sm" onClick={() => repairFolderAccess(issue.folder)}>
-                    Choose folder again
-                  </button>
-                  <button className="btn ghost sm" onClick={() => tfsync.openFolderPrivacySettings()}>
-                    Privacy settings
-                  </button>
-                </div>
+        <main className="device-face">
+          <section className={`display-bezel ${status.tone}`}>
+            <div className="display-glass">
+              <div className="scanlines" />
+              <div className="screen-topline">
+                <span>{state.deviceName || "TUNESFORK UNIT"}</span>
+                <span>{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* Initial import */}
-        {state.paired && state.folders.length > 0 && (
-          <div className="card">
-            <h3>Import and watch</h3>
-            <p className="muted" style={{ marginBottom: 10 }}>
-              Upload current projects once. Tunesfork will keep watching these folders after the import.
-            </p>
-            <button className="btn" onClick={importAndWatch} disabled={importing || state.importing} style={{ width: "100%" }}>
-              {importing || state.importing ? "Importing…" : state.importedProjectCount > 0 ? "Import new folders" : "Import projects"}
-            </button>
-            {state.importedProjectCount > 0 && (
-              <p className="muted" style={{ marginTop: 8 }}>
-                {state.importedProjectCount} local project{state.importedProjectCount === 1 ? "" : "s"} linked for future saves.
-              </p>
-            )}
-            {lastImport && (
-              <div className="summary">
-                <div>{lastImport.found} found</div>
-                <div>{lastImport.uploaded} uploaded</div>
-                <div>{lastImport.skipped} already linked</div>
-                <div className={lastImport.failed.length ? "danger-text" : ""}>{lastImport.failed.length} failed</div>
+              <div className="screen-center">
+                <span className="screen-kicker">{status.kicker}</span>
+                <strong>{status.title}</strong>
+                <span className="screen-detail">{status.detail}</span>
+                {pairCode && <span className="pair-code">{pairCode}</span>}
               </div>
-            )}
-          </div>
-        )}
-
-        {/* Sync control */}
-        {state.paired && state.folders.length > 0 && (
-          <div className="card">
-            <div className="row">
-              <div>
-                <strong>{state.syncing ? "Syncing" : "Paused"}</strong>
-                <div className="muted">
-                  {state.syncing ? "Watching for Ableton saves…" : "Click resume to watch for future saves"}
-                </div>
+              <div className="screen-meter" aria-hidden="true">
+                {Array.from({ length: 18 }).map((_, index) => (
+                  <span key={index} className={status.animated && index < 12 ? "active" : ""} />
+                ))}
               </div>
-              <button className={`btn ${state.syncing ? "ghost" : ""}`} onClick={toggleSync}>
-                {state.syncing ? "Pause" : "Resume"}
-              </button>
+              <div className="screen-footerline">
+                <span className={`tiny-light ${status.tone}`} />
+                <span>{latestLog?.msg || status.footer}</span>
+              </div>
             </div>
-          </div>
-        )}
+          </section>
 
-        {/* Recent uploads */}
-        {state.recent.length > 0 && (
-          <div className="card">
-            <h3>Recent uploads</h3>
-            {state.recent.map((r, i) => (
-              <div className="row" key={i}>
-                <div>
-                  <div>{r.name}</div>
-                  <div className="muted">v{r.version}</div>
+          <section className="telemetry-strip">
+            <div>
+              <span>FOLDERS</span>
+              <strong>{String(state.folders.length).padStart(2, "0")}</strong>
+            </div>
+            <div>
+              <span>PROJECTS</span>
+              <strong>{String(state.importedProjectCount).padStart(2, "0")}</strong>
+            </div>
+            <div>
+              <span>LAST SAVE</span>
+              <strong>{recentUpload ? relTime(recentUpload.at).toUpperCase() : "—"}</strong>
+            </div>
+          </section>
+
+          {!state.paired ? (
+            <section className="setup-controls">
+              {!pairCode ? (
+                <button className="hardware-button primary wide" onClick={startPair} disabled={pairing}>
+                  <span className="button-led" />
+                  {pairing ? "OPENING BROWSER" : "PAIR THIS UNIT"}
+                </button>
+              ) : (
+                <div className="pair-grid">
+                  <button className="hardware-button" onClick={reopenPairUrl} disabled={!pairUrl}>OPEN BROWSER</button>
+                  <button className="hardware-button" onClick={restartPair}>NEW CODE</button>
+                  <button className="hardware-button danger" onClick={cancelPair}>CANCEL</button>
                 </div>
-                <span className="muted">{relTime(r.at)}</span>
-              </div>
-            ))}
-          </div>
-        )}
+              )}
+            </section>
+          ) : (
+            <section className="control-deck">
+              <button
+                className={`footswitch ${state.syncing ? "engaged" : ""}`}
+                onClick={toggleSync}
+                disabled={state.folders.length === 0}
+                aria-label={state.syncing ? "Pause sync" : "Resume sync"}
+              >
+                <span className="footswitch-cap" />
+                <span className="footswitch-label">{state.syncing ? "PAUSE" : "SYNC"}</span>
+              </button>
 
-        {/* Log */}
-        {log.length > 0 && (
-          <div className="card">
-            <h3>Activity</h3>
-            <div className="log">
-              {log.map((l, i) => (
-                <div key={i} className={`log-line ${l.level}`}>
-                  {new Date(l.ts).toLocaleTimeString()} {l.msg}
+              <div className="button-bank">
+                <button className="hardware-button" onClick={addFolder}>ADD FOLDER</button>
+                <button
+                  className="hardware-button"
+                  onClick={importAndWatch}
+                  disabled={state.folders.length === 0 || importing || state.importing}
+                >
+                  {importing || state.importing ? "SCANNING" : state.importedProjectCount ? "IMPORT NEW" : "IMPORT"}
+                </button>
+                <button
+                  className={`hardware-button ${patchBayOpen ? "selected" : ""}`}
+                  onClick={() => setPatchBayOpen((open) => !open)}
+                >
+                  FOLDERS
+                </button>
+              </div>
+            </section>
+          )}
+
+          {state.folderAccessIssues.length > 0 && (
+            <section className="alert-panel">
+              <div className="panel-label">INPUT FAULT · FOLDER ACCESS</div>
+              {state.folderAccessIssues.map((issue) => (
+                <div className="access-issue" key={issue.folder}>
+                  <span className="path">{shortPath(issue.folder)}</span>
+                  <div className="inline-actions">
+                    <button className="mini-button" onClick={() => repairFolderAccess(issue.folder)}>RESELECT</button>
+                    <button className="mini-button" onClick={() => tfsync.openFolderPrivacySettings()}>PRIVACY</button>
+                  </div>
+                </div>
+              ))}
+            </section>
+          )}
+
+          {state.paired && patchBayOpen && (
+            <section className="drawer-panel">
+              <div className="panel-label">FOLDER INPUTS · WATCHED ABLETON FOLDERS</div>
+              {state.folders.length === 0 ? (
+                <p className="panel-copy">Connect a folder containing your Ableton projects.</p>
+              ) : (
+                state.folders.map((folder) => (
+                  <div className="folder-row" key={folder}>
+                    <div>
+                      <span className="jack-light" />
+                      <span className="path" title={folder}>{shortPath(folder)}</span>
+                    </div>
+                    <button className="mini-button danger" onClick={() => removeFolder(folder)}>REMOVE</button>
+                  </div>
+                ))
+              )}
+              <div className="drawer-actions">
+                <button className="mini-button" onClick={addFolder}>+ CONNECT FOLDER</button>
+                <button className="mini-button danger" onClick={signOut}>UNLINK DEVICE</button>
+              </div>
+              {lastImport && (
+                <div className="import-readout">
+                  <span>{lastImport.found} FOUND</span>
+                  <span>{lastImport.uploaded} UPLOADED</span>
+                  <span>{lastImport.skipped} LINKED</span>
+                  <span className={lastImport.failed.length ? "danger-text" : ""}>{lastImport.failed.length} FAILED</span>
+                </div>
+              )}
+            </section>
+          )}
+
+          <section className={`diagnostics ${diagnosticsOpen ? "open" : ""}`}>
+            <button className="diagnostics-toggle" onClick={() => setDiagnosticsOpen((open) => !open)}>
+              <span>DIAGNOSTICS / EVENT LOG</span>
+              <span className="diagnostics-action">{diagnosticsOpen ? "MINIMIZE −" : "EXPAND +"}</span>
+            </button>
+            <div className={`terminal ${diagnosticsOpen ? "expanded" : "preview"}`}>
+              {visibleLog.map((line, index) => (
+                <div key={`${line.ts}-${index}`} className={`terminal-line ${line.level}`}>
+                  <span>[{new Date(line.ts).toLocaleTimeString([], { hour12: false })}]</span>
+                  <span>{line.msg}</span>
                 </div>
               ))}
             </div>
-          </div>
-        )}
-      </div>
+          </section>
+        </main>
 
-      <div className="footer">
-        <span>v0.1.0 alpha.7</span>
-        <a href="#" onClick={(e) => { e.preventDefault(); tfsync.openExternal(TUNESFORK_URL); }}>
-          tunesfork.com →
-        </a>
+        <footer className="footer">
+          <span>PRECISION SYNC SYSTEMS</span>
+          <button onClick={() => tfsync.openExternal(TUNESFORK_URL)}>TUNESFORK.COM ↗</button>
+          <span>REV. A7</span>
+        </footer>
       </div>
     </div>
   );
+}
+
+function getDisplayStatus({
+  state,
+  pairing,
+  importing,
+  latestLog,
+  recentUpload,
+}: {
+  state: AppState;
+  pairing: boolean;
+  importing: boolean;
+  latestLog: LogLine | null;
+  recentUpload: AppState["recent"][number] | null;
+}) {
+  if (!state.paired && pairing) {
+    return { kicker: "AUTH CHANNEL", title: "CONFIRM PAIRING", detail: "MATCH THIS CODE IN YOUR BROWSER", footer: "Pairing request active", tone: "amber", animated: true };
+  }
+  if (!state.paired) {
+    return { kicker: "OFFLINE", title: "PAIR DEVICE", detail: "CONNECT THIS UNIT TO YOUR TUNESFORK ACCOUNT", footer: "Press PAIR THIS UNIT to begin", tone: "idle", animated: false };
+  }
+  if (state.folderAccessIssues.length > 0) {
+    return { kicker: "INPUT FAULT", title: "ACCESS NEEDED", detail: "RECONNECT THE BLOCKED ABLETON FOLDER", footer: "Folder permission interrupted", tone: "red", animated: false };
+  }
+  if (importing) {
+    return { kicker: "PROJECT SCAN", title: "INDEXING", detail: "READING PROJECTS AND PREPARING SNAPSHOTS", footer: latestLog?.msg || "Scanning connected folders", tone: "cyan", animated: true };
+  }
+  if (latestLog?.level === "busy") {
+    const isUpload = /upload|zip|register|save detected/i.test(latestLog.msg);
+    return { kicker: isUpload ? "CLOUD TRANSFER" : "PROCESSING", title: isUpload ? "UPLOADING" : "WORKING", detail: latestLog.msg.toUpperCase(), footer: "Do not disconnect the project folder", tone: "amber", animated: true };
+  }
+  if (latestLog?.level === "err") {
+    return { kicker: "SYSTEM ALERT", title: "CHECK LOG", detail: latestLog.msg.toUpperCase(), footer: "Open diagnostics for details", tone: "red", animated: false };
+  }
+  if (recentUpload && Date.now() - recentUpload.at < 90_000) {
+    return { kicker: "TRANSFER COMPLETE", title: "UPLOADED", detail: `${recentUpload.name} · VERSION ${recentUpload.version}`.toUpperCase(), footer: "Cloud snapshot secured", tone: "green", animated: false };
+  }
+  if (state.folders.length === 0) {
+    return { kicker: "NO INPUT", title: "CONNECT FOLDER", detail: "ADD THE LOCATION OF YOUR ABLETON PROJECTS", footer: "No folders connected", tone: "idle", animated: false };
+  }
+  if (!state.syncing) {
+    return { kicker: "STANDBY", title: "SYNC PAUSED", detail: "PRESS SYNC TO RESUME MONITORING", footer: "Project folders connected", tone: "idle", animated: false };
+  }
+  return { kicker: "SYNC ENGINE ACTIVE", title: "WAITING FOR SAVES", detail: `${state.folders.length} FOLDER${state.folders.length === 1 ? "" : "S"} ARMED · ${state.importedProjectCount} PROJECTS LINKED`, footer: "Ableton save detection online", tone: "green", animated: true };
 }
 
 function deviceName() {
@@ -410,4 +514,10 @@ function relTime(ts: number) {
   if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   return `${Math.floor(s / 3600)}h ago`;
+}
+
+function shortPath(value: string) {
+  const parts = value.split("/").filter(Boolean);
+  if (parts.length <= 3) return value;
+  return `…/${parts.slice(-3).join("/")}`;
 }
