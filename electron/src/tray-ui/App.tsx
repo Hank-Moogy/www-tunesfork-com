@@ -538,7 +538,7 @@ export default function App() {
         <footer className="footer">
           <span>PRECISION SYNC SYSTEMS</span>
           <button onClick={() => tfsync.openExternal(TUNESFORK_URL)}>TUNESFORK.COM ↗</button>
-          <span>REV. A7</span>
+          <span>REV. A8</span>
         </footer>
       </div>
     </div>
