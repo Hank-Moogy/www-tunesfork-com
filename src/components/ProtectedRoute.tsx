@@ -13,7 +13,10 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     );
   }
 
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) {
+    const returnTo = `${location.pathname}${location.search}`;
+    return <Navigate to={`/auth?redirect=${encodeURIComponent(returnTo)}`} replace />;
+  }
 
   const canSkipOnboarding = location.pathname === "/onboarding" || location.pathname === "/desktop-pair";
 
