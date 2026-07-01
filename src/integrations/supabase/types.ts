@@ -660,6 +660,7 @@ export type Database = {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
       }
+      email_queue_dispatch: { Args: never; Returns: undefined }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
@@ -787,10 +788,6 @@ export type Database = {
           msg_id: number
           read_ct: number
         }[]
-      }
-      set_version_audio_preview: {
-        Args: { _audio_preview_url: string; _version_id: string }
-        Returns: Database["public"]["Tables"]["project_versions"]["Row"]
       }
       set_main_version: { Args: { _version_id: string }; Returns: undefined }
     }
