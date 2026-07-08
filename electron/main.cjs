@@ -64,6 +64,17 @@ function readToken() { try { return fs.readFileSync(tokenFile, "utf8").trim(); }
 function writeToken(t) { fs.writeFileSync(tokenFile, t, { mode: 0o600 }); }
 function clearToken() { try { fs.unlinkSync(tokenFile); } catch {} }
 
+function expireDeviceLink(reason = "Device link expired") {
+  clearToken();
+  stopSync();
+  const s = readState();
+  s.paired = false;
+  s.deviceName = null;
+  s.userId = null;
+  writeState(s);
+  log("err", `${reason}. Connect your account again from Tunesfork Sync.`);
+}
+
 // ---------- logging ----------
 function log(level, msg, key = null) {
   const line = { ts: Date.now(), level, msg, key };
@@ -440,8 +451,7 @@ async function startSync() {
     if (existing) clearTimeout(existing);
     debouncers.set(projectFolder, setTimeout(() => {
       debouncers.delete(projectFolder);
-      const latestAls = findLatestAls(projectFolder) || alsPath;
-      enqueueProjectSave(latestAls, archiver).catch((e) => {
+      enqueueProjectSave(alsPath, archiver).catch((e) => {
         if (isFolderPermissionError(e)) recordFolderAccessIssue(projectFolder, e);
         else log("err", e.message);
       });
@@ -580,6 +590,9 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
     });
     if (!signedUploadRes.ok) {
       const t = await signedUploadRes.text();
+      if (signedUploadRes.status === 401 && /Invalid or revoked token|Missing device token/i.test(t)) {
+        expireDeviceLink("Device link expired or was revoked");
+      }
       throw new Error(`Upload auth failed ${signedUploadRes.status}: ${t}`);
     }
     const { objectPath, signedUrl, token: signedUploadToken } = await signedUploadRes.json();
@@ -651,7 +664,12 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
       ableton_version: meta?.abletonVersion ?? null,
       sample_check: sampleCheck,
     };
-    if (existingLink?.projectId) body.project_id = existingLink.projectId;
+    const linkMatchesCurrentFolderName = !existingLink?.projectName || existingLink.projectName === projectName;
+    if (existingLink?.projectId && linkMatchesCurrentFolderName) {
+      body.project_id = existingLink.projectId;
+    } else if (existingLink?.projectId) {
+      log("warn", `Ignored stale project link for ${projectName}; cached link pointed to ${existingLink.projectName || "another project"}`);
+    }
 
     const cv = await fetch(`${FUNCTIONS_URL}/create-version-from-desktop`, {
       method: "POST",

@@ -464,6 +464,11 @@ export default function App() {
                 >
                   FOLDERS
                 </button>
+                {state.paired && (
+                  <button className="hardware-button danger" onClick={signOut}>
+                    UNLINK
+                  </button>
+                )}
               </div>
             </section>
             </>
