@@ -25,6 +25,8 @@ project_id = "urrxrntdkmmmqqwaihfj"
     verify_jwt = false
   [functions.create-version-from-desktop]
     verify_jwt = false
+  [functions.negotiate-project-upload]
+    verify_jwt = false
   [functions.send-transactional-email]
     verify_jwt = true
   [functions.preview-transactional-email]

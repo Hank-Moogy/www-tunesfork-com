@@ -38,11 +38,17 @@ async function main() {
   }
   console.log("[smoke-backend] pairing endpoint: ok");
 
-  const token = fs.readFileSync(path.join(stateDir, "token"), "utf8").trim();
+  const storedToken = fs.readFileSync(path.join(stateDir, "token"), "utf8").trim();
+  const token = process.env.TUNESFORK_SMOKE_TOKEN
+    || (storedToken.startsWith("safe-storage-v1:") ? "" : storedToken);
   const state = JSON.parse(fs.readFileSync(path.join(stateDir, "state.json"), "utf8"));
   const projectId = process.env.TUNESFORK_SMOKE_PROJECT_ID
     || Object.values(state.projectLinks || {}).find((link) => link?.projectId)?.projectId;
-  if (!token || !projectId) throw new Error("No paired token/project is available for authenticated smoke checks");
+  if (!token || !projectId) {
+    throw new Error(
+      "No plaintext smoke token/project is available. Keychain-protected installs must provide TUNESFORK_SMOKE_TOKEN and TUNESFORK_SMOKE_PROJECT_ID explicitly.",
+    );
+  }
 
   const download = await expectOk(await fetch(`${functionsUrl}/get-version-download-url`, {
     method: "POST",
@@ -50,16 +56,19 @@ async function main() {
     body: JSON.stringify({ project_id: projectId }),
   }), "get-version-download-url");
   const downloadBody = await download.json();
-  if (!downloadBody.signedUrl) throw new Error("get-version-download-url returned no signedUrl");
+  const probeUrl = downloadBody.kind === "manifest"
+    ? downloadBody.manifest?.files?.[0]?.signed_url
+    : downloadBody.signedUrl;
+  if (!probeUrl) throw new Error("get-version-download-url returned no signed payload");
 
-  const range = await fetch(downloadBody.signedUrl, {
+  const range = await fetch(probeUrl, {
     headers: { Range: "bytes=0-3" },
   });
   if (!(range.ok || range.status === 206)) {
     throw new Error(`signed project download failed (${range.status})`);
   }
   const signature = new Uint8Array(await range.arrayBuffer());
-  if (signature[0] !== 0x50 || signature[1] !== 0x4b) {
+  if (downloadBody.kind !== "manifest" && (signature[0] !== 0x50 || signature[1] !== 0x4b)) {
     throw new Error("signed project download did not return a ZIP");
   }
   console.log("[smoke-backend] authenticated project download: ok");

@@ -1,13 +1,16 @@
 // Tunesfork Sync — main process
 // Menu-bar / tray app. Loads the tray UI in a small popover BrowserWindow.
-const { app, Tray, Menu, BrowserWindow, shell, ipcMain, dialog, nativeImage, Notification } = require("electron");
+const { app, Tray, Menu, BrowserWindow, shell, ipcMain, dialog, nativeImage, Notification, safeStorage } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
 const crypto = require("node:crypto");
 const zlib = require("node:zlib");
+const { Readable } = require("node:stream");
+const { pipeline } = require("node:stream/promises");
 const { parseAlsFile } = require("./als-parser.cjs");
 const { buildSampleCheck } = require("./sample-check.cjs");
+const { buildProjectManifest, manifestForApi } = require("./incremental-sync.cjs");
 const {
   assertFolderReadable,
   folderAccessMessage,
@@ -39,6 +42,7 @@ const stateDir = process.env.TUNESFORK_STATE_DIR || path.join(
 );
 fs.mkdirSync(stateDir, { recursive: true });
 const stateFile = path.join(stateDir, "state.json");
+const hashCacheFile = path.join(stateDir, "hash-cache.json");
 
 const defaultState = {
   paired: false,
@@ -57,18 +61,44 @@ function readState() {
   try { return { ...defaultState, ...JSON.parse(fs.readFileSync(stateFile, "utf8")) }; }
   catch { return { ...defaultState }; }
 }
-function writeState(s) { fs.writeFileSync(stateFile, JSON.stringify(s, null, 2), { mode: 0o600 }); }
+function writeState(s) {
+  fs.writeFileSync(stateFile, JSON.stringify(s, null, 2), { mode: 0o600 });
+  fs.chmodSync(stateFile, 0o600);
+}
 
 const tokenFile = path.join(stateDir, "token");
-function readToken() { try { return fs.readFileSync(tokenFile, "utf8").trim(); } catch { return null; } }
-function writeToken(t) { fs.writeFileSync(tokenFile, t, { mode: 0o600 }); }
+function readToken() {
+  try {
+    const stored = fs.readFileSync(tokenFile, "utf8").trim();
+    if (!stored.startsWith("safe-storage-v1:")) {
+      // One-time migration from alpha plaintext storage after Electron is ready.
+      if (!app.isReady() || !safeStorage.isEncryptionAvailable()) return null;
+      writeToken(stored);
+      return stored;
+    }
+    if (!safeStorage.isEncryptionAvailable()) return null;
+    return safeStorage.decryptString(Buffer.from(stored.slice("safe-storage-v1:".length), "base64"));
+  } catch {
+    return null;
+  }
+}
+function writeToken(token) {
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error("macOS Keychain encryption is unavailable; the pairing token was not stored");
+  }
+  const encrypted = safeStorage.encryptString(token).toString("base64");
+  fs.writeFileSync(tokenFile, `safe-storage-v1:${encrypted}`, { mode: 0o600 });
+  fs.chmodSync(tokenFile, 0o600);
+}
 function clearToken() { try { fs.unlinkSync(tokenFile); } catch {} }
 
 // ---------- logging ----------
 function log(level, msg, key = null) {
   const line = { ts: Date.now(), level, msg, key };
   console.log(`[${level}] ${msg}`);
-  trayWindow?.webContents.send("log", line);
+  if (trayWindow && !trayWindow.isDestroyed() && !trayWindow.webContents.isDestroyed()) {
+    trayWindow.webContents.send("log", line);
+  }
 }
 
 function normalizeFolder(folder) {
@@ -535,10 +565,16 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
   // user hits save without edits.
   const priorLink = getProjectLink(projectFolder);
   let contentHash = null;
+  let incrementalPlan = null;
   try {
-    contentHash = computeProjectContentHash(projectFolder);
+    incrementalPlan = buildProjectManifest(projectFolder, hashCacheFile);
+    contentHash = incrementalPlan.projectHash;
+    log(
+      "info",
+      `Scanned ${incrementalPlan.manifest.files.length} files; hashed ${(incrementalPlan.bytesHashed / 1e6).toFixed(1)} MB`,
+    );
   } catch (e) {
-    log("warn", `Content hash failed (uploading anyway): ${e && e.message ? e.message : e}`);
+    log("warn", `Manifest scan failed (using full ZIP): ${e && e.message ? e.message : e}`);
   }
   if (contentHash && priorLink?.projectId && priorLink.lastContentHash === contentHash) {
     log("info", `${path.basename(projectFolder)} unchanged since last upload — skipped`);
@@ -550,6 +586,18 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
         skipped: true,
       },
     };
+  }
+
+  if (incrementalPlan && process.env.TUNESFORK_INCREMENTAL_SYNC !== "0") {
+    const incremental = await tryIncrementalUpload({
+      projectFolder,
+      alsPath,
+      changeNote,
+      priorLink,
+      contentHash,
+      plan: incrementalPlan,
+    });
+    if (incremental) return incremental;
   }
 
   const tmpZip = path.join(os.tmpdir(), `tfsync-${Date.now()}.zip`);
@@ -678,7 +726,134 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
   }
 }
 
+function collectVersionMetadata(projectFolder, alsPath) {
+  let meta = null;
+  try {
+    meta = parseAlsFile(alsPath);
+  } catch (e) {
+    log("err", `Could not parse Ableton metadata: ${e && e.message ? e.message : e}`);
+  }
+
+  let sampleCheck = null;
+  try {
+    sampleCheck = buildSampleCheck(projectFolder, meta?.samples ?? []);
+  } catch (e) {
+    log("warn", `Sample check failed: ${e && e.message ? e.message : e}`);
+  }
+  return { meta, sampleCheck };
+}
+
+async function tryIncrementalUpload({ projectFolder, alsPath, changeNote, priorLink, contentHash, plan }) {
+  const token = readToken();
+  if (!token) throw new Error("Not paired — pair this Mac again before uploading");
+
+  const apiManifest = manifestForApi(plan.manifest);
+  const uniqueFiles = new Map();
+  for (const file of plan.manifest.files) {
+    if (!uniqueFiles.has(file.sha256)) uniqueFiles.set(file.sha256, file);
+  }
+
+  const negotiation = await fetch(`${FUNCTIONS_URL}/negotiate-project-upload`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      project_id: priorLink?.projectId ?? null,
+      files: Array.from(uniqueFiles.values(), (file) => ({ sha256: file.sha256, size: file.size })),
+    }),
+  });
+  if ([404, 405, 501].includes(negotiation.status)) {
+    log("warn", "Incremental sync backend is not enabled; using a full ZIP snapshot");
+    return null;
+  }
+  if (!negotiation.ok) {
+    const responseText = await negotiation.text();
+    throw new Error(`Incremental upload negotiation failed ${negotiation.status}: ${responseText}`);
+  }
+
+  const { missing = [] } = await negotiation.json();
+  let bytesUploaded = 0;
+  for (const target of missing) {
+    const file = uniqueFiles.get(target.sha256);
+    if (!file) throw new Error(`Server requested an unknown blob ${target.sha256}`);
+    log("busy", `Uploading changed file ${file.path} (${(file.size / 1e6).toFixed(1)} MB)…`);
+    if (target.token) {
+      await uploadSignedObjectResumable({
+        filePath: file.source_path,
+        fileSize: file.size,
+        objectPath: target.object_path,
+        signedUploadToken: target.token,
+        bucketName: "project-blobs",
+        contentType: "application/octet-stream",
+      });
+    } else {
+      const upload = await fetch(target.signed_url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/octet-stream", "x-upsert": "false" },
+        body: fs.readFileSync(file.source_path),
+      });
+      if (!upload.ok) throw new Error(`Blob upload failed ${upload.status}: ${await upload.text()}`);
+    }
+    bytesUploaded += file.size;
+  }
+
+  const projectName = path.basename(projectFolder).replace(/ Project$/i, "");
+  const { meta, sampleCheck } = collectVersionMetadata(projectFolder, alsPath);
+  const body = {
+    project_name: projectName,
+    manifest: apiManifest,
+    uploaded_blob_sha256: missing.map((target) => target.sha256),
+    file_size_bytes: plan.logicalSize,
+    bytes_uploaded: bytesUploaded,
+    change_note: changeNote,
+    bpm: meta?.bpm ?? null,
+    plugin_list: meta?.plugins ?? null,
+    track_list: meta?.tracks ?? null,
+    ableton_version: meta?.abletonVersion ?? null,
+    sample_check: sampleCheck,
+  };
+  if (priorLink?.projectId) body.project_id = priorLink.projectId;
+
+  const response = await fetch(`${FUNCTIONS_URL}/create-version-from-desktop`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`Register failed ${response.status}: ${await response.text()}`);
+  const result = await response.json();
+  setProjectLink(projectFolder, {
+    projectId: result.project_id,
+    projectName,
+    lastVersion: result.version_number,
+    lastVersionId: result.version_id,
+    lastContentHash: contentHash,
+  });
+  addRecentUpload(projectName, result.version_number);
+  log(
+    "info",
+    `Incremental sync uploaded ${(bytesUploaded / 1e6).toFixed(1)} of ${(plan.logicalSize / 1e6).toFixed(1)} MB (${missing.length}/${uniqueFiles.size} blobs)`,
+  );
+  return { projectName, result };
+}
+
 async function uploadZipResumable({ filePath, fileSize, objectPath, signedUploadToken }) {
+  return uploadSignedObjectResumable({
+    filePath,
+    fileSize,
+    objectPath,
+    signedUploadToken,
+    bucketName: "project-zips",
+    contentType: "application/zip",
+  });
+}
+
+async function uploadSignedObjectResumable({
+  filePath,
+  fileSize,
+  objectPath,
+  signedUploadToken,
+  bucketName,
+  contentType,
+}) {
   let tus;
   try {
     tus = require("tus-js-client");
@@ -705,9 +880,9 @@ async function uploadZipResumable({ filePath, fileSize, objectPath, signedUpload
       removeFingerprintOnSuccess: true,
       chunkSize: 6 * 1024 * 1024,
       metadata: {
-        bucketName: "project-zips",
+        bucketName,
         objectName: objectPath,
-        contentType: "application/zip",
+        contentType,
         cacheControl: "3600",
       },
       onError: (error) => reject(error),
@@ -956,14 +1131,18 @@ async function openProjectInAbleton(projectId, versionId) {
     const t = await r.text();
     throw new Error(`Server: ${r.status} ${t.slice(0, 200)}`);
   }
-  const { signedUrl, projectName, versionId: downloadedVersionId, versionNumber } = await r.json();
+  const download = await r.json();
+  const {
+    kind,
+    signedUrl,
+    manifest,
+    projectName,
+    versionId: downloadedVersionId,
+    versionNumber,
+  } = download;
 
   // Download & extract
   const adm = require("adm-zip");
-  const zipPath = path.join(os.tmpdir(), `tfopen-${Date.now()}.zip`);
-  const buf = Buffer.from(await (await fetch(signedUrl)).arrayBuffer());
-  fs.writeFileSync(zipPath, buf);
-
   const safeName = (projectName || "Project").replace(/[\\/:*?"<>|]/g, "_");
   const destRoot = path.join(
     os.homedir(),
@@ -972,19 +1151,23 @@ async function openProjectInAbleton(projectId, versionId) {
     `${safeName} [${projectId.slice(0, 8)}]`
   );
   fs.mkdirSync(destRoot, { recursive: true });
-  const zip = new adm(zipPath);
-  const alsEntry = zip.getEntries().find(
-    (entry) => !entry.isDirectory && entry.entryName.toLowerCase().endsWith(".als")
-  );
-  if (!alsEntry) throw new Error("No .als file found in downloaded project");
-
-  // Resolve the exact archive entry instead of scanning all downloaded
-  // projects, which could open an unrelated set with a similar name.
-  const alsPath = path.resolve(destRoot, alsEntry.entryName);
-  if (!alsPath.startsWith(`${path.resolve(destRoot)}${path.sep}`)) {
-    throw new Error("Downloaded project contained an invalid Ableton path");
+  let alsPath;
+  let zipPath = null;
+  if (kind === "manifest" || manifest) {
+    alsPath = await reconstructManifestVersion(destRoot, manifest);
+  } else {
+    if (!signedUrl) throw new Error("Server returned no project download URL");
+    zipPath = path.join(os.tmpdir(), `tfopen-${Date.now()}.zip`);
+    const buf = Buffer.from(await (await fetch(signedUrl)).arrayBuffer());
+    fs.writeFileSync(zipPath, buf);
+    const zip = new adm(zipPath);
+    const alsEntry = zip.getEntries().find(
+      (entry) => !entry.isDirectory && entry.entryName.toLowerCase().endsWith(".als")
+    );
+    if (!alsEntry) throw new Error("No .als file found in downloaded project");
+    alsPath = safeManifestDestination(destRoot, alsEntry.entryName);
+    zip.extractAllTo(destRoot, true);
   }
-  zip.extractAllTo(destRoot, true);
   if (!fs.existsSync(alsPath)) throw new Error("Downloaded Ableton set could not be extracted");
 
   const downloadedProjectFolder = findProjectFolder(alsPath);
@@ -1009,7 +1192,66 @@ async function openProjectInAbleton(projectId, versionId) {
   const openError = await shell.openPath(alsPath);
   if (openError) throw new Error(openError);
   log("ok", `Opened ${projectName} v${versionNumber} in Ableton`);
-  fs.unlink(zipPath, () => {});
+  if (zipPath) fs.unlink(zipPath, () => {});
+}
+
+function safeManifestDestination(destRoot, manifestPath) {
+  if (typeof manifestPath !== "string" || !manifestPath || manifestPath.includes("\\")) {
+    throw new Error("Downloaded project contained an invalid path");
+  }
+  const segments = manifestPath.split("/");
+  if (manifestPath.startsWith("/") || segments.some((segment) => !segment || segment === "." || segment === "..")) {
+    throw new Error("Downloaded project contained an invalid path");
+  }
+  const root = path.resolve(destRoot);
+  const destination = path.resolve(root, ...segments);
+  if (!destination.startsWith(`${root}${path.sep}`)) {
+    throw new Error("Downloaded project contained an invalid path");
+  }
+  return destination;
+}
+
+async function reconstructManifestVersion(destRoot, manifest) {
+  if (manifest?.schema_version !== 1 || !Array.isArray(manifest.files) || manifest.files.length === 0) {
+    throw new Error("Server returned an invalid project manifest");
+  }
+  const jobs = manifest.files.map((file) => ({
+    ...file,
+    destination: safeManifestDestination(destRoot, file.path),
+  }));
+  const als = jobs.find((file) => file.path.toLowerCase().endsWith(".als"));
+  if (!als) throw new Error("No .als file found in downloaded project");
+
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < jobs.length) {
+      const file = jobs[cursor++];
+      if (!file.signed_url || !/^[0-9a-f]{64}$/.test(file.sha256)) {
+        throw new Error(`Invalid download metadata for ${file.path}`);
+      }
+      fs.mkdirSync(path.dirname(file.destination), { recursive: true });
+      const partial = `${file.destination}.tfsync-part`;
+      try {
+        const response = await fetch(file.signed_url);
+        if (!response.ok || !response.body) throw new Error(`Download failed ${response.status}`);
+        await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(partial, { mode: 0o600 }));
+        const stat = fs.statSync(partial);
+        if (stat.size !== file.size || hashFileSync(partial) !== file.sha256) {
+          throw new Error(`Integrity check failed for ${file.path}`);
+        }
+        fs.renameSync(partial, file.destination);
+        if (Number.isFinite(file.mtime_ms)) {
+          const modified = new Date(file.mtime_ms);
+          fs.utimesSync(file.destination, modified, modified);
+        }
+      } catch (error) {
+        try { fs.unlinkSync(partial); } catch {}
+        throw error;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, jobs.length) }, worker));
+  return als.destination;
 }
 
 app.whenReady().then(() => {
@@ -1080,6 +1322,14 @@ app.on("activate", () => {
 app.on("window-all-closed", () => {});
 app.on("before-quit", () => {
   appIsQuitting = true;
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+  }
+  if (stopWatcher) {
+    stopWatcher();
+    stopWatcher = null;
+  }
 });
 
 // ---------- IPC ----------
