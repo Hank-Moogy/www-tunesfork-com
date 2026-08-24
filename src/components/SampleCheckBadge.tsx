@@ -61,7 +61,7 @@ export function SampleCheckBadge({ check, size = "sm" }: Props) {
         className="w-80 text-xs space-y-2"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="font-semibold text-sm">Missing samples</div>
+        <div className="font-semibold text-sm">Samples may be offline</div>
         {check.missing > 0 && (
           <div>
             <div className="text-muted-foreground mb-1">
@@ -93,8 +93,9 @@ export function SampleCheckBadge({ check, size = "sm" }: Props) {
           </div>
         )}
         <div className="pt-1 border-t border-border/40 text-muted-foreground">
-          Fix in Ableton: <span className="text-foreground">File → Collect All and Save</span>{" "}
-          (tick every category), then re-save.
+          Fix before sharing: open the project in Ableton, run{" "}
+          <span className="text-foreground">File → Collect All and Save</span>, tick every category,
+          then save again so Tunesfork uploads a complete version.
         </div>
       </PopoverContent>
     </Popover>

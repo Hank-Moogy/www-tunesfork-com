@@ -644,10 +644,18 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
     try {
       sampleCheck = buildSampleCheck(projectFolder, meta?.samples ?? []);
       if (sampleCheck.missing > 0 || sampleCheck.external > 0) {
+        const sampleIssueCount = sampleCheck.missing + sampleCheck.external;
         log(
           "warn",
-          `${sampleCheck.missing} missing / ${sampleCheck.external} external samples — collaborators may see "Media Files Missing". Run File → Collect All and Save in Ableton.`
+          `Samples may be offline: ${sampleIssueCount} referenced sample${sampleIssueCount === 1 ? "" : "s"} may not be included. Run File → Collect All and Save in Ableton, then save again.`
         );
+        if (Notification.isSupported()) {
+          new Notification({
+            title: "Samples may be offline",
+            body: `Run File → Collect All and Save in Ableton, then save ${projectName} again.`,
+            silent: false,
+          }).show();
+        }
       }
     } catch (e) {
       log("warn", `Sample check failed: ${e.message}`);

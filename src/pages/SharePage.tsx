@@ -13,6 +13,7 @@ import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
 import { Music, Users, Layers, ArrowRight, Sparkles, AlertTriangle, ExternalLink } from "lucide-react";
 import PluginMatchSection from "@/components/PluginMatchSection";
+import { SampleCheckBadge, type SampleCheck } from "@/components/SampleCheckBadge";
 import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick } from "@/lib/analytics";
 import { getInAppBrowserName, tryOpenInExternalBrowser } from "@/lib/inAppBrowser";
@@ -118,6 +119,8 @@ export default function SharePage() {
   const pluginList: string[] = version?.plugin_list
     ? (version.plugin_list as unknown as string[])
     : [];
+  const sampleCheck = version?.sample_check as unknown as SampleCheck | null | undefined;
+  const sampleIssues = sampleCheck ? sampleCheck.missing + sampleCheck.external : 0;
   const arrangementClipCount = trackList.reduce((sum, track) => sum + track.clips.length, 0);
   const sessionClipCount = trackList.reduce((sum, track) => sum + (track.sessionClips?.length ?? 0), 0);
 
@@ -250,6 +253,7 @@ export default function SharePage() {
                 {formatBytes(version.file_size_bytes)}
               </Badge>
             )}
+            <SampleCheckBadge check={sampleCheck} size="md" />
             {trackList.length > 0 && (
               <Badge variant="outline" className="text-xs border-pastel-orange/30 text-pastel-orange">
                 <Users className="h-3 w-3 mr-1" />
@@ -258,6 +262,19 @@ export default function SharePage() {
             )}
           </div>
         </div>
+
+        {sampleIssues > 0 && (
+          <Alert className="mb-6 border-amber-500/30 bg-amber-500/[0.08]">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertTitle>Samples may open offline in Ableton</AlertTitle>
+            <AlertDescription className="text-muted-foreground">
+              This shared version references {sampleIssues} sample{sampleIssues === 1 ? "" : "s"} that may not
+              be included. Ask the owner to run{" "}
+              <span className="font-medium text-foreground">File → Collect All and Save</span> in Ableton,
+              then share a fresh version.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Content preview card */}
         <div className="rounded-xl border border-border bg-card/60 overflow-hidden mb-8">

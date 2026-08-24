@@ -382,11 +382,11 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
       const warnings: string[] = [];
       if (sampleCount > 0) {
         warnings.push(
-          `Heads up — your .als references ${sampleCount} sample${sampleCount === 1 ? "" : "s"} that won't be included. Your collaborator will see "Samples Offline" in Ableton.`
+          `This .als references ${sampleCount} sample${sampleCount === 1 ? "" : "s"} that are not included with a single-file upload. Collaborators may see "Samples Offline" in Ableton.`
         );
       } else {
         warnings.push(
-          "You uploaded a single .als file. If your project uses external samples, your collaborator may get missing file errors."
+          "You uploaded a single .als file. If the project uses external samples, collaborators may see missing media in Ableton."
         );
       }
 
@@ -787,10 +787,20 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
             {validation?.warnings.map((w, i) => (
               <div
                 key={i}
-                className="flex items-start gap-2 rounded-md bg-yellow-500/10 p-3 text-sm text-yellow-400"
+                className="rounded-lg border border-amber-500/25 bg-amber-500/[0.08] p-3 text-sm text-foreground"
               >
-                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                {w}
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-500" />
+                  <div>
+                    <p className="font-medium">Sample packaging check</p>
+                    <p className="mt-1 text-muted-foreground">{w}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Best fix: open the project in Ableton, run{" "}
+                      <span className="font-medium text-foreground">File → Collect All and Save</span>,
+                      tick every category, then upload or save again.
+                    </p>
+                  </div>
+                </div>
               </div>
             ))}
 

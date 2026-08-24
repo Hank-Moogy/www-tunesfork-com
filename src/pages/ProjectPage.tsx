@@ -29,6 +29,7 @@ import {
   Download,
   Share2,
   Plus,
+  AlertTriangle,
   Settings,
   Clock,
   UserPlus,
@@ -51,6 +52,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -553,6 +555,10 @@ export default function ProjectPage() {
 
   const trackList: Track[] = selectedVersion?.track_list ? (selectedVersion.track_list as unknown as Track[]) : [];
   const pluginList: string[] = selectedVersion?.plugin_list ? (selectedVersion.plugin_list as unknown as string[]) : [];
+  const selectedSampleCheck = selectedVersion?.sample_check as unknown as SampleCheck | null | undefined;
+  const selectedSampleIssues = selectedSampleCheck
+    ? selectedSampleCheck.missing + selectedSampleCheck.external
+    : 0;
   const arrangementClipCount = trackList.reduce((sum, track) => sum + track.clips.length, 0);
   const sessionClipCount = trackList.reduce((sum, track) => sum + (track.sessionClips?.length ?? 0), 0);
 
@@ -799,6 +805,7 @@ export default function ProjectPage() {
                         <Music className="h-3 w-3 text-muted-foreground" /> {selectedVersion.ableton_version}
                       </span>
                     )}
+                    <SampleCheckBadge check={selectedSampleCheck} size="md" />
                   </div>
                 </div>
               </div>
@@ -851,6 +858,18 @@ export default function ProjectPage() {
                 </DropdownMenu>
               </div>
             </div>
+
+            {selectedSampleIssues > 0 && (
+              <Alert className="border-amber-500/30 bg-amber-500/[0.08] text-foreground">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <AlertTitle className="text-sm font-semibold">Samples may be offline for collaborators</AlertTitle>
+                <AlertDescription className="text-sm text-muted-foreground">
+                  This version references {selectedSampleIssues} sample{selectedSampleIssues === 1 ? "" : "s"} that
+                  may not be included in the project folder. Before sharing, open it in Ableton and run{" "}
+                  <span className="font-medium text-foreground">File → Collect All and Save</span>, then save again.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* Audio preview */}
             {(previewVersion || (selectedVersion && canAddPreview)) && (
