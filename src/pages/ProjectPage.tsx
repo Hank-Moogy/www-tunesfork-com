@@ -273,11 +273,22 @@ export default function ProjectPage() {
   const handleSendComment = async () => {
     if (!newComment.trim() || !selectedVersion || !user) return;
     setSendingComment(true);
-    const { error } = await supabase.from("comments").insert({ body: newComment.trim(), version_id: selectedVersion.id, user_id: user.id });
+    const { data: insertedComment, error } = await supabase
+      .from("comments")
+      .insert({ body: newComment.trim(), version_id: selectedVersion.id, user_id: user.id })
+      .select("id")
+      .single();
     if (error) {
       toast({ title: "Error", description: "Could not post comment.", variant: "destructive" });
     } else {
       setNewComment("");
+      if (insertedComment?.id) {
+        supabase.functions
+          .invoke("notify-project-comment", { body: { commentId: insertedComment.id } })
+          .then(({ error: notifyError }) => {
+            if (notifyError) console.warn("comment notification failed", notifyError);
+          });
+      }
       const { data } = await supabase.from("comments").select("*").eq("version_id", selectedVersion.id).order("created_at", { ascending: true });
       if (data) {
         const userIds = [...new Set(data.map((c) => c.user_id))];
