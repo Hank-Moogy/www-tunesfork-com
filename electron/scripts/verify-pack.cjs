@@ -24,6 +24,7 @@ const REQUIRED_APP_FILES = [
   "/folder-access.cjs",
   "/als-parser.cjs",
   "/sample-check.cjs",
+  "/incremental-sync.cjs",
   "/dist/index.html",
 ];
 const releaseDir = path.join(__dirname, "..", "release");
@@ -56,8 +57,10 @@ if (asars.length === 0) {
 }
 
 let asarTool;
+let asarApi;
 try {
   asarTool = require.resolve("@electron/asar/bin/asar.js");
+  asarApi = require("@electron/asar");
 } catch {
   try { asarTool = require.resolve("asar/bin/asar.js"); } catch {}
 }
@@ -96,6 +99,25 @@ for (const asar of asars) {
       console.log(`[verify-pack]   ok: ${appFile}`);
     }
   }
+  if (listing.split(/\r?\n/).some((entry) => entry.startsWith("/src/"))) {
+    console.error("[verify-pack]   DEV SOURCE INCLUDED: /src/");
+    failed = true;
+  } else {
+    console.log("[verify-pack]   ok: no dev source directory");
+  }
+  if (asarApi) {
+    for (const runtimeFile of ["main.cjs", "preload.cjs"]) {
+      const runtimeSource = asarApi.extractFile(asar, runtimeFile).toString("utf8");
+      if (/https?:\/\/(localhost|127\.0\.0\.1)/i.test(runtimeSource)) {
+        console.error(`[verify-pack]   LOCALHOST RUNTIME URL: ${runtimeFile}`);
+        failed = true;
+      }
+      if (/\/Users\/[A-Za-z0-9._-]+\//.test(runtimeSource)) {
+        console.error(`[verify-pack]   MACHINE-SPECIFIC RUNTIME PATH: ${runtimeFile}`);
+        failed = true;
+      }
+    }
+  }
 }
 
 if (process.platform === "darwin") {
@@ -120,7 +142,13 @@ if (process.platform === "darwin") {
         console.error(`[verify-pack]   INVALID SIGNING IDENTITY: ${app}`);
         failed = true;
       } else {
-        console.log(`[verify-pack]   ok: ad-hoc signature com.tunesfork.sync`);
+        console.log(`[verify-pack]   ok: signature identifier com.tunesfork.sync`);
+      }
+      if (!/flags=0x[0-9a-f]+\([^)]*runtime[^)]*\)/i.test(details)) {
+        console.error(`[verify-pack]   HARDENED RUNTIME MISSING: ${app}`);
+        failed = true;
+      } else {
+        console.log("[verify-pack]   ok: hardened runtime");
       }
       const info = execSync(`plutil -p "${path.join(app, "Contents", "Info.plist")}"`, { encoding: "utf8" });
       for (const key of [
@@ -134,6 +162,20 @@ if (process.platform === "darwin") {
         } else {
           console.log(`[verify-pack]   ok: ${key}`);
         }
+      }
+      if (!info.includes("CFBundleURLSchemes") || !info.includes('"tunesfork"')) {
+        console.error(`[verify-pack]   MISSING URL PROTOCOL: tunesfork`);
+        failed = true;
+      } else {
+        console.log("[verify-pack]   ok: tunesfork:// protocol");
+      }
+      const electronBinary = path.join(app, "Contents", "MacOS", path.basename(app, ".app"));
+      const architectures = execSync(`lipo -archs "${electronBinary}"`, { encoding: "utf8" }).trim();
+      if (!architectures.includes("arm64") || !architectures.includes("x86_64")) {
+        console.error(`[verify-pack]   NOT UNIVERSAL: ${architectures}`);
+        failed = true;
+      } else {
+        console.log(`[verify-pack]   ok: universal (${architectures})`);
       }
     } catch (error) {
       console.error(`[verify-pack]   macOS bundle verification failed: ${error.message}`);

@@ -13,11 +13,14 @@ npm run dev:all   # runs vite for the tray UI + electron in parallel
 
 ## Build distributable installers
 
-We ship via **GitHub Releases** with **unsigned** alpha builds.
-Code-signing (Apple Developer ID + Windows EV cert) is on the roadmap.
-macOS alpha builds receive a stable ad-hoc bundle signature so Files & Folders
-permissions and the `tunesfork://` protocol remain attached to
-`com.tunesfork.sync` across rebuilds.
+Local macOS builds receive a stable ad-hoc hardened-runtime signature so Files
+& Folders permissions and the `tunesfork://` protocol remain attached to
+`com.tunesfork.sync` across rebuilds. Ad-hoc builds are for local testing only.
+Because ad-hoc signatures have no Apple Team ID, local builds alone use a
+separate entitlement that permits Electron's framework to load. Public builds
+use `entitlements.mac.plist` without that exception.
+Public releases must use a Developer ID Application certificate and Apple
+notarization.
 
 ### macOS (run on a Mac)
 
@@ -28,6 +31,20 @@ npm run dist:mac
 
 `dist:mac` also verifies runtime dependencies, required app files, the macOS
 bundle identifier/signature, and Files & Folders usage descriptions.
+
+For a public build, install the Developer ID Application certificate in the
+build Mac's keychain (or provide `CSC_LINK` and `CSC_KEY_PASSWORD`), then run:
+
+```bash
+APPLE_ID=... \
+APPLE_APP_SPECIFIC_PASSWORD=... \
+APPLE_TEAM_ID=... \
+npm run dist:mac:release
+```
+
+App Store Connect API credentials are also supported through `APPLE_API_KEY`,
+`APPLE_API_KEY_ID`, and `APPLE_API_ISSUER`. The release build refuses to
+notarize an ad-hoc signature and staples the accepted ticket to the `.app`.
 
 ### Windows (run on Windows, or cross-compile from Mac)
 
@@ -102,6 +119,12 @@ app's `state.json`. Future `.als` saves use that mapping so they create a new
 version instead of duplicating the project.
 
 Running import again is safe: folders that are already linked are skipped.
+
+Changed saves use content-addressed incremental sync: Tunesfork hashes project
+files, reuses a local hash cache in macOS Application Support, negotiates which
+immutable blobs are missing, and uploads only those files plus a manifest.
+Legacy full-ZIP versions remain downloadable. If the incremental endpoint has
+not yet been deployed, the client explicitly falls back to a full ZIP snapshot.
 
 If macOS later revokes folder access, the tray UI shows a recovery card. The
 user can choose the folder again or jump directly to Files & Folders settings;

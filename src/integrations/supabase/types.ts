@@ -390,13 +390,14 @@ export type Database = {
           id: string
           is_main_version: boolean
           major_version: number
+          manifest: Json | null
           plugin_list: Json | null
           project_id: string
           sample_check: Json | null
           track_list: Json | null
           uploader_id: string
           version_number: number
-          zip_url: string
+          zip_url: string | null
         }
         Insert: {
           ableton_version?: string | null
@@ -407,13 +408,14 @@ export type Database = {
           id?: string
           is_main_version?: boolean
           major_version?: number
+          manifest?: Json | null
           plugin_list?: Json | null
           project_id: string
           sample_check?: Json | null
           track_list?: Json | null
           uploader_id: string
           version_number: number
-          zip_url: string
+          zip_url?: string | null
         }
         Update: {
           ableton_version?: string | null
@@ -424,13 +426,14 @@ export type Database = {
           id?: string
           is_main_version?: boolean
           major_version?: number
+          manifest?: Json | null
           plugin_list?: Json | null
           project_id?: string
           sample_check?: Json | null
           track_list?: Json | null
           uploader_id?: string
           version_number?: number
-          zip_url?: string
+          zip_url?: string | null
         }
         Relationships: [
           {

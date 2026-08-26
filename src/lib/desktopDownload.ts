@@ -4,7 +4,7 @@
 // on "Checking latest release…". The stable /releases/latest/download URLs
 // redirect directly to the current published asset.
 
-export const DESKTOP_APP_VERSION_LABEL = "Latest alpha · unsigned build";
+export const DESKTOP_APP_VERSION_LABEL = "v0.1.0-alpha.9 · unsigned build";
 
 export const REPO_SLUG: string | null = "Hank-Moogy/www-tunesfork-com";
 

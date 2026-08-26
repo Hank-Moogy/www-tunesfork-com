@@ -59,7 +59,6 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   const [dragOver, setDragOver] = useState(false);
   const [preZippedBlob, setPreZippedBlob] = useState<Blob | null>(null);
   const [processing, setProcessing] = useState(false);
-  const [acknowledgeSamplesMissing, setAcknowledgeSamplesMissing] = useState(false);
 
   const PROCESSING_MESSAGES = [
     "Reading project files…",
@@ -158,7 +157,6 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
     setDragOver(false);
     setPreZippedBlob(null);
     setProcessing(false);
-    setAcknowledgeSamplesMissing(false);
   };
 
   const handleClose = () => {
@@ -172,15 +170,6 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
     if (alsFiles.length === 1) return alsFiles[0];
     // Sort descending by name — dates in filenames naturally sort this way
     return [...alsFiles].sort((a, b) => b.name.localeCompare(a.name))[0];
-  };
-
-  const advanceWithAls = async (als: File) => {
-    const meta = await parseAlsFile(als);
-    setMetadata(meta);
-    setProjectName(existingProjectName ?? meta?.projectName ?? als.name.replace(/\.als$/i, ""));
-    setBpm(meta?.bpm?.toString() ?? "");
-    setStep(2);
-    return meta;
   };
 
   const uploadZipResumable = useCallback(
@@ -305,7 +294,6 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   const handleZipSelect = useCallback(
     async (file: File) => {
       setProcessing(true);
-      setAcknowledgeSamplesMissing(false);
       try {
         const zip = await JSZip.loadAsync(file);
         const entries: File[] = [];
@@ -334,6 +322,15 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
         // Parse the .als so we can validate sample refs against the zip contents.
         const als = pickLatestAls(initial.alsFiles);
         const meta = await parseAlsFile(als);
+        if (!meta) {
+          setValidation({
+            ...initial,
+            errors: ["Could not inspect the Ableton set for missing samples. Re-save it in Ableton, then try again."],
+          });
+          setPreZippedBlob(file);
+          setProcessing(false);
+          return;
+        }
         const result = validateFolder(entries, meta?.samples ?? []);
         setValidation(result);
         setPreZippedBlob(file);
@@ -370,39 +367,48 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
     async (file: File) => {
       setProcessing(true);
       setPreZippedBlob(null);
-      setAcknowledgeSamplesMissing(false);
 
-      // Parse the .als so we can tell the user how many samples will be missing.
+      // A lone .als is only complete when it has no sample references. If it
+      // references media, the user must upload the collected project folder.
       const meta = await parseAlsFile(file);
-      const samples = meta?.samples ?? [];
-      const sampleCount = samples.length;
-
-      // Single-file uploads: don't hard-error on missing samples (every sample is missing
-      // by definition). Instead, downgrade to a loud warning + require acknowledgement.
-      const warnings: string[] = [];
-      if (sampleCount > 0) {
-        warnings.push(
-          `Heads up — your .als references ${sampleCount} sample${sampleCount === 1 ? "" : "s"} that won't be included. Your collaborator will see "Samples Offline" in Ableton.`
-        );
-      } else {
-        warnings.push(
-          "You uploaded a single .als file. If your project uses external samples, your collaborator may get missing file errors."
-        );
+      if (!meta) {
+        setValidation({
+          alsFiles: [file],
+          hasSamplesFolder: false,
+          totalSizeBytes: file.size,
+          allFiles: [file],
+          errors: ["Could not inspect the Ableton set for missing samples. Re-save it in Ableton, then try again."],
+          warnings: [],
+          missingSamples: [],
+          nonRelativeSamples: [],
+        });
+        setProcessing(false);
+        return;
       }
+
+      const samples = meta.samples;
+      const sampleCount = samples.length;
 
       setValidation({
         alsFiles: [file],
         hasSamplesFolder: false,
         totalSizeBytes: file.size,
         allFiles: [file],
-        errors: [],
-        warnings,
-        missingSamples: [],
-        nonRelativeSamples: [],
+        errors: sampleCount > 0
+          ? [
+              `This set references ${sampleCount} sample${sampleCount === 1 ? "" : "s"}, but a standalone .als cannot include them. In Ableton, choose File → Collect All and Save, then upload the full project folder or a ZIP of it.`,
+            ]
+          : [],
+        warnings: [],
+        missingSamples: samples.map((sample) => sample.relativePath || sample.absolutePath || "Unknown sample"),
+        nonRelativeSamples: samples
+          .filter((sample) => !sample.relativePath || !sample.hasRelativePath)
+          .map((sample) => sample.absolutePath || "Unknown external sample"),
       });
       setMetadata(meta);
       setProjectName(existingProjectName ?? meta?.projectName ?? file.name.replace(/\.als$/i, ""));
       setBpm(meta?.bpm?.toString() ?? "");
+      if (sampleCount === 0) setStep(2);
       setProcessing(false);
     },
     [existingProjectName]
@@ -423,7 +429,6 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
       setProcessing(true);
       setPreZippedBlob(null);
-      setAcknowledgeSamplesMissing(false);
       const fileArray = Array.from(files);
 
       const initial = validateFolder(fileArray);
@@ -435,6 +440,14 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
       const als = pickLatestAls(initial.alsFiles);
       const meta = await parseAlsFile(als);
+      if (!meta) {
+        setValidation({
+          ...initial,
+          errors: ["Could not inspect the Ableton set for missing samples. Re-save it in Ableton, then try again."],
+        });
+        setProcessing(false);
+        return;
+      }
       const result = validateFolder(fileArray, meta?.samples ?? []);
       setValidation(result);
 
@@ -454,7 +467,19 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
 
   // Step 4: Upload
   const handleUpload = async () => {
-    if (!validation || !user) return;
+    if (!validation || !metadata || !user) return;
+    if (
+      validation.errors.length > 0 ||
+      validation.missingSamples.length > 0 ||
+      validation.nonRelativeSamples.length > 0
+    ) {
+      toast({
+        title: "Collect samples before uploading",
+        description: "In Ableton, choose File → Collect All and Save, then upload the complete project folder.",
+        variant: "destructive",
+      });
+      return;
+    }
     trackButtonClick("upload_modal_submit", "upload_modal", { is_new_version: !!existingProjectId });
     setStep(4);
 
@@ -612,16 +637,13 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
       const totalSamples = metadata?.samples?.length ?? 0;
       const missingCount = validation.missingSamples.length;
       const externalCount = validation.nonRelativeSamples.length;
-      const sampleCheck =
-        totalSamples > 0
-          ? {
-              included: Math.max(0, totalSamples - missingCount - externalCount),
-              missing: missingCount,
-              external: externalCount,
-              missing_paths: validation.missingSamples.slice(0, 10),
-              external_paths: validation.nonRelativeSamples.slice(0, 10),
-            }
-          : null;
+      const sampleCheck = {
+        included: Math.max(0, totalSamples - missingCount - externalCount),
+        missing: missingCount,
+        external: externalCount,
+        missing_paths: validation.missingSamples.slice(0, 10),
+        external_paths: validation.nonRelativeSamples.slice(0, 10),
+      };
 
       const { error: verError } = await supabase
         .from("project_versions")
@@ -814,44 +836,6 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
                 </div>
               )}
 
-            {validation &&
-              validation.errors.length === 0 &&
-              validation.warnings.length > 0 && (() => {
-                const isSingleAls =
-                  validation.allFiles.length === 1 &&
-                  validation.alsFiles.length === 1 &&
-                  !preZippedBlob;
-                const requiresAck = isSingleAls;
-                return (
-                  <div className="space-y-3">
-                    {requiresAck && (
-                      <label className="flex items-start gap-2 rounded-md border border-border bg-secondary/40 p-3 text-sm text-foreground cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="mt-0.5"
-                          checked={acknowledgeSamplesMissing}
-                          onChange={(e) => setAcknowledgeSamplesMissing(e.target.checked)}
-                        />
-                        <span>
-                          I understand my collaborator won't have the samples and
-                          will see "Samples Offline" in Ableton.
-                        </span>
-                      </label>
-                    )}
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      disabled={requiresAck && !acknowledgeSamplesMissing}
-                      onClick={() => {
-                        const als = pickLatestAls(validation.alsFiles);
-                        advanceWithAls(als);
-                      }}
-                    >
-                      Continue anyway
-                    </Button>
-                  </div>
-                );
-              })()}
             </>)}
           </div>
         )}

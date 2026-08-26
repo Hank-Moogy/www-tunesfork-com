@@ -65,6 +65,7 @@ import { SampleCheckBadge, type SampleCheck } from "@/components/SampleCheckBadg
 import OpenInAbletonButton from "@/components/OpenInAbletonButton";
 import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick, trackShareCompleted } from "@/lib/analytics";
+import JSZip from "jszip";
 
 type Project = Tables<"projects">;
 type Version = Tables<"project_versions">;
@@ -309,17 +310,48 @@ export default function ProjectPage() {
         .replace(/\s+/g, "_") || "project";
       const filename = `${safeName}_v${selectedVersion.version_number}.zip`;
 
-      const { data, error } = await supabase.storage
-        .from("project-zips")
-        .download(selectedVersion.zip_url);
+      const { data: download, error } = await supabase.functions.invoke("get-version-download-url", {
+        body: { project_id: project?.id, version_id: selectedVersion.id },
+      });
       if (error) throw error;
-      if (!data) throw new Error("No archive returned.");
 
-      const signature = new Uint8Array(await data.slice(0, 4).arrayBuffer());
-      const isZip = signature[0] === 0x50 && signature[1] === 0x4b;
-      if (!isZip) throw new Error("Downloaded file was not a ZIP archive.");
+      let archive: Blob;
+      if (download?.kind === "manifest") {
+        const manifest = download.manifest as {
+          schema_version: number;
+          files: Array<{ path: string; sha256: string; size: number; signed_url: string }>;
+        };
+        if (manifest?.schema_version !== 1 || !Array.isArray(manifest.files)) {
+          throw new Error("Invalid project manifest.");
+        }
+        const zip = new JSZip();
+        for (const file of manifest.files) {
+          const segments = file.path.split("/");
+          if (file.path.startsWith("/") || file.path.includes("\\") || segments.some((part) => !part || part === "." || part === "..")) {
+            throw new Error("Project manifest contains an unsafe path.");
+          }
+          const response = await fetch(file.signed_url);
+          if (!response.ok) throw new Error(`Could not download ${file.path}.`);
+          const bytes = await response.arrayBuffer();
+          if (bytes.byteLength !== file.size) throw new Error(`Integrity check failed for ${file.path}.`);
+          const digest = await crypto.subtle.digest("SHA-256", bytes);
+          const actualHash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+          if (actualHash !== file.sha256) throw new Error(`Integrity check failed for ${file.path}.`);
+          zip.file(file.path, bytes, { binary: true, compression: "STORE" });
+        }
+        archive = await zip.generateAsync({ type: "blob", compression: "STORE" });
+      } else {
+        if (!download?.signedUrl) throw new Error("No archive returned.");
+        const response = await fetch(download.signedUrl);
+        if (!response.ok) throw new Error("Could not download the ZIP archive.");
+        archive = await response.blob();
+        const signature = new Uint8Array(await archive.slice(0, 4).arrayBuffer());
+        if (signature[0] !== 0x50 || signature[1] !== 0x4b) {
+          throw new Error("Downloaded file was not a ZIP archive.");
+        }
+      }
 
-      const url = URL.createObjectURL(new Blob([data], { type: "application/zip" }));
+      const url = URL.createObjectURL(archive);
       const a = document.createElement("a");
       a.href = url;
       a.download = filename;
