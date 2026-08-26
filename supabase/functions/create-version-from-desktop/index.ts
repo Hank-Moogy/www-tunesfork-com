@@ -18,6 +18,37 @@ type ManifestFile = {
   mtime_ms: number;
 };
 
+type SampleCheck = {
+  included: number;
+  missing: number;
+  external: number;
+  missing_paths: string[];
+  external_paths: string[];
+};
+
+function parseSampleCheck(value: unknown): SampleCheck {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("A sample completeness check is required");
+  }
+  const input = value as Record<string, unknown>;
+  const counts = [input.included, input.missing, input.external];
+  if (!counts.every((count) => typeof count === "number" && Number.isSafeInteger(count) && count >= 0)) {
+    throw new Error("Invalid sample completeness check");
+  }
+  const [included, missing, external] = counts as number[];
+  return {
+    included,
+    missing,
+    external,
+    missing_paths: Array.isArray(input.missing_paths)
+      ? input.missing_paths.slice(0, 10).map(String)
+      : [],
+    external_paths: Array.isArray(input.external_paths)
+      ? input.external_paths.slice(0, 10).map(String)
+      : [],
+  };
+}
+
 function parseManifest(value: unknown): { schema_version: 1; files: ManifestFile[] } | null {
   if (value == null) return null;
   const input = value as { schema_version?: unknown; files?: unknown };
@@ -85,6 +116,23 @@ Deno.serve(async (req) => {
 
     const userId = tokenRow.user_id;
     const body = await req.json();
+
+    let sampleCheck: SampleCheck;
+    try {
+      sampleCheck = parseSampleCheck(body.sample_check);
+    } catch (error) {
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (sampleCheck.missing > 0 || sampleCheck.external > 0) {
+      return new Response(JSON.stringify({
+        error: "Collect all referenced samples into the Ableton project before uploading",
+        sample_check: sampleCheck,
+      }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const zipPath = String(body.zip_storage_path ?? "");
     const manifest = parseManifest(body.manifest);
@@ -215,7 +263,7 @@ Deno.serve(async (req) => {
         plugin_list: body.plugin_list ?? null,
         track_list: body.track_list ?? null,
         ableton_version: body.ableton_version ?? null,
-        sample_check: body.sample_check ?? null,
+        sample_check: sampleCheck,
         file_size_bytes: fileSize,
       })
       .select()

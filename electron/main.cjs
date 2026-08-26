@@ -473,6 +473,7 @@ async function startSync() {
       const latestAls = findLatestAls(projectFolder) || alsPath;
       enqueueProjectSave(latestAls, archiver).catch((e) => {
         if (isFolderPermissionError(e)) recordFolderAccessIssue(projectFolder, e);
+        else if (e?.code === "SAMPLES_INCOMPLETE") log("warn", e.message);
         else log("err", e.message);
       });
     }, 5000));
@@ -513,12 +514,27 @@ function findProjectFolder(alsPath) {
 async function processAlsSave(alsPath, archiver) {
   const projectFolder = findProjectFolder(alsPath);
   log("busy", `Save detected: ${path.basename(alsPath)}`);
-  const { projectName, result } = await uploadProjectFolder({
-    projectFolder,
-    alsPath,
-    archiver,
-    changeNote: "Auto-saved from Tunesfork Sync",
-  });
+  let upload;
+  try {
+    upload = await uploadProjectFolder({
+      projectFolder,
+      alsPath,
+      archiver,
+      changeNote: "Auto-saved from Tunesfork Sync",
+    });
+  } catch (error) {
+    if (error?.code === "SAMPLES_INCOMPLETE" && Notification.isSupported()) {
+      const notification = new Notification({
+        title: "Collect samples before syncing",
+        body: error.message,
+        silent: false,
+      });
+      notification.on("click", () => shell.openPath(alsPath));
+      notification.show();
+    }
+    throw error;
+  }
+  const { projectName, result } = upload;
 
   if (result.skipped) {
     log("ok", `✓ ${projectName} already up to date`);
@@ -560,6 +576,11 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
   assertFolderReadable(projectFolder);
   clearFolderAccessIssue(projectFolder);
 
+  // Sample completeness is a product-wide upload invariant. Run this before
+  // hashing, zipping, or transferring anything so an unsafe save never creates
+  // a cloud version and never consumes upload bandwidth.
+  const { meta, sampleCheck } = collectVersionMetadata(projectFolder, alsPath, true);
+
   // Skip the upload entirely when nothing actually changed since the last
   // successful upload of this folder — saves storage and bandwidth when the
   // user hits save without edits.
@@ -590,12 +611,12 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
 
   if (incrementalPlan && process.env.TUNESFORK_INCREMENTAL_SYNC !== "0") {
     const incremental = await tryIncrementalUpload({
-      projectFolder,
-      alsPath,
       changeNote,
       priorLink,
       contentHash,
       plan: incrementalPlan,
+      meta,
+      sampleCheck,
     });
     if (incremental) return incremental;
   }
@@ -659,33 +680,9 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
     const projectName = path.basename(projectFolder).replace(/ Project$/i, "");
     const existingLink = getProjectLink(projectFolder);
 
-    // Parse the .als so we can ship updated bpm/tracks/plugins with this version.
-    // Failure is non-fatal — the version still uploads, just without refreshed metadata.
-    let meta = null;
-    try {
-      meta = parseAlsFile(alsPath);
-    } catch (e) {
-      log("err", `Could not parse Ableton metadata: ${e && e.message ? e.message : e}`);
-    }
     if (meta) {
       const clipCount = meta.tracks.reduce((sum, track) => sum + (track.clips?.length || 0), 0);
       log("info", `Parsed ${meta.tracks.length} tracks, ${clipCount} clips, ${meta.plugins.length} plugins${meta.bpm ? `, ${meta.bpm} BPM` : ""}`);
-    }
-
-    // Sample integrity check — see how many referenced samples actually live in
-    // the project folder. Stored on the version so the web UI can flag missing
-    // samples before a collaborator opens the project.
-    let sampleCheck = null;
-    try {
-      sampleCheck = buildSampleCheck(projectFolder, meta?.samples ?? []);
-      if (sampleCheck.missing > 0 || sampleCheck.external > 0) {
-        log(
-          "warn",
-          `${sampleCheck.missing} missing / ${sampleCheck.external} external samples — collaborators may see "Media Files Missing". Run File → Collect All and Save in Ableton.`
-        );
-      }
-    } catch (e) {
-      log("warn", `Sample check failed: ${e.message}`);
     }
 
     const body = {
@@ -726,7 +723,7 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
   }
 }
 
-function collectVersionMetadata(projectFolder, alsPath) {
+function collectVersionMetadata(projectFolder, alsPath, requireComplete = false) {
   let meta = null;
   try {
     meta = parseAlsFile(alsPath);
@@ -734,16 +731,37 @@ function collectVersionMetadata(projectFolder, alsPath) {
     log("err", `Could not parse Ableton metadata: ${e && e.message ? e.message : e}`);
   }
 
+  if (!meta && requireComplete) {
+    const error = new Error("Tunesfork could not inspect this Ableton set for missing samples. Re-save it in Ableton, then try again.");
+    error.code = "SAMPLES_INCOMPLETE";
+    throw error;
+  }
+
   let sampleCheck = null;
   try {
     sampleCheck = buildSampleCheck(projectFolder, meta?.samples ?? []);
   } catch (e) {
     log("warn", `Sample check failed: ${e && e.message ? e.message : e}`);
+    if (requireComplete) {
+      const error = new Error("Tunesfork could not verify that this project contains all referenced samples. Re-save it in Ableton, then try again.");
+      error.code = "SAMPLES_INCOMPLETE";
+      throw error;
+    }
+  }
+
+  if (requireComplete && sampleCheck && (sampleCheck.missing > 0 || sampleCheck.external > 0)) {
+    const issues = sampleCheck.missing + sampleCheck.external;
+    const error = new Error(
+      `${issues} sample${issues === 1 ? " is" : "s are"} outside the project. In Ableton, choose File → Collect All and Save; Tunesfork will sync the next save.`,
+    );
+    error.code = "SAMPLES_INCOMPLETE";
+    error.sampleCheck = sampleCheck;
+    throw error;
   }
   return { meta, sampleCheck };
 }
 
-async function tryIncrementalUpload({ projectFolder, alsPath, changeNote, priorLink, contentHash, plan }) {
+async function tryIncrementalUpload({ changeNote, priorLink, contentHash, plan, meta, sampleCheck }) {
   const token = readToken();
   if (!token) throw new Error("Not paired — pair this Mac again before uploading");
 
@@ -797,7 +815,6 @@ async function tryIncrementalUpload({ projectFolder, alsPath, changeNote, priorL
   }
 
   const projectName = path.basename(projectFolder).replace(/ Project$/i, "");
-  const { meta, sampleCheck } = collectVersionMetadata(projectFolder, alsPath);
   const body = {
     project_name: projectName,
     manifest: apiManifest,

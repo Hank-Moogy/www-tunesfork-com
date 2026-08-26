@@ -577,6 +577,9 @@ function getDisplayStatus({
   if (latestLog?.level === "err") {
     return { kicker: "SYSTEM ALERT", title: "CHECK LOG", detail: latestLog.msg.toUpperCase(), footer: "Open diagnostics for details", tone: "red", animated: false };
   }
+  if (latestLog?.level === "warn" && /sample|collect all and save/i.test(latestLog.msg)) {
+    return { kicker: "UPLOAD PAUSED", title: "COLLECT SAMPLES", detail: latestLog.msg.toUpperCase(), footer: "Save again after collecting; sync will retry", tone: "amber", animated: false };
+  }
   if (recentUpload && Date.now() - recentUpload.at < 90_000) {
     return { kicker: "TRANSFER COMPLETE", title: "UPLOADED", detail: `${recentUpload.name} · VERSION ${recentUpload.version}`.toUpperCase(), footer: "Cloud snapshot secured", tone: "green", animated: false };
   }

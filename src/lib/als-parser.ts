@@ -88,16 +88,18 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
       }
     }
 
-    // Extract plugin names from <PluginDesc> → <VstPluginInfo> or <AuPluginInfo>
-    const plugins = new Set<string>();
-    const pluginMatches = xml.matchAll(/<(?:VstPluginInfo|AuPluginInfo)[^>]*>[\s\S]*?<PlugName\s+Value="([^"]+)"/g);
-    for (const m of pluginMatches) {
-      if (m[1]) plugins.add(m[1]);
-    }
-
     // Extract tracks and clips using DOMParser for accurate traversal
     const tracks: Track[] = [];
     const doc = new DOMParser().parseFromString(xml, "text/xml");
+    if (doc.querySelector("parsererror")) return null;
+
+    // Keep browser-upload metadata in parity with the tray parser: include
+    // third-party VST2, VST3, and Audio Unit devices.
+    const plugins = new Set<string>();
+    doc.querySelectorAll("VstPluginInfo, Vst3PluginInfo, AuPluginInfo").forEach((plugin) => {
+      const name = plugin.querySelector("PlugName")?.getAttribute("Value");
+      if (name) plugins.add(name);
+    });
 
     const trackTypeMap: Record<string, Track["type"]> = {
       AudioTrack: "audio",
@@ -344,7 +346,7 @@ export function validateFolder(files: File[], samples: SampleRef[] = []): Folder
     errors.push(
       `${missingSamples.length} sample(s) referenced by your .als are missing from the folder you selected (e.g. ${missingSamples
         .slice(0, 3)
-        .join(", ")}). Make sure you selected the full project folder, not just the .als file.`
+        .join(", ")}). In Ableton, choose File → Collect All and Save, then select the full project folder.`
     );
   }
 

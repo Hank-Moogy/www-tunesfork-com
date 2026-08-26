@@ -1,6 +1,6 @@
 {
   "name": "tunesfork-sync",
-  "version": "0.1.0-alpha.8",
+  "version": "0.1.0-alpha.9",
   "description": "Tunesfork Sync — auto-upload Ableton projects on save",
   "author": "Tunesfork",
   "main": "main.cjs",
@@ -9,7 +9,7 @@
     "dev": "VITE_DEV_SERVER_URL=http://localhost:5180 electron .",
     "dev:win": "set VITE_DEV_SERVER_URL=http://localhost:5180&& electron .",
     "dev:all": "concurrently -k -n ui,electron -c blue,green \"npm run dev:ui\" \"wait-on http://localhost:5180 && npm run dev\"",
-    "test": "node scripts/test-folder-access.cjs && node --test scripts/test-incremental-sync.cjs",
+    "test": "node scripts/test-folder-access.cjs && node --test scripts/test-incremental-sync.cjs scripts/test-sample-check.cjs",
     "smoke:backend": "node scripts/smoke-backend.cjs",
     "build:ui": "vite build",
     "verify:pack": "node scripts/verify-pack.cjs",
