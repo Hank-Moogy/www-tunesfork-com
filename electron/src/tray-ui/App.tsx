@@ -15,6 +15,7 @@ declare global {
       setFolders: (folders: string[]) => Promise<void>;
       repairFolderAccess: (folder: string) => Promise<{ ok: boolean; cancelled?: boolean; message?: string; folder?: string }>;
       openFolderPrivacySettings: () => Promise<boolean>;
+      openAbletonSet: (alsPath: string) => Promise<boolean>;
       importWatchedFolders: () => Promise<ImportSummary>;
       startSync: () => Promise<void>;
       stopSync: () => Promise<void>;
@@ -26,6 +27,20 @@ declare global {
 
 type LogLine = { ts: number; level: "info" | "ok" | "err" | "busy" | "warn"; msg: string; key?: string | null };
 type ImportSummary = { found: number; uploaded: number; skipped: number; failed: { folder: string; error: string }[] };
+type SampleIssue = {
+  projectFolder: string;
+  alsPath: string;
+  projectName: string;
+  sampleCheck: {
+    included: number;
+    verified?: boolean;
+    missing: number;
+    external: number;
+    missing_paths?: string[];
+    external_paths?: string[];
+  };
+  updatedAt: number;
+};
 type AppState = {
   paired: boolean;
   deviceName: string | null;
@@ -35,6 +50,7 @@ type AppState = {
   importedProjectCount: number;
   recent: { name: string; version: number; at: number }[];
   folderAccessIssues: { folder: string; code: string; message: string }[];
+  sampleIssues: SampleIssue[];
 };
 
 const TUNESFORK_URL = "https://tunesfork.com";
@@ -50,6 +66,15 @@ function createDevBridge(): Window["tfsync"] {
     importedProjectCount: preview === "empty" || preview === "unpaired" ? 0 : 3,
     folderAccessIssues: preview === "permission"
       ? [{ folder: "/Users/demo/Documents/Ableton", code: "EPERM", message: "Folder access blocked" }]
+      : [],
+    sampleIssues: preview === "samples"
+      ? [{
+          projectFolder: "/Users/demo/Music/Ableton Projects/Midnight Sketch Project",
+          alsPath: "/Users/demo/Music/Ableton Projects/Midnight Sketch Project/Midnight Sketch.als",
+          projectName: "Midnight Sketch",
+          sampleCheck: { included: 12, missing: 4, external: 2 },
+          updatedAt: Date.now(),
+        }]
       : [],
     recent: preview === "uploaded"
       ? [{ name: "Midnight Sketch", version: 4, at: Date.now() - 45_000 }]
@@ -76,10 +101,12 @@ function createDevBridge(): Window["tfsync"] {
       folders: [...baseState.folders],
       recent: [...baseState.recent],
       folderAccessIssues: [...baseState.folderAccessIssues],
+      sampleIssues: [...baseState.sampleIssues],
     }),
     setFolders: async (folders) => { baseState.folders = folders; },
     repairFolderAccess: async (folder) => ({ ok: true, folder }),
     openFolderPrivacySettings: async () => true,
+    openAbletonSet: async () => true,
     importWatchedFolders: async () => ({ found: 3, uploaded: 0, skipped: 3, failed: [] }),
     startSync: async () => { baseState.syncing = true; },
     stopSync: async () => { baseState.syncing = false; },
@@ -106,7 +133,7 @@ function getBridge(): Window["tfsync"] {
 export default function App() {
   const tfsync = getBridge();
   const [state, setState] = useState<AppState>({
-    paired: false, deviceName: null, folders: [], syncing: false, importing: false, importedProjectCount: 0, recent: [], folderAccessIssues: [],
+    paired: false, deviceName: null, folders: [], syncing: false, importing: false, importedProjectCount: 0, recent: [], folderAccessIssues: [], sampleIssues: [],
   });
   const [stateLoaded, setStateLoaded] = useState(false);
   const [pairCode, setPairCode] = useState<string | null>(null);
@@ -538,7 +565,7 @@ export default function App() {
         <footer className="footer">
           <span>PRECISION SYNC SYSTEMS</span>
           <button onClick={() => tfsync.openExternal(TUNESFORK_URL)}>TUNESFORK.COM ↗</button>
-          <span>REV. A8</span>
+          <span>REV. A12</span>
         </footer>
       </div>
     </div>
@@ -576,9 +603,6 @@ function getDisplayStatus({
   }
   if (latestLog?.level === "err") {
     return { kicker: "SYSTEM ALERT", title: "CHECK LOG", detail: latestLog.msg.toUpperCase(), footer: "Open diagnostics for details", tone: "red", animated: false };
-  }
-  if (latestLog?.level === "warn" && /sample|collect all and save/i.test(latestLog.msg)) {
-    return { kicker: "UPLOAD PAUSED", title: "COLLECT SAMPLES", detail: latestLog.msg.toUpperCase(), footer: "Save again after collecting; sync will retry", tone: "amber", animated: false };
   }
   if (recentUpload && Date.now() - recentUpload.at < 90_000) {
     return { kicker: "TRANSFER COMPLETE", title: "UPLOADED", detail: `${recentUpload.name} · VERSION ${recentUpload.version}`.toUpperCase(), footer: "Cloud snapshot secured", tone: "green", animated: false };

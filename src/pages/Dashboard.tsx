@@ -284,13 +284,13 @@ export default function Dashboard() {
     void fetchPage({ append: true, pageIndex: next });
   };
 
-  const handleUploadComplete = () => {
+  const handleUploadComplete = ({ projectId, shareReady }: { projectId: string; shareReady: boolean; sampleIssueCount: number }) => {
     const wasFirst = hasAnyProjectsEver === false;
     setHasAnyProjectsEver(true);
     setPage(0);
     void fetchPage({ append: false, pageIndex: 0 });
 
-    if (wasFirst) {
+    if (wasFirst && shareReady) {
       supabase
         .from("projects")
         .select("id")
@@ -298,13 +298,13 @@ export default function Dashboard() {
         .order("created_at", { ascending: false })
         .limit(1)
         .then(async ({ data }) => {
-          const projectId = data?.[0]?.id;
-          if (!projectId) return;
+          const newestProjectId = data?.[0]?.id;
+          if (!newestProjectId || newestProjectId !== projectId) return;
           const { data: token } = await supabase.rpc("ensure_project_share_token", {
-            _project_id: projectId,
+            _project_id: newestProjectId,
           });
           if (token) {
-            setLastShareProjectId(projectId);
+            setLastShareProjectId(newestProjectId);
             setLastShareUrl(`${window.location.origin}/share/${token}`);
             setShareModalOpen(true);
           }

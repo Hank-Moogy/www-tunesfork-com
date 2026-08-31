@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("tfsync", {
   setFolders: (folders) => ipcRenderer.invoke("set-folders", folders),
   repairFolderAccess: (folder) => ipcRenderer.invoke("repair-folder-access", folder),
   openFolderPrivacySettings: () => ipcRenderer.invoke("open-folder-privacy-settings"),
+  openAbletonSet: (alsPath) => ipcRenderer.invoke("open-ableton-set", alsPath),
   importWatchedFolders: () => ipcRenderer.invoke("import-watched-folders"),
   startSync: () => ipcRenderer.invoke("start-sync"),
   stopSync: () => ipcRenderer.invoke("stop-sync"),

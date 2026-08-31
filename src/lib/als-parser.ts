@@ -321,34 +321,30 @@ export function validateFolder(files: File[], samples: SampleRef[] = []): Folder
     return uploadedTails.some((u) => u === target || u.endsWith("/" + target));
   };
 
-  const missingSamples: string[] = [];
-  const nonRelativeSamples: string[] = [];
+  const missingSampleMap = new Map<string, string>();
+  const nonRelativeSampleMap = new Map<string, string>();
+
+  const isAbletonBuiltInResource = (absolutePath: string | null): boolean => {
+    if (!absolutePath) return false;
+    const normalized = normalizePath(absolutePath).toLowerCase();
+    return normalized.includes("/ableton live ")
+      && normalized.includes(".app/contents/app-resources/builtin/");
+  };
 
   for (const s of samples) {
     if (!s.relativePath || !s.hasRelativePath) {
+      if (isAbletonBuiltInResource(s.absolutePath)) continue;
       // No usable relative path — sample only exists on the uploader's disk.
-      if (s.absolutePath) nonRelativeSamples.push(s.absolutePath);
+      if (s.absolutePath) nonRelativeSampleMap.set(normalizePath(s.absolutePath), s.absolutePath.replace(/\\/g, "/"));
       continue;
     }
     if (!isPresent(s.relativePath)) {
-      missingSamples.push(s.relativePath);
+      missingSampleMap.set(normalizePath(s.relativePath), s.relativePath.replace(/\\/g, "/"));
     }
   }
 
-  if (nonRelativeSamples.length > 0) {
-    errors.push(
-      `${nonRelativeSamples.length} sample(s) in your .als still point to absolute paths on your computer. ` +
-        `In Ableton: File → Collect All and Save and tick every category (Factory Packs, User Library, Other locations), then re-upload.`
-    );
-  }
-
-  if (missingSamples.length > 0) {
-    errors.push(
-      `${missingSamples.length} sample(s) referenced by your .als are missing from the folder you selected (e.g. ${missingSamples
-        .slice(0, 3)
-        .join(", ")}). In Ableton, choose File → Collect All and Save, then select the full project folder.`
-    );
-  }
+  const missingSamples = Array.from(missingSampleMap.values());
+  const nonRelativeSamples = Array.from(nonRelativeSampleMap.values());
 
   // Only warn about a missing samples folder when the .als didn't tell us anything.
   if (samples.length === 0 && !hasSamplesFolder && alsFiles.length > 0) {

@@ -75,7 +75,7 @@ describe("parseAlsFile", () => {
     expect(metadata?.plugins).toEqual(["Legacy Synth", "Modern Synth", "Mac Synth"]);
   });
 
-  it("treats missing and external sample references as upload-blocking errors", () => {
+  it("reports uncollected samples as non-blocking sharing warnings", () => {
     const als = new File(["set"], "Song.als");
     Object.defineProperty(als, "webkitRelativePath", { value: "Song Project/Song.als" });
 
@@ -84,7 +84,8 @@ describe("parseAlsFile", () => {
       { relativePath: null, absolutePath: "/Library/snare.wav", hasRelativePath: false },
     ]);
 
-    expect(missing.errors).toHaveLength(2);
+    expect(missing.errors).toEqual([]);
+    expect(missing.warnings).toHaveLength(0);
     expect(missing.missingSamples).toEqual(["Samples/Collected/kick.wav"]);
     expect(missing.nonRelativeSamples).toEqual(["/Library/snare.wav"]);
 
@@ -98,5 +99,12 @@ describe("parseAlsFile", () => {
 
     expect(complete.errors).toEqual([]);
     expect(complete.missingSamples).toEqual([]);
+
+    const builtIn = validateFolder([als], [{
+      relativePath: "Samples/Hybrid/ImpulseResponses/Grand Stage L.aif",
+      absolutePath: "/Applications/Ableton Live 12 Suite.app/Contents/App-Resources/Builtin/Samples/Hybrid/ImpulseResponses/Grand Stage L.aif",
+      hasRelativePath: false,
+    }]);
+    expect(builtIn.nonRelativeSamples).toEqual([]);
   });
 });

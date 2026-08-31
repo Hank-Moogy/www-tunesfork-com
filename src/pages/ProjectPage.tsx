@@ -40,6 +40,7 @@ import {
   Mail,
   Upload,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -61,7 +62,7 @@ import { formatBytes } from "@/lib/als-parser";
 import type { Track } from "@/lib/als-parser";
 import type { Tables } from "@/integrations/supabase/types";
 import PluginMatchSection from "@/components/PluginMatchSection";
-import { SampleCheckBadge, type SampleCheck } from "@/components/SampleCheckBadge";
+import type { SampleCheck } from "@/components/SampleCheckBadge";
 import OpenInAbletonButton from "@/components/OpenInAbletonButton";
 import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick, trackShareCompleted } from "@/lib/analytics";
@@ -165,6 +166,14 @@ interface PendingInvite {
   expires_at: string;
 }
 
+function versionSampleCheck(version: Version | null | undefined): SampleCheck | null {
+  const value = version?.sample_check;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const check = value as unknown as SampleCheck;
+  if (![check.included, check.missing, check.external].every(Number.isFinite)) return null;
+  return check;
+}
+
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   usePageView("project", { project_id: id });
@@ -182,6 +191,8 @@ export default function ProjectPage() {
   const [sendingComment, setSendingComment] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [addCollabOpen, setAddCollabOpen] = useState(false);
+  const [shareReadinessOpen, setShareReadinessOpen] = useState(false);
+  const [pendingShareAction, setPendingShareAction] = useState<"share" | "collaborate" | null>(null);
   const [collabEmail, setCollabEmail] = useState("");
   const [collabRole, setCollabRole] = useState<"viewer" | "contributor">("viewer");
   const [addingCollab, setAddingCollab] = useState(false);
@@ -207,6 +218,23 @@ export default function ProjectPage() {
 
   const commentInputRef = useRef<HTMLInputElement>(null);
   const previewInputRef = useRef<HTMLInputElement>(null);
+  const latestSampleCheck = versionSampleCheck(versions[0]);
+  const latestSampleIssues = latestSampleCheck
+    ? latestSampleCheck.missing + latestSampleCheck.external + (latestSampleCheck.verified === false ? 1 : 0)
+    : 0;
+  const latestSampleVerificationUnavailable = latestSampleCheck?.verified === false;
+
+  const warnBeforeSharing = (action: "share" | "collaborate") => {
+    if (latestSampleIssues === 0) return false;
+    setPendingShareAction(action);
+    setShareReadinessOpen(true);
+    return true;
+  };
+
+  const openCollaboratorDialog = () => {
+    if (warnBeforeSharing("collaborate")) return;
+    setAddCollabOpen(true);
+  };
 
   useEffect(() => {
     if (!addCollabOpen) return;
@@ -366,13 +394,12 @@ export default function ProjectPage() {
     setDownloading(false);
   };
 
-  const handleShare = async () => {
+  const createShareLink = async () => {
     trackButtonClick("project_share_copy_link", "project", { project_id: project?.id });
     if (!project) {
       toast({ title: "Share unavailable", description: "Project is still loading.", variant: "destructive" });
       return;
     }
-
     const { data: shareToken, error: tokenErr } = await supabase.rpc("ensure_project_share_token", { _project_id: project.id });
 
     if (shareToken && !tokenErr) {
@@ -388,6 +415,19 @@ export default function ProjectPage() {
       description: "Please try again in a moment.",
       variant: "destructive",
     });
+  };
+
+  const handleShare = () => {
+    if (warnBeforeSharing("share")) return;
+    void createShareLink();
+  };
+
+  const continueSharing = () => {
+    const action = pendingShareAction;
+    setShareReadinessOpen(false);
+    setPendingShareAction(null);
+    if (action === "share") void createShareLink();
+    if (action === "collaborate") setAddCollabOpen(true);
   };
 
   const handlePreviewUpload = async () => {
@@ -763,7 +803,7 @@ export default function ProjectPage() {
                 {project.owner_id === user?.id && (
                   <button
                     className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setAddCollabOpen(true)}
+                    onClick={openCollaboratorDialog}
                   >
                     Manage
                   </button>
@@ -792,7 +832,7 @@ export default function ProjectPage() {
                   <Button
                     variant="outline"
                     className="w-full h-9 rounded-xl border-dashed border-border/70 text-xs gap-2 bg-transparent hover:bg-secondary/50"
-                    onClick={() => setAddCollabOpen(true)}
+                    onClick={openCollaboratorDialog}
                   >
                     <UserPlus className="h-3.5 w-3.5" /> Invite Collaborator
                   </Button>
@@ -894,6 +934,25 @@ export default function ProjectPage() {
                 </DropdownMenu>
               </div>
             </div>
+
+            {project.owner_id === user?.id && latestSampleCheck && latestSampleIssues > 0 && (
+              <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3 flex items-center gap-3">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">Action required</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {latestSampleVerificationUnavailable
+                      ? "Sample inclusion could not be verified for this project."
+                      : `${latestSampleIssues} referenced sample${latestSampleIssues === 1 ? " is" : "s are"} not included in the project folder.`}
+                  </p>
+                </div>
+                <OpenInAbletonButton
+                  projectId={project.id}
+                  versionId={versions[0]?.id}
+                  className="h-8 shrink-0 rounded-lg border-amber-500/40 bg-amber-500/10 px-3 text-xs text-amber-500 hover:bg-amber-500/20 hover:text-amber-400"
+                />
+              </div>
+            )}
 
             {/* Audio preview */}
             {(previewVersion || (selectedVersion && canAddPreview)) && (
@@ -1245,6 +1304,39 @@ export default function ProjectPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={shareReadinessOpen} onOpenChange={setShareReadinessOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>A quick step before sharing</AlertDialogTitle>
+            <AlertDialogDescription>
+              {latestSampleVerificationUnavailable
+                ? `Tunesfork could not verify whether every sample used by ${project.name} is included.`
+                : `${latestSampleIssues} referenced sample${latestSampleIssues === 1 ? " is" : "s are"} not included in ${project.name}’s project folder.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/8 p-3 text-sm text-muted-foreground">
+            <p>
+              You can still share now, but collaborators may see missing media or hear an incomplete version of the project.
+            </p>
+            <p>
+              For a complete handoff, open the project in Ableton and choose <span className="font-medium text-foreground">File → Collect All and Save</span>. Tunesfork will update it after the next save.
+            </p>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingShareAction(null)}>Cancel</AlertDialogCancel>
+            <div onClick={() => setShareReadinessOpen(false)}>
+              <OpenInAbletonButton
+                projectId={project.id}
+                versionId={versions[0]?.id}
+                className="h-10 rounded-md border border-amber-500/40 bg-amber-500/15 px-4 text-sm font-medium text-amber-500 hover:bg-amber-500/25 hover:text-amber-400"
+              />
+            </div>
+            <AlertDialogAction onClick={continueSharing}>
+              {pendingShareAction === "collaborate" ? "Continue to invite" : "Share anyway"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

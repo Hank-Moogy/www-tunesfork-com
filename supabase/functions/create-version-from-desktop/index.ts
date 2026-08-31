@@ -19,6 +19,7 @@ type ManifestFile = {
 };
 
 type SampleCheck = {
+  verified: boolean;
   included: number;
   missing: number;
   external: number;
@@ -37,6 +38,7 @@ function parseSampleCheck(value: unknown): SampleCheck {
   }
   const [included, missing, external] = counts as number[];
   return {
+    verified: input.verified !== false,
     included,
     missing,
     external,
@@ -125,13 +127,41 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (sampleCheck.missing > 0 || sampleCheck.external > 0) {
+    const shareReady = sampleCheck.verified && sampleCheck.missing === 0 && sampleCheck.external === 0;
+
+    if (body.metadata_only === true) {
+      const versionId = String(body.version_id ?? "");
+      if (!versionId) {
+        return new Response(JSON.stringify({ error: "version_id is required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: version } = await admin
+        .from("project_versions")
+        .select("id, project_id")
+        .eq("id", versionId)
+        .maybeSingle();
+      const { data: ownedProject } = version
+        ? await admin.from("projects").select("id").eq("id", version.project_id).eq("owner_id", userId).maybeSingle()
+        : { data: null };
+      if (!version || !ownedProject) {
+        return new Response(JSON.stringify({ error: "version not found" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { error: updateError } = await admin
+        .from("project_versions")
+        .update({ sample_check: sampleCheck })
+        .eq("id", versionId);
+      if (updateError) throw updateError;
+      await admin.from("device_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tokenRow.id);
       return new Response(JSON.stringify({
-        error: "Collect all referenced samples into the Ableton project before uploading",
+        project_id: version.project_id,
+        version_id: version.id,
+        share_ready: shareReady,
         sample_check: sampleCheck,
-      }), {
-        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+        metadata_only: true,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const zipPath = String(body.zip_storage_path ?? "");
@@ -289,7 +319,13 @@ Deno.serve(async (req) => {
     await admin.from("device_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tokenRow.id);
 
     return new Response(
-      JSON.stringify({ project_id: projectId, version_id: version.id, version_number: versionNumber }),
+      JSON.stringify({
+        project_id: projectId,
+        version_id: version.id,
+        version_number: versionNumber,
+        share_ready: shareReady,
+        sample_check: sampleCheck,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {

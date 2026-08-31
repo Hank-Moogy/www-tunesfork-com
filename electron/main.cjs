@@ -53,6 +53,7 @@ const defaultState = {
   syncing: false,
   recent: [],
   folderAccessIssues: {},
+  sampleIssues: {},
   // token is intentionally NOT in this file — stored in OS keychain via keytar.
   // For the alpha we keep it in a sidecar file with 600 perms; swap for keytar in v0.2.
 };
@@ -260,6 +261,49 @@ function addRecentUpload(projectName, versionNumber) {
   const s = readState();
   s.recent = [{ name: projectName, version: versionNumber, at: Date.now() }, ...s.recent].slice(0, 10);
   writeState(s);
+}
+
+function sampleIssueSignature(sampleCheck) {
+  return crypto.createHash("sha256").update(JSON.stringify({
+    verified: sampleCheck?.verified !== false,
+    missing: sampleCheck?.missing ?? 0,
+    external: sampleCheck?.external ?? 0,
+    missing_paths: sampleCheck?.missing_paths ?? [],
+    external_paths: sampleCheck?.external_paths ?? [],
+  })).digest("hex");
+}
+
+function refreshTrayAttention() {
+  if (!tray || process.platform !== "darwin") return;
+  tray.setTitle("");
+  tray.setToolTip("Tunesfork Sync");
+}
+
+function recordSampleReadiness({ projectFolder, alsPath, projectName, sampleCheck }) {
+  if (!sampleCheck) return;
+  const normalized = normalizeFolder(projectFolder);
+  const issues = sampleCheck.missing + sampleCheck.external + (sampleCheck.verified === false ? 1 : 0);
+  const state = readState();
+  state.sampleIssues = state.sampleIssues || {};
+  if (issues === 0) {
+    if (!state.sampleIssues[normalized]) return;
+    delete state.sampleIssues[normalized];
+    writeState(state);
+    refreshTrayAttention();
+    return;
+  }
+
+  const signature = sampleIssueSignature(sampleCheck);
+  state.sampleIssues[normalized] = {
+    projectFolder: normalized,
+    alsPath,
+    projectName,
+    sampleCheck,
+    signature,
+    updatedAt: Date.now(),
+  };
+  writeState(state);
+  refreshTrayAttention();
 }
 
 function getSupabaseProjectRef() {
@@ -576,10 +620,8 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
   assertFolderReadable(projectFolder);
   clearFolderAccessIssue(projectFolder);
 
-  // Sample completeness is a product-wide upload invariant. Run this before
-  // hashing, zipping, or transferring anything so an unsafe save never creates
-  // a cloud version and never consumes upload bandwidth.
-  const { meta, sampleCheck } = collectVersionMetadata(projectFolder, alsPath, true);
+  // Sample completeness is advisory metadata, not a save or sharing blocker.
+  const { meta, sampleCheck } = collectVersionMetadata(projectFolder, alsPath, false);
 
   // Skip the upload entirely when nothing actually changed since the last
   // successful upload of this folder — saves storage and bandwidth when the
@@ -599,8 +641,17 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
   }
   if (contentHash && priorLink?.projectId && priorLink.lastContentHash === contentHash) {
     log("info", `${path.basename(projectFolder)} unchanged since last upload — skipped`);
+    const projectName = priorLink.projectName ?? path.basename(projectFolder).replace(/ Project$/i, "");
+    if (priorLink.lastVersionId && sampleCheck) {
+      try {
+        await updateVersionSampleCheck(priorLink.lastVersionId, sampleCheck);
+      } catch (error) {
+        log("warn", `Could not refresh sample status: ${error && error.message ? error.message : error}`);
+      }
+    }
+    recordSampleReadiness({ projectFolder, alsPath, projectName, sampleCheck });
     return {
-      projectName: priorLink.projectName ?? path.basename(projectFolder).replace(/ Project$/i, ""),
+      projectName,
       result: {
         project_id: priorLink.projectId,
         version_number: priorLink.lastVersion ?? null,
@@ -618,7 +669,10 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
       meta,
       sampleCheck,
     });
-    if (incremental) return incremental;
+    if (incremental) {
+      recordSampleReadiness({ projectFolder, alsPath, projectName: incremental.projectName, sampleCheck });
+      return incremental;
+    }
   }
 
   const tmpZip = path.join(os.tmpdir(), `tfsync-${Date.now()}.zip`);
@@ -716,11 +770,27 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
       lastContentHash: contentHash,
     });
     addRecentUpload(projectName, result.version_number);
+    recordSampleReadiness({ projectFolder, alsPath, projectName, sampleCheck });
 
     return { projectName, result };
   } finally {
     fs.unlink(tmpZip, () => {});
   }
+}
+
+async function updateVersionSampleCheck(versionId, sampleCheck) {
+  const token = readToken();
+  if (!token) return;
+  const response = await fetch(`${FUNCTIONS_URL}/create-version-from-desktop`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      metadata_only: true,
+      version_id: versionId,
+      sample_check: sampleCheck,
+    }),
+  });
+  if (!response.ok) throw new Error(`Status refresh failed ${response.status}: ${await response.text()}`);
 }
 
 function collectVersionMetadata(projectFolder, alsPath, requireComplete = false) {
@@ -739,7 +809,16 @@ function collectVersionMetadata(projectFolder, alsPath, requireComplete = false)
 
   let sampleCheck = null;
   try {
-    sampleCheck = buildSampleCheck(projectFolder, meta?.samples ?? []);
+    sampleCheck = meta
+      ? { ...buildSampleCheck(projectFolder, meta.samples ?? []), verified: true }
+      : {
+          included: 0,
+          missing: 0,
+          external: 0,
+          missing_paths: [],
+          external_paths: [],
+          verified: false,
+        };
   } catch (e) {
     log("warn", `Sample check failed: ${e && e.message ? e.message : e}`);
     if (requireComplete) {
@@ -1293,7 +1372,7 @@ app.whenReady().then(() => {
   }
 
   tray = new Tray(trayImage);
-  tray.setToolTip("Tunesfork Sync");
+  refreshTrayAttention();
   if (process.platform === "darwin") {
     tray.setIgnoreDoubleClickEvents(true);
   }
@@ -1373,6 +1452,7 @@ ipcMain.handle("get-state", () => {
     recent: s.recent,
     importedProjectCount: Object.keys(s.projectLinks || {}).length,
     folderAccessIssues: checkWatchedFolderAccess(),
+    sampleIssues: Object.values(s.sampleIssues || {}).sort((a, b) => b.updatedAt - a.updatedAt),
   };
 });
 ipcMain.handle("set-folders", async (_e, folders) => {
@@ -1432,6 +1512,16 @@ ipcMain.handle("repair-folder-access", async (_e, folder) => {
 ipcMain.handle("open-folder-privacy-settings", async () => {
   if (process.platform !== "darwin") return false;
   await shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders");
+  return true;
+});
+ipcMain.handle("open-ableton-set", async (_e, alsPath) => {
+  if (typeof alsPath !== "string" || path.extname(alsPath).toLowerCase() !== ".als") {
+    throw new Error("Invalid Ableton set path");
+  }
+  const resolved = path.resolve(alsPath);
+  if (!fs.existsSync(resolved)) throw new Error("Ableton set no longer exists");
+  const error = await shell.openPath(resolved);
+  if (error) throw new Error(error);
   return true;
 });
 ipcMain.handle("import-watched-folders", () => importWatchedFolders());
