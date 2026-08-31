@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/popover";
 
 export interface SampleCheck {
+  verified?: boolean;
   included: number;
   missing: number;
   external: number;
@@ -21,9 +22,9 @@ interface Props {
 export function SampleCheckBadge({ check, size = "sm" }: Props) {
   if (!check) return null;
   const total = check.included + check.missing + check.external;
-  if (total === 0) return null;
+  if (total === 0 && check.verified !== false) return null;
 
-  const issues = check.missing + check.external;
+  const issues = check.missing + check.external + (check.verified === false ? 1 : 0);
   const ok = issues === 0;
 
   const sizeClasses =
@@ -53,7 +54,9 @@ export function SampleCheckBadge({ check, size = "sm" }: Props) {
           className={`inline-flex items-center rounded-full bg-amber-500/15 text-amber-500 font-medium hover:bg-amber-500/25 transition-colors ${sizeClasses}`}
         >
           <AlertTriangle className={iconClass} />
-          {issues} {issues === 1 ? "sample" : "samples"} missing
+          {check.verified === false
+            ? "Samples unverified"
+            : `${issues} ${issues === 1 ? "sample needs" : "samples need"} collection`}
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -61,12 +64,14 @@ export function SampleCheckBadge({ check, size = "sm" }: Props) {
         className="w-80 text-xs space-y-2"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="font-semibold text-sm">Missing samples</div>
+        <div className="font-semibold text-sm">
+          {check.verified === false ? "Sample readiness could not be verified" : "Samples needed before sharing"}
+        </div>
         {check.missing > 0 && (
           <div>
             <div className="text-muted-foreground mb-1">
-              {check.missing} referenced file{check.missing === 1 ? "" : "s"}{" "}
-              not in the project folder:
+              {check.missing} referenced file{check.missing === 1 ? " is" : "s are"}{" "}
+              outside this project folder:
             </div>
             <ul className="font-mono text-[11px] space-y-0.5 max-h-32 overflow-y-auto">
               {check.missing_paths?.slice(0, 10).map((p) => (
@@ -80,8 +85,8 @@ export function SampleCheckBadge({ check, size = "sm" }: Props) {
         {check.external > 0 && (
           <div>
             <div className="text-muted-foreground mb-1">
-              {check.external} sample{check.external === 1 ? "" : "s"} live
-              outside the project folder and weren't included:
+              {check.external} sample{check.external === 1 ? " uses" : "s use"} an
+              absolute location and {check.external === 1 ? "wasn't" : "weren't"} included:
             </div>
             <ul className="font-mono text-[11px] space-y-0.5 max-h-24 overflow-y-auto">
               {check.external_paths?.slice(0, 5).map((p) => (

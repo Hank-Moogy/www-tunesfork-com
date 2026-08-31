@@ -54,7 +54,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!project) return json({ error: "project not found" }, 404);
 
-    if (project.owner_id !== userId) {
+    const isOwner = project.owner_id === userId;
+    if (!isOwner) {
       const { data: collab } = await admin
         .from("collaborators")
         .select("id")
@@ -67,7 +68,7 @@ Deno.serve(async (req) => {
     // Pick version
     let q = admin
       .from("project_versions")
-      .select("id, version_number, zip_url, manifest")
+      .select("id, version_number, zip_url, manifest, sample_check")
       .eq("project_id", projectId);
     if (versionId) q = q.eq("id", versionId);
     else q = q.order("version_number", { ascending: false }).order("created_at", { ascending: false }).limit(1);

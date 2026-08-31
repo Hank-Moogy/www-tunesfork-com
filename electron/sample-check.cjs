@@ -11,6 +11,13 @@ function normalizePath(p) {
   return p.replace(/\\/g, "/").replace(/^\.\//, "");
 }
 
+function isAbletonBuiltInResource(absolutePath) {
+  if (!absolutePath) return false;
+  const normalized = normalizePath(absolutePath).toLowerCase();
+  return normalized.includes("/ableton live ")
+    && normalized.includes(".app/contents/app-resources/builtin/");
+}
+
 function walk(root) {
   const out = [];
   const stack = [root];
@@ -52,29 +59,39 @@ function buildSampleCheck(projectFolder, samples) {
     return files.some((u) => u === target || u.endsWith("/" + target));
   };
 
-  const missingPaths = [];
-  const externalPaths = [];
+  const missingPaths = new Set();
+  const externalPaths = new Set();
   let included = 0;
 
   for (const s of samples) {
     if (!s.relativePath || !s.hasRelativePath) {
-      if (s.absolutePath) externalPaths.push(s.absolutePath);
+      // Live does not collect application-bundled device resources (for
+      // example Hybrid reverb impulse responses). They ship with Live and are
+      // not user media, so they must not keep a project in an action-required
+      // state after Collect All and Save.
+      if (isAbletonBuiltInResource(s.absolutePath)) continue;
+      if (s.absolutePath) externalPaths.add(normalizePath(s.absolutePath));
       continue;
     }
     if (isPresent(s.relativePath)) {
       included += 1;
     } else {
-      missingPaths.push(s.relativePath);
+      missingPaths.add(normalizePath(s.relativePath));
     }
   }
 
+  const missing = Array.from(missingPaths);
+  const external = Array.from(externalPaths);
+
   return {
     included,
-    missing: missingPaths.length,
-    external: externalPaths.length,
-    missing_paths: missingPaths.slice(0, 10),
-    external_paths: externalPaths.slice(0, 10),
+    // Counts describe unique files, not the number of clips/devices that reuse
+    // them. This keeps the user-facing warning stable and actionable.
+    missing: missing.length,
+    external: external.length,
+    missing_paths: missing.slice(0, 10),
+    external_paths: external.slice(0, 10),
   };
 }
 
-module.exports = { buildSampleCheck };
+module.exports = { buildSampleCheck, isAbletonBuiltInResource };

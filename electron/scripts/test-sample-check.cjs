@@ -39,3 +39,34 @@ test("detects collected, missing, and external sample references before upload",
     fs.rmSync(project, { recursive: true, force: true });
   }
 });
+
+test("counts reused external references as one actionable file", () => {
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), "tunesfork-sample-check-"));
+  try {
+    const repeated = {
+      relativePath: "../Shared/kick.wav",
+      absolutePath: "/Shared/kick.wav",
+      hasRelativePath: true,
+    };
+    const result = buildSampleCheck(project, [repeated, repeated, repeated]);
+    assert.equal(result.missing, 1);
+    assert.deepEqual(result.missing_paths, ["../Shared/kick.wav"]);
+  } finally {
+    fs.rmSync(project, { recursive: true, force: true });
+  }
+});
+
+test("ignores Ableton application-bundled device resources", () => {
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), "tunesfork-sample-check-"));
+  try {
+    const result = buildSampleCheck(project, [{
+      relativePath: "Samples/Hybrid/ImpulseResponses/Grand Stage L.aif",
+      absolutePath: "/Applications/Ableton Live 12 Suite.app/Contents/App-Resources/Builtin/Samples/Hybrid/ImpulseResponses/Grand Stage L.aif",
+      hasRelativePath: false,
+    }]);
+    assert.equal(result.missing, 0);
+    assert.equal(result.external, 0);
+  } finally {
+    fs.rmSync(project, { recursive: true, force: true });
+  }
+});

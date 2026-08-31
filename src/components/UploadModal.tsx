@@ -38,7 +38,7 @@ interface UploadModalProps {
   onOpenChange: (open: boolean) => void;
   existingProjectId?: string;
   existingProjectName?: string;
-  onVersionUploaded?: () => void;
+  onVersionUploaded?: (result: { projectId: string; shareReady: boolean; sampleIssueCount: number }) => void;
 }
 
 export default function UploadModal({ open, onOpenChange, existingProjectId, existingProjectName, onVersionUploaded }: UploadModalProps) {
@@ -368,8 +368,8 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
       setProcessing(true);
       setPreZippedBlob(null);
 
-      // A lone .als is only complete when it has no sample references. If it
-      // references media, the user must upload the collected project folder.
+      // A lone .als may be incomplete, but saving is never blocked. Readiness
+      // guidance is shown from the project page when the user shares.
       const meta = await parseAlsFile(file);
       if (!meta) {
         setValidation({
@@ -387,28 +387,24 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
       }
 
       const samples = meta.samples;
-      const sampleCount = samples.length;
-
       setValidation({
         alsFiles: [file],
         hasSamplesFolder: false,
         totalSizeBytes: file.size,
         allFiles: [file],
-        errors: sampleCount > 0
-          ? [
-              `This set references ${sampleCount} sample${sampleCount === 1 ? "" : "s"}, but a standalone .als cannot include them. In Ableton, choose File → Collect All and Save, then upload the full project folder or a ZIP of it.`,
-            ]
-          : [],
+        errors: [],
         warnings: [],
-        missingSamples: samples.map((sample) => sample.relativePath || sample.absolutePath || "Unknown sample"),
-        nonRelativeSamples: samples
+        missingSamples: Array.from(new Set(samples
+          .filter((sample) => !!sample.relativePath && sample.hasRelativePath)
+          .map((sample) => sample.relativePath || "Unknown sample"))),
+        nonRelativeSamples: Array.from(new Set(samples
           .filter((sample) => !sample.relativePath || !sample.hasRelativePath)
-          .map((sample) => sample.absolutePath || "Unknown external sample"),
+          .map((sample) => sample.absolutePath || "Unknown external sample"))),
       });
       setMetadata(meta);
       setProjectName(existingProjectName ?? meta?.projectName ?? file.name.replace(/\.als$/i, ""));
       setBpm(meta?.bpm?.toString() ?? "");
-      if (sampleCount === 0) setStep(2);
+      setStep(2);
       setProcessing(false);
     },
     [existingProjectName]
@@ -468,14 +464,10 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
   // Step 4: Upload
   const handleUpload = async () => {
     if (!validation || !metadata || !user) return;
-    if (
-      validation.errors.length > 0 ||
-      validation.missingSamples.length > 0 ||
-      validation.nonRelativeSamples.length > 0
-    ) {
+    if (validation.errors.length > 0) {
       toast({
-        title: "Collect samples before uploading",
-        description: "In Ableton, choose File → Collect All and Save, then upload the complete project folder.",
+        title: "Project cannot be inspected",
+        description: "Fix the project selection issue before uploading.",
         variant: "destructive",
       });
       return;
@@ -638,6 +630,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
       const missingCount = validation.missingSamples.length;
       const externalCount = validation.nonRelativeSamples.length;
       const sampleCheck = {
+        verified: true,
         included: Math.max(0, totalSamples - missingCount - externalCount),
         missing: missingCount,
         external: externalCount,
@@ -671,6 +664,9 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
         versionNumber,
       });
 
+      const sampleIssueCount = sampleCheck.missing + sampleCheck.external;
+      const shareReady = sampleIssueCount === 0;
+
       if (uploadAbortRef.current) return;
 
       trackUploadCompleted({
@@ -692,7 +688,7 @@ export default function UploadModal({ open, onOpenChange, existingProjectId, exi
       setTimeout(() => {
         handleClose();
         if (onVersionUploaded) {
-          onVersionUploaded();
+          onVersionUploaded({ projectId, shareReady, sampleIssueCount });
         } else {
           navigate(`/project/${projectId}`);
         }
