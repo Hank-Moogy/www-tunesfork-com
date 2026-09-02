@@ -46,6 +46,88 @@ BEGIN
     jsonb_build_array(jsonb_build_object('sha256', hash_a, 'size_bytes', 40))
   );
   reservation_id := (result->>'reservation_id')::uuid;
+
+  BEGIN
+    PERFORM public.finalize_manifest_project_version(
+      reservation_id,
+      owner_id,
+      'Owner project',
+      jsonb_build_object(
+        'schema_version', 1,
+        'files', jsonb_build_array(jsonb_build_object(
+          'path', 'Owner project.als', 'sha256', hash_a, 'size', 40
+        ))
+      ),
+      40,
+      'Unreserved attestation test',
+      120,
+      '[]'::jsonb,
+      '[]'::jsonb,
+      '12.1',
+      '{}'::jsonb,
+      jsonb_build_array(jsonb_build_object('sha256', hash_d, 'size', 40)),
+      40,
+      0
+    );
+    RAISE EXCEPTION 'expected UPLOAD_CONFLICT for an unreserved ready blob';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM NOT LIKE '%UPLOAD_CONFLICT%' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    PERFORM public.finalize_manifest_project_version(
+      reservation_id,
+      owner_id,
+      'Owner project',
+      jsonb_build_object(
+        'schema_version', 1,
+        'files', jsonb_build_array(jsonb_build_object(
+          'path', 'Owner project.als', 'sha256', hash_a, 'size', 40
+        ))
+      ),
+      41,
+      'Logical size mismatch test',
+      120,
+      '[]'::jsonb,
+      '[]'::jsonb,
+      '12.1',
+      '{}'::jsonb,
+      jsonb_build_array(jsonb_build_object('sha256', hash_a, 'size', 40)),
+      40,
+      0
+    );
+    RAISE EXCEPTION 'expected MANIFEST_INVALID for a logical size mismatch';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM NOT LIKE '%MANIFEST_INVALID%' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    PERFORM public.finalize_manifest_project_version(
+      reservation_id,
+      owner_id,
+      'Owner project',
+      jsonb_build_object(
+        'schema_version', 1,
+        'files', jsonb_build_array(jsonb_build_object(
+          'path', 'Owner project.als', 'sha256', hash_a, 'size', 40
+        ))
+      ),
+      40,
+      'Byte accounting mismatch test',
+      120,
+      '[]'::jsonb,
+      '[]'::jsonb,
+      '12.1',
+      '{}'::jsonb,
+      jsonb_build_array(jsonb_build_object('sha256', hash_a, 'size', 40)),
+      0,
+      40
+    );
+    RAISE EXCEPTION 'expected UPLOAD_CONFLICT for false byte accounting';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM NOT LIKE '%UPLOAD_CONFLICT%' THEN RAISE; END IF;
+  END;
+
   IF jsonb_array_length(result->'missing') <> 1
      OR (result#>>'{usage,reserved_bytes}')::bigint <> 40 THEN
     RAISE EXCEPTION 'first upload reservation did not reserve one 40-byte blob: %', result;
