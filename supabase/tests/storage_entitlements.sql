@@ -84,7 +84,31 @@ BEGIN
      OR (result#>>'{usage,reserved_bytes}')::bigint <> 0 THEN
     RAISE EXCEPTION 'owner-scoped blob reuse failed: %', result;
   END IF;
-  PERFORM public.cancel_upload_reservation((result->>'reservation_id')::uuid, owner_id);
+  reservation_id := (result->>'reservation_id')::uuid;
+  result := public.finalize_manifest_project_version(
+    reservation_id,
+    owner_id,
+    'Owner project',
+    jsonb_build_object(
+      'schema_version', 1,
+      'files', jsonb_build_array(jsonb_build_object(
+        'path', 'Owner project.als', 'sha256', hash_a, 'size', 40
+      ))
+    ),
+    40,
+    'Reuse test',
+    120,
+    '[]'::jsonb,
+    '[]'::jsonb,
+    '12.1',
+    '{}'::jsonb,
+    '[]'::jsonb,
+    0,
+    40
+  );
+  IF (result->>'version_number')::integer <> 2 THEN
+    RAISE EXCEPTION 'version numbering did not advance from 1 to 2: %', result;
+  END IF;
 
   result := public.reserve_project_upload(
     contributor_id,
