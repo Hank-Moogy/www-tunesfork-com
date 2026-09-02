@@ -10,13 +10,14 @@ DECLARE
   extra_id constant uuid := '10000000-0000-0000-0000-000000000004';
   project_id constant uuid := '20000000-0000-0000-0000-000000000001';
   outsider_project_id constant uuid := '20000000-0000-0000-0000-000000000002';
-  version_id constant uuid := '30000000-0000-0000-0000-000000000001';
+  initial_version_id constant uuid := '30000000-0000-0000-0000-000000000001';
   hash_a constant text := repeat('a', 64);
   hash_b constant text := repeat('b', 64);
   hash_c constant text := repeat('c', 64);
   hash_d constant text := repeat('d', 64);
   result jsonb;
   reservation_id uuid;
+  created_version_id uuid;
 BEGIN
   INSERT INTO auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
   VALUES
@@ -68,11 +69,11 @@ BEGIN
   INSERT INTO public.project_versions (
     id, project_id, version_number, uploader_id, manifest, file_size_bytes
   ) VALUES (
-    version_id, project_id, 1, owner_id,
+    initial_version_id, project_id, 1, owner_id,
     jsonb_build_object('schema_version', 1, 'files', jsonb_build_array()), 40
   );
   INSERT INTO public.project_version_blobs (version_id, user_id, sha256)
-  VALUES (version_id, owner_id, hash_a);
+  VALUES (initial_version_id, owner_id, hash_a);
 
   result := public.reserve_project_upload(
     owner_id,
@@ -109,6 +110,29 @@ BEGIN
   IF (result->>'version_number')::integer <> 2 THEN
     RAISE EXCEPTION 'version numbering did not advance from 1 to 2: %', result;
   END IF;
+  created_version_id := (result->>'version_id')::uuid;
+
+  BEGIN
+    PERFORM public.reserve_project_upload(
+      owner_id,
+      project_id,
+      jsonb_build_array(jsonb_build_object('sha256', hash_a, 'size_bytes', 41))
+    );
+    RAISE EXCEPTION 'expected BLOB_SIZE_MISMATCH';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM NOT LIKE '%BLOB_SIZE_MISMATCH%' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    PERFORM public.reserve_project_upload(
+      outsider_id,
+      project_id,
+      jsonb_build_array(jsonb_build_object('sha256', hash_d, 'size_bytes', 1))
+    );
+    RAISE EXCEPTION 'expected PROJECT_UPLOAD_FORBIDDEN';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM NOT LIKE '%PROJECT_UPLOAD_FORBIDDEN%' THEN RAISE; END IF;
+  END;
 
   result := public.reserve_project_upload(
     contributor_id,
@@ -176,6 +200,28 @@ BEGIN
      OR NOT has_function_privilege('authenticated', 'public.delete_project_version(uuid)', 'EXECUTE') THEN
     RAISE EXCEPTION 'authenticated self-service RPC grants are missing';
   END IF;
+
+  PERFORM set_config('request.jwt.claim.sub', owner_id::text, true);
+  PERFORM public.delete_project_version(created_version_id);
+  IF EXISTS (SELECT 1 FROM public.project_versions WHERE id = created_version_id) THEN
+    RAISE EXCEPTION 'selected project version was not deleted';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.project_version_blobs
+    WHERE version_id = initial_version_id AND user_id = owner_id AND sha256 = hash_a
+  ) OR EXISTS (
+    SELECT 1 FROM public.storage_deletion_candidates
+    WHERE bucket = 'project-blobs' AND object_path = owner_id::text || '/' || hash_a
+  ) THEN
+    RAISE EXCEPTION 'deleting one version released a blob still referenced by another version';
+  END IF;
+
+  BEGIN
+    PERFORM public.delete_project_version(initial_version_id);
+    RAISE EXCEPTION 'expected LAST_VERSION_REQUIRES_PROJECT_DELETE';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM NOT LIKE '%LAST_VERSION_REQUIRES_PROJECT_DELETE%' THEN RAISE; END IF;
+  END;
 
   RAISE NOTICE 'storage entitlement acceptance tests passed';
 END;
