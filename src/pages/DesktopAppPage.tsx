@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Apple, ArrowRight, Download, ShieldAlert } from "lucide-react";
+import { Apple, ArrowRight, Download, ShieldCheck } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { trackButtonClick } from "@/lib/analytics";
+import { flushAnalytics, trackButtonClick, trackSemanticEvent } from "@/lib/analytics";
 import {
   DESKTOP_APP_VERSION_LABEL,
   DOWNLOAD_URLS,
@@ -29,6 +29,8 @@ export default function DesktopAppPage() {
 
   const downloadMac = () => {
     trackButtonClick("desktop_download", "desktop_app", { platform: "mac" });
+    trackSemanticEvent("Desktop Download Started", { platform: "mac", version: DESKTOP_APP_VERSION_LABEL });
+    flushAnalytics();
     if (DOWNLOAD_URLS.mac) window.location.href = DOWNLOAD_URLS.mac;
   };
 
@@ -79,42 +81,15 @@ export default function DesktopAppPage() {
           </div>
         </section>
 
-        <section className="mx-auto mt-16 max-w-2xl overflow-hidden rounded-2xl border border-amber-500/30 bg-amber-500/[0.06]">
-          <div className="flex gap-4 border-b border-amber-500/20 p-6">
-            <ShieldAlert className="mt-0.5 h-6 w-6 shrink-0 text-amber-400" />
+        <section className="mx-auto mt-16 max-w-2xl overflow-hidden rounded-2xl border border-primary/25 bg-primary/[0.06]">
+          <div className="flex gap-4 p-6">
+            <ShieldCheck className="mt-0.5 h-6 w-6 shrink-0 text-primary" />
             <div>
-              <h2 className="text-lg font-semibold">macOS may block the first launch</h2>
+              <h2 className="text-lg font-semibold">Signed and notarized for macOS</h2>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                This alpha is not Apple-notarized yet. The warning is expected and
-                only needs to be bypassed once.
+                Public builds are signed with Tunesfork’s Developer ID, checked by Apple,
+                and shipped with the notarization ticket attached.
               </p>
-            </div>
-          </div>
-
-          <div className="space-y-6 p-6">
-            <ol className="space-y-4 text-sm text-muted-foreground">
-              {[
-                <>Move <strong className="text-foreground">Tunesfork Sync</strong> into Applications and try to open it.</>,
-                <>When Apple shows the warning, click <strong className="text-foreground">Done</strong>.</>,
-                <>Open <strong className="text-foreground">System Settings → Privacy & Security</strong>.</>,
-                <>Scroll down, click <strong className="text-foreground">Open Anyway</strong>, then confirm.</>,
-              ].map((step, index) => (
-                <li key={index} className="flex gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500/15 font-mono text-xs text-amber-300">
-                    {index + 1}
-                  </span>
-                  <span className="pt-0.5">{step}</span>
-                </li>
-              ))}
-            </ol>
-
-            <div className="rounded-xl border border-border bg-background/70 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Still blocked? Run once in Terminal
-              </p>
-              <code className="mt-3 block overflow-x-auto rounded-lg bg-black/40 p-3 text-sm text-foreground">
-                xattr -cr /Applications/Tunesfork\ Sync.app
-              </code>
             </div>
           </div>
         </section>

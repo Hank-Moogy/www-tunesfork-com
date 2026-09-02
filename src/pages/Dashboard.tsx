@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Upload, Download, ChevronDown, FolderOpen } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import ContributionHeatmap from "@/components/profile/ContributionHeatmap";
 import type { Tables } from "@/integrations/supabase/types";
 import UploadModal from "@/components/UploadModal";
@@ -42,6 +42,7 @@ function useDebounced<T>(value: T, delay = 250) {
 export default function Dashboard() {
   usePageView("dashboard");
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [tab, setTab] = useState<Tab>("all");
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -312,7 +313,7 @@ export default function Dashboard() {
     }
   };
 
-  const openUpload = () => setUploadOpen(true);
+  const openUpload = () => navigate("/desktop-app");
 
   // Only show the first-time empty state when we're certain the user has zero projects.
   // Guard against races where the standalone count query resolves with 0 even though
@@ -406,7 +407,8 @@ export default function Dashboard() {
               onNewProject={openUpload}
               onFilesDropped={(files) => {
                 setPendingFiles(files);
-                setUploadOpen(true);
+                trackButtonClick("dashboard_drop_redirect_to_sync", "dashboard", { file_count: files.length });
+                openUpload();
               }}
               showNewTile={tab !== "shared"}
             />

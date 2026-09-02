@@ -58,9 +58,10 @@ function parseManifest(value: unknown): { schema_version: 1; files: ManifestFile
     throw new Error("Invalid manifest schema");
   }
   const seenPaths = new Set<string>();
+  let hasAbletonSet = false;
   const files = input.files.map((raw) => {
     const file = raw as Record<string, unknown>;
-    const filePath = String(file.path ?? "");
+    const filePath = String(file.path ?? "").normalize("NFC");
     const sha256 = String(file.sha256 ?? "");
     const logical = file.logical_sha256 == null ? undefined : String(file.logical_sha256);
     const size = Number(file.size);
@@ -72,8 +73,9 @@ function parseManifest(value: unknown): { schema_version: 1; files: ManifestFile
     if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
       throw new Error("Manifest path traversal is not allowed");
     }
-    if (seenPaths.has(filePath)) throw new Error("Manifest contains duplicate paths");
-    seenPaths.add(filePath);
+    const collisionKey = filePath.toLocaleLowerCase("en-US");
+    if (seenPaths.has(collisionKey)) throw new Error("Manifest contains duplicate or colliding paths");
+    seenPaths.add(collisionKey);
     if (!/^[0-9a-f]{64}$/.test(sha256) || (logical && !/^[0-9a-f]{64}$/.test(logical))) {
       throw new Error("Manifest contains an invalid SHA-256");
     }
@@ -81,8 +83,10 @@ function parseManifest(value: unknown): { schema_version: 1; files: ManifestFile
       throw new Error("Manifest contains an invalid file size");
     }
     if (!Number.isFinite(mtimeMs) || mtimeMs < 0) throw new Error("Manifest contains an invalid mtime");
+    if (filePath.toLowerCase().endsWith(".als")) hasAbletonSet = true;
     return { path: filePath, sha256, logical_sha256: logical, size, mtime_ms: mtimeMs };
   });
+  if (!hasAbletonSet) throw new Error("Manifest does not contain an Ableton .als file");
   return { schema_version: 1, files };
 }
 
@@ -173,161 +177,105 @@ Deno.serve(async (req) => {
       });
     }
 
-    const blobReferences: { user_id: string; sha256: string }[] = [];
     if (manifest) {
-      const uniqueFiles = new Map(manifest.files.map((file) => [file.sha256, file]));
-      const registered = new Set<string>();
-      const hashes = [...uniqueFiles.keys()];
-      for (let offset = 0; offset < hashes.length; offset += 100) {
-        const { data, error } = await admin.from("project_blobs")
-          .select("sha256,size_bytes")
-          .eq("user_id", userId)
-          .in("sha256", hashes.slice(offset, offset + 100));
-        if (error) throw error;
-        for (const blob of data ?? []) {
-          const expected = uniqueFiles.get(blob.sha256);
-          if (expected && Number(blob.size_bytes) === expected.size) registered.add(blob.sha256);
-        }
+      const reservationId = String(body.reservation_id ?? "");
+      if (!/^[0-9a-f-]{36}$/i.test(reservationId)) {
+        return new Response(JSON.stringify({
+          code: "RESERVATION_REQUIRED",
+          error: "A valid upload reservation is required",
+        }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
-      for (const [sha256, expected] of uniqueFiles) {
-        if (!registered.has(sha256)) {
-          const { data: objects, error } = await admin.storage.from("project-blobs")
-            .list(userId, { search: sha256, limit: 10 });
-          if (error) throw error;
-          const object = objects?.find((candidate) => candidate.name === sha256);
-          if (!object || Number(object.metadata?.size) !== expected.size) {
-            return new Response(JSON.stringify({ error: `Missing or invalid content blob ${sha256}` }), {
-              status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
-          const { error: upsertError } = await admin.from("project_blobs").upsert({
-            user_id: userId,
-            sha256,
-            size_bytes: expected.size,
-            object_path: `${userId}/${sha256}`,
-          }, { onConflict: "user_id,sha256" });
-          if (upsertError) throw upsertError;
-        }
-        blobReferences.push({ user_id: userId, sha256 });
-      }
-    }
-
-    // Resolve project: existing or new
-    let projectId: string;
-    if (body.project_id) {
-      const { data: proj } = await admin.from("projects").select("id, owner_id").eq("id", body.project_id).maybeSingle();
-      if (!proj) {
-        return new Response(JSON.stringify({ error: "Project not found" }), {
+      const { data: reservation } = await admin.from("upload_reservations")
+        .select("id,storage_owner_id,uploader_id,status,expires_at")
+        .eq("id", reservationId).eq("uploader_id", userId).maybeSingle();
+      if (!reservation) {
+        return new Response(JSON.stringify({ code: "RESERVATION_NOT_FOUND", error: "Upload reservation not found" }), {
           status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      // Ownership/contributor check
-      if (proj.owner_id !== userId) {
-        const { data: collab } = await admin
-          .from("collaborators")
-          .select("permission_level")
-          .eq("project_id", proj.id)
-          .eq("user_id", userId)
-          .maybeSingle();
-        if (!collab || collab.permission_level !== "contributor") {
-          return new Response(JSON.stringify({ error: "Not allowed to upload to this project" }), {
-            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (reservation.status !== "active" || new Date(reservation.expires_at).getTime() <= Date.now()) {
+        return new Response(JSON.stringify({ code: "RESERVATION_EXPIRED", error: "Upload reservation expired" }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: reservedBlobs, error: reservedError } = await admin
+        .from("upload_reservation_blobs")
+        .select("sha256,size_bytes,object_path")
+        .eq("reservation_id", reservationId);
+      if (reservedError) throw reservedError;
+
+      const expected = new Map((reservedBlobs ?? []).map((blob) => [blob.sha256, blob]));
+      const found = new Map<string, number>();
+      for (let offset = 0; expected.size && offset < 100_000; offset += 1000) {
+        const { data: objects, error: listError } = await admin.storage.from("project-blobs")
+          .list(reservation.storage_owner_id, { limit: 1000, offset, sortBy: { column: "name", order: "asc" } });
+        if (listError) throw listError;
+        for (const object of objects ?? []) {
+          if (expected.has(object.name)) found.set(object.name, Number(object.metadata?.size ?? 0));
+        }
+        if (!objects || objects.length < 1000 || found.size === expected.size) break;
+      }
+
+      const readyBlobs = [];
+      for (const [sha256, expectedBlob] of expected) {
+        const actualSize = found.get(sha256);
+        if (actualSize == null) {
+          return new Response(JSON.stringify({ code: "BLOB_MISSING", error: `Missing content blob ${sha256}` }), {
+            status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
+        if (actualSize !== Number(expectedBlob.size_bytes)) {
+          return new Response(JSON.stringify({ code: "BLOB_SIZE_MISMATCH", error: `Invalid content blob ${sha256}` }), {
+            status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        readyBlobs.push({ sha256, size: actualSize });
       }
-      projectId = proj.id;
-    } else {
-      const projectName = String(body.project_name ?? "Untitled").slice(0, 200);
 
-      // Try to find an existing project owned by this user with the same name.
-      // This makes repeated saves of the same .als append as new versions instead
-      // of creating duplicate projects on every save.
-      const { data: existing } = await admin
-        .from("projects")
-        .select("id")
-        .eq("owner_id", userId)
-        .eq("name", projectName)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (existing) {
-        projectId = existing.id;
-      } else {
-        const { data: created, error: cErr } = await admin
-          .from("projects")
-          .insert({ name: projectName, bpm: body.bpm ?? null, owner_id: userId })
-          .select()
-          .single();
-        if (cErr) throw cErr;
-        projectId = created.id;
+      const { data: result, error: finalizeError } = await admin.rpc("finalize_manifest_project_version", {
+        _reservation_id: reservationId,
+        _uploader_id: userId,
+        _project_name: String(body.project_name ?? "Untitled"),
+        _manifest: manifest,
+        _logical_size: fileSize,
+        _change_note: body.change_note ?? "Auto-saved from desktop",
+        _bpm: body.bpm ?? null,
+        _plugin_list: body.plugin_list ?? null,
+        _track_list: body.track_list ?? null,
+        _ableton_version: body.ableton_version ?? null,
+        _sample_check: sampleCheck,
+        _ready_blobs: readyBlobs,
+        _uploaded_bytes: Number(body.bytes_uploaded ?? 0),
+        _reused_bytes: Math.max(0, fileSize - Number(body.bytes_uploaded ?? 0)),
+      });
+      if (finalizeError || !result?.version_id) {
+        const message = finalizeError?.message ?? "VERSION_FINALIZATION_FAILED";
+        const code = ["RESERVATION_EXPIRED", "BLOB_MISSING", "PROJECT_LIMIT_REACHED"]
+          .find((candidate) => message.includes(candidate)) ?? "VERSION_FINALIZATION_FAILED";
+        return new Response(JSON.stringify({ code, error: message }), {
+          status: code === "BLOB_MISSING" || code === "RESERVATION_EXPIRED" ? 409 : 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
-    }
 
-    // Desktop saves are snapshots within the current major version: they reuse
-    // the highest version_number (saves group by duplicate version_number).
-    // promote_project_version() creates the next major; autosync must not turn
-    // every Ableton save into V2, V3, V4...
-    const { data: latest } = await admin
-      .from("project_versions")
-      .select("version_number, major_version")
-      .eq("project_id", projectId)
-      .order("version_number", { ascending: false })
-      .limit(1);
-    const versionNumber = latest && latest[0]?.version_number ? latest[0].version_number : 1;
-    const majorVersion = latest && latest[0]?.major_version ? latest[0].major_version : versionNumber;
-    const isFirstVersion = !latest || latest.length === 0;
-
-    const { data: version, error: vErr } = await admin
-      .from("project_versions")
-      .insert({
-        project_id: projectId,
-        version_number: versionNumber,
-        major_version: majorVersion,
-        is_main_version: isFirstVersion,
-        uploader_id: userId,
-        change_note: body.change_note ?? "Auto-saved from desktop",
-        zip_url: zipPath || null,
-        manifest,
-        plugin_list: body.plugin_list ?? null,
-        track_list: body.track_list ?? null,
-        ableton_version: body.ableton_version ?? null,
-        sample_check: sampleCheck,
-        file_size_bytes: fileSize,
-      })
-      .select()
-      .single();
-    if (vErr) throw vErr;
-
-    if (blobReferences.length) {
-      const { error: refError } = await admin.from("project_version_blobs").insert(
-        blobReferences.map((blob) => ({ version_id: version.id, ...blob })),
-      );
-      if (refError) {
-        await admin.from("project_versions").delete().eq("id", version.id);
-        throw refError;
-      }
-    }
-
-    // Bump the project's updated_at (and refresh BPM if we got one) so the
-    // dashboard card and project page reflect the latest save.
-    const projectUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (body.bpm != null) projectUpdate.bpm = body.bpm;
-    await admin.from("projects").update(projectUpdate).eq("id", projectId);
-
-    await admin.from("device_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tokenRow.id);
-
-    return new Response(
-      JSON.stringify({
-        project_id: projectId,
-        version_id: version.id,
-        version_number: versionNumber,
+      await admin.from("device_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tokenRow.id);
+      return new Response(JSON.stringify({
+        ...result,
         share_ready: shareReady,
         sample_check: sampleCheck,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    return new Response(JSON.stringify({
+      code: "LEGACY_ZIP_UPLOAD_DISABLED",
+      error: "Full-project ZIP uploads are disabled. Update Tunesfork Sync to use incremental sync.",
+    }), {
+      status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (e) {
     console.error("[create-version-from-desktop]", e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {

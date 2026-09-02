@@ -14,21 +14,46 @@ serve(async (req) => {
   }
 
   try {
-    const { priceId, quantity, customerEmail, userId, returnUrl, environment } = await req.json();
-    if (!priceId || typeof priceId !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(priceId)) {
+    const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    if (!bearer) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: { user }, error: authError } = await supabase.auth.getUser(bearer);
+    if (authError || !user?.email) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { priceId } = await req.json();
+    const allowedPrices = new Set([
+      "producer_monthly", "producer_yearly",
+      "founding_producer_monthly", "founding_producer_yearly",
+      "studio_monthly", "studio_yearly",
+    ]);
+    if (typeof priceId !== "string" || !allowedPrices.has(priceId)) {
       return new Response(JSON.stringify({ error: "Invalid priceId" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const env = (environment || 'sandbox') as StripeEnv;
+    const configuredEnvironment = Deno.env.get("STRIPE_ENVIRONMENT") || "sandbox";
+    if (configuredEnvironment !== "sandbox" && configuredEnvironment !== "live") {
+      throw new Error("STRIPE_ENVIRONMENT must be sandbox or live");
+    }
+    const env = configuredEnvironment as StripeEnv;
     const stripe = createStripeClient(env);
 
-    // Check 50-spot limit for launch offer
-    if (priceId === 'launch_offer_once') {
-      const { data: countResult } = await supabase.rpc('count_launch_purchases', { check_env: env });
-      if (countResult !== null && countResult >= 50) {
+    if (priceId.startsWith("founding_producer_")) {
+      const { data: reserved, error: reserveError } = await supabase.rpc("reserve_founding_producer_slot", {
+        _user_id: user.id,
+        _environment: env,
+        _interval: priceId.endsWith("yearly") ? "year" : "month",
+      });
+      if (reserveError || !reserved) {
         return new Response(JSON.stringify({ error: "Launch offer sold out" }), {
           status: 410,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -45,19 +70,24 @@ serve(async (req) => {
       });
     }
     const stripePrice = prices.data[0];
-    const isRecurring = stripePrice.type === "recurring";
+    if (stripePrice.type !== "recurring") throw new Error("Configured price is not recurring");
 
+    const requestOrigin = req.headers.get("origin") || "";
+    const fallbackAllowed = /^https:\/\/(www\.)?tunesfork\.com$/i.test(requestOrigin)
+      || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
+    const siteUrl = (Deno.env.get("PUBLIC_SITE_URL") || (fallbackAllowed ? requestOrigin : "")).replace(/\/$/, "");
+    if (!siteUrl) throw new Error("PUBLIC_SITE_URL is not configured");
     const session = await stripe.checkout.sessions.create({
-      line_items: [{ price: stripePrice.id, quantity: quantity || 1 }],
-      mode: isRecurring ? "subscription" : "payment",
+      line_items: [{ price: stripePrice.id, quantity: 1 }],
+      mode: "subscription",
       ui_mode: "embedded",
-      return_url: returnUrl || `${req.headers.get("origin")}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
-      ...(customerEmail && { customer_email: customerEmail }),
-      ...(userId && {
-        metadata: { userId },
-        ...(isRecurring && { subscription_data: { metadata: { userId } } }),
-        ...(!isRecurring && { payment_intent_data: { metadata: { userId } } }),
-      }),
+      return_url: `${siteUrl}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
+      customer_email: user.email,
+      client_reference_id: user.id,
+      metadata: { userId: user.id, lookupKey: priceId, plan: priceId.replace(/_(monthly|yearly)$/, "") },
+      subscription_data: {
+        metadata: { userId: user.id, lookupKey: priceId, plan: priceId.replace(/_(monthly|yearly)$/, "") },
+      },
     });
 
     return new Response(JSON.stringify({ clientSecret: session.client_secret }), {

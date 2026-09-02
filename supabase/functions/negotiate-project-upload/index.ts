@@ -4,6 +4,7 @@ import { z } from "https://esm.sh/zod@3.25.76";
 
 const BodySchema = z.object({
   project_id: z.string().uuid().nullable().optional(),
+  logical_size: z.number().int().nonnegative().optional(),
   files: z.array(z.object({
     sha256: z.string().regex(/^[0-9a-f]{64}$/),
     size: z.number().int().nonnegative().max(5 * 1024 * 1024 * 1024),
@@ -40,47 +41,76 @@ Deno.serve(async (req) => {
       .select("id,user_id").eq("token_hash", tokenHash).is("revoked_at", null).maybeSingle();
     if (!tokenRow) return json({ error: "Invalid or revoked token" }, 401);
 
-    if (parsed.data.project_id) {
-      const { data: project } = await admin.from("projects")
-        .select("id,owner_id").eq("id", parsed.data.project_id).maybeSingle();
-      if (!project) return json({ error: "Project not found" }, 404);
-      if (project.owner_id !== tokenRow.user_id) {
-        const { data: collaborator } = await admin.from("collaborators")
-          .select("permission_level")
-          .eq("project_id", project.id).eq("user_id", tokenRow.user_id).maybeSingle();
-        if (collaborator?.permission_level !== "contributor") {
-          return json({ error: "Not allowed to upload to this project" }, 403);
-        }
-      }
-    }
-
     const unique = new Map(parsed.data.files.map((file) => [file.sha256, file]));
-    const known = new Set<string>();
-    const hashes = [...unique.keys()];
-    for (let offset = 0; offset < hashes.length; offset += 100) {
-      const { data, error } = await admin.from("project_blobs")
-        .select("sha256,size_bytes")
-        .eq("user_id", tokenRow.user_id)
-        .in("sha256", hashes.slice(offset, offset + 100));
-      if (error) throw error;
-      for (const blob of data ?? []) {
-        const requested = unique.get(blob.sha256);
-        if (requested && Number(blob.size_bytes) === requested.size) known.add(blob.sha256);
-      }
+    const { data: reservation, error: reserveError } = await admin.rpc("reserve_project_upload", {
+      _uploader_id: tokenRow.user_id,
+      _project_id: parsed.data.project_id ?? null,
+      _files: [...unique.values()].map((file) => ({
+        sha256: file.sha256,
+        size_bytes: file.size,
+      })),
+    });
+    if (reserveError || !reservation?.reservation_id) {
+      const message = reserveError?.message ?? "UPLOAD_RESERVATION_FAILED";
+      const code = message.includes("QUOTA_EXCEEDED")
+        ? "QUOTA_EXCEEDED"
+        : message.includes("UPLOAD_CONFLICT")
+        ? "UPLOAD_CONFLICT"
+        : message.includes("BLOB_SIZE_MISMATCH")
+        ? "BLOB_SIZE_MISMATCH"
+        : message.includes("PROJECT_LIMIT_REACHED")
+        ? "PROJECT_LIMIT_REACHED"
+        : message.includes("PROJECT_UPLOAD_FORBIDDEN")
+        ? "PROJECT_UPLOAD_FORBIDDEN"
+        : message.includes("PROJECT_NOT_FOUND")
+        ? "PROJECT_NOT_FOUND"
+        : "UPLOAD_RESERVATION_FAILED";
+      const status = code === "QUOTA_EXCEEDED" ? 413
+        : code === "UPLOAD_CONFLICT" ? 409
+        : code === "BLOB_SIZE_MISMATCH" ? 409
+        : code === "PROJECT_LIMIT_REACHED" ? 409
+        : code === "PROJECT_UPLOAD_FORBIDDEN" ? 403
+        : code === "PROJECT_NOT_FOUND" ? 404
+        : 400;
+      return json({ code, error: message, detail: reserveError?.details ?? null }, status);
     }
 
     const missing = [];
-    for (const [sha256] of unique) {
-      if (known.has(sha256)) continue;
-      const objectPath = `${tokenRow.user_id}/${sha256}`;
-      const { data, error } = await admin.storage.from("project-blobs")
-        .createSignedUploadUrl(objectPath, { upsert: false });
-      if (error || !data?.signedUrl) throw new Error(error?.message ?? `Could not authorize ${sha256}`);
-      missing.push({ sha256, object_path: objectPath, signed_url: data.signedUrl, token: data.token });
+    try {
+      for (const target of reservation.missing ?? []) {
+        const { data, error } = await admin.storage.from("project-blobs")
+          .createSignedUploadUrl(target.object_path, { upsert: false });
+        if (error || !data?.signedUrl) {
+          throw new Error(error?.message ?? `Could not authorize ${target.sha256}`);
+        }
+        missing.push({
+          sha256: target.sha256,
+          size: target.size,
+          object_path: target.object_path,
+          signed_url: data.signedUrl,
+          token: data.token,
+        });
+      }
+    } catch (error) {
+      await admin.rpc("cancel_upload_reservation", {
+        _reservation_id: reservation.reservation_id,
+        _uploader_id: tokenRow.user_id,
+      });
+      throw error;
     }
 
     await admin.from("device_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tokenRow.id);
-    return json({ missing, reused: unique.size - missing.length });
+    const missingBytes = missing.reduce((sum, blob) => sum + Number(blob.size || 0), 0);
+    return json({
+      reservation_id: reservation.reservation_id,
+      expires_at: reservation.expires_at,
+      missing,
+      reused: unique.size - missing.length,
+      reused_bytes: parsed.data.logical_size == null
+        ? reservation.reused_bytes ?? 0
+        : Math.max(0, parsed.data.logical_size - missingBytes),
+      usage: reservation.usage,
+    });
   } catch (error) {
     console.error("[negotiate-project-upload]", error);
     return json({ error: (error as Error).message }, 500);

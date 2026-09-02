@@ -8,15 +8,22 @@ serve(async (req) => {
   }
 
   try {
-    const { priceId, environment } = await req.json();
-    if (!priceId || typeof priceId !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(priceId)) {
+    const { priceId } = await req.json();
+    const allowedPrices = new Set([
+      "producer_monthly", "producer_yearly",
+      "founding_producer_monthly", "founding_producer_yearly",
+      "studio_monthly", "studio_yearly",
+    ]);
+    if (typeof priceId !== "string" || !allowedPrices.has(priceId)) {
       return new Response(JSON.stringify({ error: "Invalid priceId" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const env = (environment || 'sandbox') as StripeEnv;
+    const configuredEnvironment = Deno.env.get("STRIPE_ENVIRONMENT") || "sandbox";
+    if (configuredEnvironment !== "sandbox" && configuredEnvironment !== "live") throw new Error("Invalid Stripe environment");
+    const env = configuredEnvironment as StripeEnv;
     const stripe = createStripeClient(env);
 
     const prices = await stripe.prices.list({ lookup_keys: [priceId] });

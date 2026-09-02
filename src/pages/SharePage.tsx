@@ -14,7 +14,7 @@ import type { Track } from "@/lib/als-parser";
 import { Music, Users, Layers, ArrowRight, Sparkles, AlertTriangle, ExternalLink } from "lucide-react";
 import PluginMatchSection from "@/components/PluginMatchSection";
 import { usePageView } from "@/hooks/usePageView";
-import { trackButtonClick } from "@/lib/analytics";
+import { trackButtonClick, trackSemanticEvent } from "@/lib/analytics";
 import { getInAppBrowserName, tryOpenInExternalBrowser } from "@/lib/inAppBrowser";
 
 export default function SharePage() {
@@ -76,6 +76,7 @@ export default function SharePage() {
         console.warn("notify-invite-accepted failed", e);
       }
       toast({ title: "Invite accepted", description: "You now have access to this project." });
+      trackSemanticEvent("Invitation Accepted", { project_id: data });
       navigate(`/project/${data}`, { replace: true });
     })();
   }, [authLoading, user, token, accepting, navigate, toast]);

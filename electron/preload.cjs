@@ -16,4 +16,6 @@ contextBridge.exposeInMainWorld("tfsync", {
   stopSync: () => ipcRenderer.invoke("stop-sync"),
   signOut: () => ipcRenderer.invoke("sign-out"),
   onLog: (cb) => ipcRenderer.on("log", (_e, line) => cb(line)),
+  onAnalytics: (cb) => ipcRenderer.on("analytics-event", (_e, event) => cb(event)),
+  onAnalyticsFlush: (cb) => ipcRenderer.on("analytics-flush", () => cb()),
 });

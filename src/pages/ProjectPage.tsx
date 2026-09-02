@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseDynamic } from "@/lib/supabaseDynamic";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
@@ -66,7 +67,6 @@ import type { SampleCheck } from "@/components/SampleCheckBadge";
 import OpenInAbletonButton from "@/components/OpenInAbletonButton";
 import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick, trackShareCompleted } from "@/lib/analytics";
-import JSZip from "jszip";
 
 type Project = Tables<"projects">;
 type Version = Tables<"project_versions">;
@@ -208,6 +208,8 @@ export default function ProjectPage() {
   const [downloading, setDownloading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [versionDeleteOpen, setVersionDeleteOpen] = useState(false);
+  const [deletingVersion, setDeletingVersion] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [projectView, setProjectView] = useState<"arrangement" | "session">("arrangement");
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -272,7 +274,7 @@ export default function ProjectPage() {
         setCollaborators(collabs.map((c) => ({ ...c, profile: pMap.get(c.user_id) ?? null })));
       }
       // RLS limits these rows to the project owner; others get an empty list.
-      const { data: invites } = await (supabase as any)
+      const { data: invites } = await supabaseDynamic
         .from("project_invites")
         .select("id, email, permission_level, token, expires_at")
         .eq("project_id", id)
@@ -345,29 +347,13 @@ export default function ProjectPage() {
 
       let archive: Blob;
       if (download?.kind === "manifest") {
-        const manifest = download.manifest as {
-          schema_version: number;
-          files: Array<{ path: string; sha256: string; size: number; signed_url: string }>;
-        };
-        if (manifest?.schema_version !== 1 || !Array.isArray(manifest.files)) {
-          throw new Error("Invalid project manifest.");
-        }
-        const zip = new JSZip();
-        for (const file of manifest.files) {
-          const segments = file.path.split("/");
-          if (file.path.startsWith("/") || file.path.includes("\\") || segments.some((part) => !part || part === "." || part === "..")) {
-            throw new Error("Project manifest contains an unsafe path.");
-          }
-          const response = await fetch(file.signed_url);
-          if (!response.ok) throw new Error(`Could not download ${file.path}.`);
-          const bytes = await response.arrayBuffer();
-          if (bytes.byteLength !== file.size) throw new Error(`Integrity check failed for ${file.path}.`);
-          const digest = await crypto.subtle.digest("SHA-256", bytes);
-          const actualHash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-          if (actualHash !== file.sha256) throw new Error(`Integrity check failed for ${file.path}.`);
-          zip.file(file.path, bytes, { binary: true, compression: "STORE" });
-        }
-        archive = await zip.generateAsync({ type: "blob", compression: "STORE" });
+        toast({
+          title: "Restore with Tunesfork Sync",
+          description: "Incremental versions are reconstructed safely by the desktop app.",
+        });
+        navigate("/desktop-app");
+        setDownloading(false);
+        return;
       } else {
         if (!download?.signedUrl) throw new Error("No archive returned.");
         const response = await fetch(download.signedUrl);
@@ -435,34 +421,36 @@ export default function ProjectPage() {
     setUploadingPreview(true);
 
     try {
-      const extension = previewFile.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "mp3";
-      const audioPath = `${user.id}/${selectedVersion.id}-${Date.now()}.${extension}`;
-      const { error: uploadError } = await supabase.storage
-        .from("audio-previews")
-        .upload(audioPath, previewFile, {
+      const { data: reservation, error: reservationError } = await supabase.functions.invoke(
+        "set-version-audio-preview",
+        { body: {
+          action: "reserve",
+          version_id: selectedVersion.id,
+          size_bytes: previewFile.size,
+          content_type: previewFile.type || "audio/mpeg",
+        } },
+      );
+      if (reservationError || !reservation?.token) throw reservationError ?? new Error("Could not reserve preview storage");
+      const { error: uploadError } = await supabase.storage.from("audio-previews")
+        .uploadToSignedUrl(reservation.object_path, reservation.token, previewFile, {
+          contentType: previewFile.type || "audio/mpeg",
           cacheControl: "3600",
-          contentType: previewFile.type || undefined,
-          upsert: false,
         });
       if (uploadError) throw uploadError;
+      const { data: finalized, error: finalizeError } = await supabase.functions.invoke(
+        "set-version-audio-preview",
+        { body: {
+          action: "finalize",
+          reservation_id: reservation.reservation_id,
+          version_id: selectedVersion.id,
+        } },
+      );
+      if (finalizeError || !finalized?.audio_preview_url) throw finalizeError ?? new Error("Could not finalize preview");
 
-      const { data: publicAudio } = supabase.storage
-        .from("audio-previews")
-        .getPublicUrl(audioPath);
-
-      const { data: updatedVersion, error: updateError } = await supabase
-        .rpc("set_version_audio_preview", {
-          _version_id: selectedVersion.id,
-          _audio_preview_url: publicAudio.publicUrl,
-        });
-      if (updateError) {
-        await supabase.storage.from("audio-previews").remove([audioPath]);
-        throw updateError;
-      }
-
-      const nextVersion = (updatedVersion ?? {
+      const nextVersion = ({
         ...selectedVersion,
-        audio_preview_url: publicAudio.publicUrl,
+        audio_preview_url: finalized.audio_preview_url,
+        audio_preview_size_bytes: previewFile.size,
       }) as Version;
       setSelectedVersion(nextVersion);
       setVersions((current) =>
@@ -497,7 +485,7 @@ export default function ProjectPage() {
   };
 
   const handleRevokeInvite = async (inviteId: string) => {
-    const { error } = await (supabase as any).from("project_invites").delete().eq("id", inviteId);
+    const { error } = await supabaseDynamic.from("project_invites").delete().eq("id", inviteId);
     if (error) {
       toast({ title: "Could not revoke invite", description: error.message, variant: "destructive" });
       return;
@@ -525,7 +513,7 @@ export default function ProjectPage() {
     const targetUserId = matches && matches.length > 0 ? matches[0].user_id : null;
     if (!targetUserId) {
       // No account yet — create a personal invite link the user shares directly.
-      const { data: invite, error: invErr } = await (supabase as any).rpc("create_project_invite", {
+      const { data: invite, error: invErr } = await supabaseDynamic.rpc("create_project_invite", {
         _project_id: project.id,
         _email: email,
         _permission: collabRole,
@@ -535,7 +523,7 @@ export default function ProjectPage() {
       } else {
         trackButtonClick("project_invite_link_created", "project", { project_id: project.id, role: collabRole });
         setInviteLink(`${window.location.origin}/invite/${invite.token}`);
-        const { data: invites } = await (supabase as any)
+        const { data: invites } = await supabaseDynamic
           .from("project_invites")
           .select("id, email, permission_level, token, expires_at")
           .eq("project_id", project.id)
@@ -597,6 +585,22 @@ export default function ProjectPage() {
     }
   };
 
+  const handleDeleteVersion = async () => {
+    if (!selectedVersion || versions.length <= 1) return;
+    setDeletingVersion(true);
+    const { error } = await supabaseDynamic.rpc("delete_project_version", {
+      _version_id: selectedVersion.id,
+    });
+    if (error) {
+      toast({ title: "Could not delete version", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Version deleted", description: "Unreferenced files will be reclaimed automatically." });
+      setVersionDeleteOpen(false);
+      await refreshVersions();
+    }
+    setDeletingVersion(false);
+  };
+
   const refreshVersions = async (selectedId?: string) => {
     if (!project) return;
     const { data } = await supabase
@@ -622,7 +626,7 @@ export default function ProjectPage() {
       from_version_number: selectedVersion.version_number,
     });
     setPromoting(true);
-    const { data, error } = await (supabase as any).rpc("promote_project_version", {
+    const { data, error } = await supabaseDynamic.rpc("promote_project_version", {
       _version_id: selectedVersion.id,
     });
     if (error) {
@@ -705,7 +709,7 @@ export default function ProjectPage() {
                   className="h-7 w-7 rounded-full text-muted-foreground hover:text-foreground"
                   onClick={() => {
                     trackButtonClick("project_upload_version", "project_versions_panel", { project_id: project?.id });
-                    setUploadOpen(true);
+                    navigate("/desktop-app");
                   }}
                 >
                   <Plus className="h-4 w-4" />
@@ -923,12 +927,22 @@ export default function ProjectPage() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     {project.owner_id === user?.id && (
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive gap-2"
-                        onClick={() => setDeleteOpen(true)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" /> Delete project
-                      </DropdownMenuItem>
+                      <>
+                        {versions.length > 1 && selectedVersion && (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive gap-2"
+                            onClick={() => setVersionDeleteOpen(true)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Delete selected version
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive gap-2"
+                          onClick={() => setDeleteOpen(true)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Delete project
+                        </DropdownMenuItem>
+                      </>
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1353,6 +1367,27 @@ export default function ProjectPage() {
               disabled={deleting}
             >
               {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={versionDeleteOpen} onOpenChange={setVersionDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this version?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Its comments and exclusive stored files will become eligible for cleanup. Other versions remain restorable.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingVersion}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteVersion}
+              disabled={deletingVersion}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingVersion ? "Deleting…" : "Delete version"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

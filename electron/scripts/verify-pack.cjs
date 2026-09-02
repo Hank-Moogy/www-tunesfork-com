@@ -150,6 +150,26 @@ if (process.platform === "darwin") {
       } else {
         console.log("[verify-pack]   ok: hardened runtime");
       }
+      if (process.env.TUNESFORK_NOTARIZE === "1") {
+        if (!details.includes("Authority=Developer ID Application:")) {
+          console.error(`[verify-pack]   RELEASE IS NOT DEVELOPER ID SIGNED: ${app}`);
+          failed = true;
+        }
+        try {
+          execSync(`xcrun stapler validate "${app}"`, { stdio: "pipe" });
+          console.log("[verify-pack]   ok: notarization ticket stapled");
+        } catch (error) {
+          console.error(`[verify-pack]   NOTARIZATION TICKET INVALID: ${error.message}`);
+          failed = true;
+        }
+        try {
+          execSync(`spctl --assess --type execute --verbose=4 "${app}"`, { stdio: "pipe" });
+          console.log("[verify-pack]   ok: Gatekeeper accepts app");
+        } catch (error) {
+          console.error(`[verify-pack]   GATEKEEPER REJECTED APP: ${error.message}`);
+          failed = true;
+        }
+      }
       const info = execSync(`plutil -p "${path.join(app, "Contents", "Info.plist")}"`, { encoding: "utf8" });
       for (const key of [
         "NSDocumentsFolderUsageDescription",

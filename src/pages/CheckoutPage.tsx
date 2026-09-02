@@ -4,7 +4,6 @@ import { StripeEmbeddedCheckout } from "@/components/StripeEmbeddedCheckout";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick } from "@/lib/analytics";
@@ -12,7 +11,6 @@ import { trackButtonClick } from "@/lib/analytics";
 export default function CheckoutPage() {
   usePageView("checkout");
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const priceId = searchParams.get("price") || "";
 
@@ -30,9 +28,6 @@ export default function CheckoutPage() {
         </Button>
         <StripeEmbeddedCheckout
           priceId={priceId}
-          customerEmail={user?.email || undefined}
-          userId={user?.id || ""}
-          returnUrl={`${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`}
         />
       </div>
     </div>

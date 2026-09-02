@@ -14,6 +14,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Flame, RefreshCw } from "lucide-react";
+import { flushAnalytics, trackButtonClick } from "@/lib/analytics";
+import { supabaseDynamic } from "@/lib/supabaseDynamic";
 
 export type UserStats = {
   user_id: string;
@@ -47,6 +49,14 @@ export type UserStats = {
     bytes: number;
     version_count: number;
   }[];
+  storage_usage?: {
+    plan: string;
+    grandfathered: boolean;
+    used_bytes: number;
+    reserved_bytes: number;
+    limit_bytes: number | null;
+    warning_level: "none" | "80" | "95" | "limit" | "unlimited";
+  };
 };
 
 export default function ProfilePage() {
@@ -57,18 +67,23 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [openingBilling, setOpeningBilling] = useState(false);
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(
     async (opts: { silent?: boolean } = {}) => {
       if (!user) return;
       if (opts.silent) setRefreshing(true);
-      const [statsRes, profRes] = await Promise.all([
+      const [statsRes, storageRes, profRes] = await Promise.all([
         supabase.rpc("get_user_stats", { p_user_id: user.id }),
+        supabaseDynamic.rpc("get_account_storage_usage", { _user_id: user.id }),
         supabase.from("profiles").select("display_name, avatar_url").eq("user_id", user.id).maybeSingle(),
       ]);
       if (statsRes.error) console.error("get_user_stats", statsRes.error);
-      else setStats(statsRes.data as UserStats);
+      else setStats({
+        ...(statsRes.data as UserStats),
+        storage_usage: storageRes.error ? undefined : storageRes.data,
+      });
       if (profRes.data) setProfile(profRes.data);
       setLastUpdated(new Date());
       setLoading(false);
@@ -131,6 +146,18 @@ export default function ProfilePage() {
   }, [stats]);
 
   const initials = (profile?.display_name ?? user?.email ?? "?").slice(0, 2).toUpperCase();
+  const openBillingPortal = async () => {
+    setOpeningBilling(true);
+    trackButtonClick("manage_billing", "profile", { plan: stats?.storage_usage?.plan });
+    flushAnalytics();
+    const { data, error } = await supabase.functions.invoke("create-portal-session", { body: {} });
+    setOpeningBilling(false);
+    if (error || !data?.url) {
+      console.error("create-portal-session", error || data?.error);
+      return;
+    }
+    window.location.assign(data.url);
+  };
 
   return (
     <div className="min-h-screen">
@@ -160,6 +187,11 @@ export default function ProfilePage() {
             </div>
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            {stats?.storage_usage?.plan && !["free", "legacy"].includes(stats.storage_usage.plan) && (
+              <Button variant="outline" size="sm" onClick={openBillingPortal} disabled={openingBilling}>
+                {openingBilling ? "Opening…" : "Manage billing"}
+              </Button>
+            )}
             {lastUpdated && (
               <span className="font-mono">
                 Updated {lastUpdated.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}

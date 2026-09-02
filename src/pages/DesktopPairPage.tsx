@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Loader2, Monitor } from "lucide-react";
+import { trackSemanticEvent } from "@/lib/analytics";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
@@ -19,6 +20,7 @@ export default function DesktopPairPage() {
     if (!user || !code || state === "confirming" || state === "done") return;
     setState("confirming");
     setError(null);
+    trackSemanticEvent("Device Pairing Started", { surface: "web" });
     try {
       const { data: session } = await supabase.auth.getSession();
       const res = await fetch(
@@ -35,8 +37,9 @@ export default function DesktopPairPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Pairing failed");
       setState("done");
-    } catch (e: any) {
-      setError(e.message);
+      trackSemanticEvent("Device Pairing Completed", { surface: "web" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Pairing failed");
       setState("error");
     }
   }, [code, state, user]);

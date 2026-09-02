@@ -83,12 +83,25 @@ Deno.serve(async (req) => {
       })
       .eq("id", tokenRow.id);
 
+    const [{ data: authUser }, { data: entitlement }, { data: storageUsage }] = await Promise.all([
+      admin.auth.admin.getUserById(tokenRow.user_id),
+      admin.from("account_entitlements")
+        .select("plan")
+        .eq("user_id", tokenRow.user_id)
+        .maybeSingle(),
+      admin.rpc("get_account_storage_usage", { _user_id: tokenRow.user_id }),
+    ]);
+
     return new Response(
       JSON.stringify({
         status: "confirmed",
         token,
         device_name: tokenRow.name,
         user_id: tokenRow.user_id,
+        email: authUser?.user?.email ?? null,
+        plan: entitlement?.plan ?? "free",
+        storage_used_bytes: storageUsage?.used_bytes ?? 0,
+        storage_limit_bytes: storageUsage?.limit_bytes ?? null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

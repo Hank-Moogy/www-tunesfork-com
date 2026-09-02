@@ -1,65 +1,59 @@
-# Storage Optimization Roadmap
+# Storage Optimization — Launch State
 
-Problem: every save uploads the full zipped project folder. Measured 2026-06-11:
-24 versions = 1.66 GB; one project (I:O) = 1.03 GB for ~7 near-identical
-snapshots of a ~148 MB folder. ~90% of stored bytes are duplicated samples.
+Status: launch MVP implemented in the repository. Database migrations and Edge
+Functions must be deployed before enabling the corresponding desktop build.
 
-## Shipped
+## Launch architecture
 
-- **Skip identical saves** (tray app, `electron/main.cjs`): a stable content
-  hash of the project folder is computed before zipping
-  (`computeProjectContentHash`). `.als` files are hashed on their *gunzipped*
-  XML because Ableton's gzip wrapper embeds a timestamp that changes on every
-  ⌘S even without edits. If the hash matches the last successful upload for
-  that folder (`projectLinks[].lastContentHash` in sync state), the upload is
-  skipped. Fail-open: hashing errors fall back to uploading.
-- **Orphan GC** (`cleanup-orphaned-zips` edge function): deletes project-zips and audio-previews
-  objects no `project_versions.zip_url` references. Dry-run by default
-  (`?confirm=true` to delete), never touches objects < 24h old (in-flight
-  uploads), auth = `CLEANUP_TOKEN` function secret as bearer. Run it manually
-  after bulk deletions, or wire it to pg_cron later. Today nothing else
-  deletes storage objects — project deletion cascades DB rows but leaves
-  zips; this function is the cleanup path.
+- Tunesfork Sync is the only upload and manifest-restore client.
+- Manifest schema v1 references immutable `{owner_uuid}/{sha256}` whole-file
+  blobs. Deduplication crosses projects for one owner, never accounts.
+- No-op saves create no version and upload zero bytes. Changed saves upload only
+  missing blobs; the app never silently falls back to a full ZIP.
+- Legacy ZIP versions remain restorable. New versions cannot be inserted through
+  browser storage policies.
+- Physical usage counts distinct referenced ready blobs, legacy ZIPs, and the
+  currently referenced preview. Logical history size remains a separate metric.
+- Collaborator uploads reserve and consume the project owner's allowance.
 
-## Next: auto-save retention (thinning)
+## Entitlements
 
-Promoted majors are permanent. Auto-saves inside a version group decay,
-Time-Machine style: keep everything ≤ 7 days old, then last-per-day ≤ 30
-days, then last-per-week. Nightly job deletes pruned `project_versions`
-rows, then calls `cleanup-orphaned-zips?confirm=true`. Retention window can
-differ per plan tier (free vs paid) once Stripe is live.
+| Plan | Storage | Projects | Collaborators/project | History |
+|---|---:|---:|---:|---|
+| Free | 5 GB | 5 | 3 | Unlimited within storage |
+| Producer | 100 GB | Unlimited | 5 | Unlimited within storage |
+| Founding Producer | 100 GB | Unlimited | 5 | Unlimited within storage |
+| Studio | 500 GB | Unlimited | Unlimited | Unlimited |
+| Legacy | Unlimited, metered | Unlimited | Unlimited | Unlimited |
 
-## The structural fix: content-addressed blobs + manifests (the "git" model)
+Accounts present when migration `20260901160000` is deployed are marked legacy.
+Accounts created afterward receive Free limits.
 
-A save rarely changes anything but the `.als` (a few MB); samples are
-immutable. Plan:
+## Operational controls
 
-1. Tray app already walks + hashes every file (see content hash above).
-   Extend it to produce a **manifest**: `[{ path, sha256, size }]`.
-2. New bucket `blobs/`, object key = `sha256` (optionally per-user prefix
-   for quota accounting: `{userId}/{sha256}`).
-3. New edge function `negotiate-upload`: receives the manifest, returns the
-   subset of hashes the server doesn't have; tray uploads only those files.
-4. `project_versions` gains `manifest jsonb` (zip_url becomes nullable;
-   legacy rows keep their zips — no migration needed).
-5. Export / Open in Ableton: edge function streams a zip assembled from
-   blobs (or returns the manifest + signed URLs and the desktop app
-   assembles locally).
-6. GC: a blob is deletable when no manifest references its hash (extend
-   cleanup-orphaned-zips).
+- Upload reservations count against quota and expire after 24 hours.
+- Warnings occur at 80% and 95%; only new uploads are blocked at 100%.
+- Version/project deletion releases logical references immediately. Physical
+  deletion waits at least 24 hours.
+- Cleanup covers ZIPs, previews, expired uploads, and blobs. Production deletion
+  requires two dry runs whose candidate-set SHA-256 fingerprints match exactly.
+- Every cleanup records scanned/candidate/deleted/failed/reclaimed counts.
+- `storage_economics_daily` exposes logical, uploaded, and reused bytes and the
+  deduplication ratio. `storage_transfer_events` records planned restore bytes.
 
-Expected effect: marginal cost of a save drops from full-folder size to
-changed-files size (~30–70× less for typical sessions), plus cross-project
-dedup of shared sample packs.
+Run cleanup with the `CLEANUP_TOKEN` bearer secret. Omit `?confirm=true` for the
+required dry runs.
 
-## Later levers
+## Post-launch cost task
 
-- Compression: zipper currently runs `zlib level 0` (store). `.als` is
-  pre-compressed; WAV/AIFF deflate ~10–30%. Benchmark CPU cost before
-  enabling. Mostly superseded by the manifest model.
-- Optional exclusion of regenerable `Samples/Processed/Freeze/**` (visible
-  tray setting; do NOT silently exclude `.asd` — warp markers).
-- Cold tiering of old blobs to Cloudflare R2 (~$0.015/GB, zero egress) once
-  past a few hundred GB.
-- Per-plan storage quotas (UI already has StorageCard + storage_by_project
-  in get_user_stats) — ties storage cost to monetization.
+Review this monthly once real cohorts exist. Add alerts using live Supabase
+billing values rather than embedding vendor prices in product code. Measure:
+
+- physical bytes and daily growth per account/plan;
+- upload reuse ratio and orphan/reservation bytes;
+- cached and uncached restore egress;
+- gross margin per paid plan and the 95th-percentile account.
+
+Only then evaluate content-defined chunking for large mutable files, cold-tier
+storage, preview lifecycle limits, compression, and CDN caching. These are not
+Launch MVP requirements and must not weaken byte-identical restore guarantees.
