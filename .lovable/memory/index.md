@@ -15,3 +15,7 @@ Lovable Cloud backend. Auth: email + Google OAuth.
 ## Memories
 - [Design tokens](mem://design/tokens) — Color palette, glass utilities, status colors, typography
 - [App plan](mem://features/plan) — Cloudbleton phases: auth → dashboard → upload → project detail → sharing → polish
+
+## Agent-readable product docs
+- `docs/INCREMENTAL_SYNC_SPEC.md` — proposed content-addressed, Git-like sync architecture.
+- `docs/FUTURE_PRODUCT_ROADMAP.md` — exploratory future product directions. Includes **Realtime collaborative tracks inside Ableton, backed by Tunesfork version control**. Treat as a future opportunity requiring a technical spike, not committed current scope.
