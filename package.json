@@ -12,6 +12,10 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "allowScripts": {
+    "@swc/core@1.13.2": true,
+    "esbuild@0.21.5": true
+  },
   "dependencies": {
     "@amplitude/unified": "^1.0.17",
     "@fontsource/roboto": "^5.2.10",
