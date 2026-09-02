@@ -5,9 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import LandingPage from "./pages/LandingPage";
-import LandingPageSocialFlow from "./pages/LandingPageSocialFlow";
-import LandingPageSocialRoom from "./pages/LandingPageSocialRoom";
-import LandingPageGalaxyFlow from "./pages/LandingPageGalaxyFlow";
 import LandingPageGithub from "./pages/LandingPageGithub";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
@@ -29,13 +26,6 @@ import AuthRedirect from "./components/AuthRedirect";
 
 const queryClient = new QueryClient();
 
-const LandingPreview = () => {
-  if (import.meta.env.DEV && window.location.port === "8081") return <LandingPageSocialFlow />;
-  if (import.meta.env.DEV && window.location.port === "8082") return <LandingPageSocialRoom />;
-  if (import.meta.env.DEV && window.location.port === "8083") return <LandingPageGalaxyFlow />;
-  return <LandingPage />;
-};
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -45,7 +35,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/" element={<AuthRedirect />} />
-            <Route path="/welcome" element={<LandingPreview />} />
+            <Route path="/welcome" element={<LandingPage />} />
             <Route path="/welcome/gitsound" element={<LandingPageGithub />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/share/:token" element={<SharePage />} />
