@@ -30,7 +30,13 @@ Deno.serve(async (req) => {
     if (!token) return json({ error: "Missing device token" }, 401);
 
     const parsed = BodySchema.safeParse(await req.json().catch(() => null));
-    if (!parsed.success) return json({ error: parsed.error.flatten() }, 400);
+    if (!parsed.success) {
+      return json({
+        code: "MANIFEST_INVALID",
+        error: "Upload manifest negotiation payload is invalid",
+        detail: parsed.error.flatten(),
+      }, 400);
+    }
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -113,6 +119,6 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error("[negotiate-project-upload]", error);
-    return json({ error: (error as Error).message }, 500);
+    return json({ code: "UPLOAD_RESERVATION_FAILED", error: (error as Error).message }, 500);
   }
 });

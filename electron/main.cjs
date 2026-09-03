@@ -597,7 +597,7 @@ async function processAlsSave(alsPath) {
       project_name: path.basename(projectFolder).replace(/ Project$/i, ""),
       error_code: error?.code || (String(error?.message || "").includes("QUOTA_EXCEEDED") ? "QUOTA_EXCEEDED" : "UPLOAD_FAILED"),
     });
-    if (String(error?.message || "").includes("QUOTA_EXCEEDED")) {
+    if (error?.code === "QUOTA_EXCEEDED" || String(error?.message || "").includes("QUOTA_EXCEEDED")) {
       emitAnalytics("Storage Quota Rejected Upload");
     }
     if (error?.code === "SAMPLES_INCOMPLETE" && Notification.isSupported()) {
@@ -797,7 +797,14 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
   }
   if (!negotiation.ok) {
     const responseText = await negotiation.text();
-    throw new Error(`Incremental upload negotiation failed ${negotiation.status}: ${responseText}`);
+    let responseBody = null;
+    try { responseBody = JSON.parse(responseText); } catch {}
+    const error = new Error(
+      responseBody?.error || `Incremental upload negotiation failed ${negotiation.status}: ${responseText}`,
+    );
+    error.code = responseBody?.code || "UPLOAD_RESERVATION_FAILED";
+    error.detail = responseBody?.detail || null;
+    throw error;
   }
 
   const negotiationResult = await negotiation.json();
@@ -857,7 +864,14 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`Register failed ${response.status}: ${await response.text()}`);
+  if (!response.ok) {
+    const responseText = await response.text();
+    let responseBody = null;
+    try { responseBody = JSON.parse(responseText); } catch {}
+    const error = new Error(responseBody?.error || `Register failed ${response.status}: ${responseText}`);
+    error.code = responseBody?.code || "VERSION_FINALIZATION_FAILED";
+    throw error;
+  }
   const result = await response.json();
   setProjectLink(projectFolder, {
     projectId: result.project_id,
