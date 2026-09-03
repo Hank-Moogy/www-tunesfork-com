@@ -10,6 +10,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 Deno.serve(async (req) => {
   let admin: ReturnType<typeof createClient> | null = null;
   let cleanupRunId: string | null = null;
+  let scannedObjects = 0;
+  let scannedBytes = 0;
+  let candidateObjects = 0;
+  let candidateBytes = 0;
+  let deletedObjects = 0;
+  let reclaimedBytes = 0;
+  let failedObjects = 0;
+  const runErrors: string[] = [];
   try {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const opsToken = Deno.env.get("CLEANUP_TOKEN");
@@ -153,9 +161,10 @@ Deno.serve(async (req) => {
     const audioScan = await scanBucket("audio-previews", referencedAudio);
     const blobScan = await scanBucket("project-blobs", referencedBlobs);
     const allScans = [zipScan, audioScan, blobScan];
-    const scannedBytes = allScans.reduce((sum, scan) => sum + scan.totalBytes, 0);
-    const candidateObjects = allScans.reduce((sum, scan) => sum + scan.orphans.length, 0);
-    const candidateBytes = allScans.reduce(
+    scannedObjects = allScans.reduce((sum, scan) => sum + scan.totalObjects, 0);
+    scannedBytes = allScans.reduce((sum, scan) => sum + scan.totalBytes, 0);
+    candidateObjects = allScans.reduce((sum, scan) => sum + scan.orphans.length, 0);
+    candidateBytes = allScans.reduce(
       (sum, scan) => sum + scan.orphans.reduce((subtotal, item) => subtotal + item.size, 0), 0,
     );
     const candidateKeys = [
@@ -185,11 +194,11 @@ Deno.serve(async (req) => {
         if (cleanupRunId) {
           await admin.from("storage_cleanup_runs").update({
             completed_at: new Date().toISOString(),
-            scanned_objects: allScans.reduce((sum, scan) => sum + scan.totalObjects, 0),
+            scanned_objects: scannedObjects,
             scanned_bytes: scannedBytes,
             candidate_objects: candidateObjects,
             candidate_bytes: candidateBytes,
-            failed_objects: candidateObjects,
+            failed_objects: 0,
             details: { error: "TWO_MATCHING_DRY_RUNS_REQUIRED", fingerprint },
           }).eq("id", cleanupRunId);
         }
@@ -202,7 +211,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    let deleted = 0;
+    const deletedByBucket = new Map<string, { path: string; size: number }[]>();
     if (confirm) {
       for (const [bucket, orphans] of [
         ["project-zips", zipScan.orphans],
@@ -212,28 +221,31 @@ Deno.serve(async (req) => {
         for (let i = 0; i < orphans.length; i += 100) {
           const batch = orphans.slice(i, i + 100);
           const { error } = await admin.storage.from(bucket).remove(batch.map((item) => item.path));
-          if (error) throw error;
-          deleted += batch.length;
+          if (error) {
+            failedObjects += batch.length;
+            runErrors.push(`${bucket}: ${error.message}`);
+            continue;
+          }
+          deletedObjects += batch.length;
+          reclaimedBytes += batch.reduce((sum, item) => sum + item.size, 0);
+          deletedByBucket.set(bucket, [...(deletedByBucket.get(bucket) ?? []), ...batch]);
         }
       }
-      if (blobScan.orphans.length) {
-        for (let i = 0; i < blobScan.orphans.length; i += 100) {
-          const paths = blobScan.orphans.slice(i, i + 100).map((item) => item.path);
+      const deletedBlobs = deletedByBucket.get("project-blobs") ?? [];
+      if (deletedBlobs.length) {
+        for (let i = 0; i < deletedBlobs.length; i += 100) {
+          const paths = deletedBlobs.slice(i, i + 100).map((item) => item.path);
           const { error } = await admin.from("project_blobs").delete().in("object_path", paths);
-          if (error) throw error;
+          if (error) runErrors.push(`project_blobs registry: ${error.message}`);
         }
       }
-      for (const [bucket, orphans] of [
-        ["project-zips", zipScan.orphans],
-        ["audio-previews", audioScan.orphans],
-        ["project-blobs", blobScan.orphans],
-      ] as const) {
-        for (let i = 0; i < orphans.length; i += 100) {
-          const paths = orphans.slice(i, i + 100).map((item) => item.path);
+      for (const [bucket, deletedItems] of deletedByBucket) {
+        for (let i = 0; i < deletedItems.length; i += 100) {
+          const paths = deletedItems.slice(i, i + 100).map((item) => item.path);
           if (paths.length) {
             const { error } = await admin.from("storage_deletion_candidates")
               .delete().eq("bucket", bucket).in("object_path", paths);
-            if (error) throw error;
+            if (error) runErrors.push(`${bucket} candidates: ${error.message}`);
           }
         }
       }
@@ -242,13 +254,18 @@ Deno.serve(async (req) => {
     if (cleanupRunId) {
       await admin.from("storage_cleanup_runs").update({
         completed_at: new Date().toISOString(),
-        scanned_objects: allScans.reduce((sum, scan) => sum + scan.totalObjects, 0),
+        scanned_objects: scannedObjects,
         scanned_bytes: scannedBytes,
         candidate_objects: candidateObjects,
         candidate_bytes: candidateBytes,
-        deleted_objects: deleted,
-        reclaimed_bytes: confirm ? candidateBytes : 0,
-        details: { required_consecutive_dry_runs: 2, fingerprint },
+        deleted_objects: deletedObjects,
+        reclaimed_bytes: reclaimedBytes,
+        failed_objects: failedObjects,
+        details: {
+          required_consecutive_dry_runs: 2,
+          fingerprint,
+          errors: runErrors.slice(0, 20),
+        },
       }).eq("id", cleanupRunId);
     }
 
@@ -259,7 +276,9 @@ Deno.serve(async (req) => {
       referenced: referenced.size + referencedAudio.size + referencedBlobs.size,
       orphans: zipScan.orphans.length + audioScan.orphans.length + blobScan.orphans.length,
       orphan_bytes: candidateBytes,
-      deleted,
+      deleted: deletedObjects,
+      failed: failedObjects,
+      reclaimed_bytes: reclaimedBytes,
       buckets: {
         project_zips: {
           total: zipScan.totalObjects,
@@ -282,14 +301,24 @@ Deno.serve(async (req) => {
         ...audioScan.orphans.map((item) => ({ bucket: "audio-previews", path: item.path, size: item.size })),
         ...blobScan.orphans.map((item) => ({ bucket: "project-blobs", path: item.path, size: item.size })),
       ].slice(0, 10),
-    }), { headers: { "Content-Type": "application/json" } });
+    }), {
+      status: confirm && failedObjects > 0 ? 207 : 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (e) {
     console.error("[cleanup-orphaned-zips]", e);
     if (admin && cleanupRunId) {
+      const fatalError = String((e as Error).message).slice(0, 1000);
       await admin.from("storage_cleanup_runs").update({
         completed_at: new Date().toISOString(),
-        failed_objects: 1,
-        details: { error: String((e as Error).message).slice(0, 1000) },
+        scanned_objects: scannedObjects,
+        scanned_bytes: scannedBytes,
+        candidate_objects: candidateObjects,
+        candidate_bytes: candidateBytes,
+        deleted_objects: deletedObjects,
+        reclaimed_bytes: reclaimedBytes,
+        failed_objects: Math.max(failedObjects, candidateObjects - deletedObjects, 1),
+        details: { error: fatalError, errors: runErrors.slice(0, 20) },
       }).eq("id", cleanupRunId);
     }
     return new Response(JSON.stringify({ error: (e as Error).message }), {
