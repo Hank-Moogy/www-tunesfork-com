@@ -1,7 +1,7 @@
 # Storage Optimization — Launch State
 
-Status: launch MVP implemented in the repository. Database migrations and Edge
-Functions must be deployed before enabling the corresponding desktop build.
+Status: launch MVP implemented and its storage migrations and Edge Functions
+deployed to the linked Supabase project.
 
 ## Launch architecture
 
@@ -42,7 +42,18 @@ Accounts created afterward receive Free limits.
   deduplication ratio. `storage_transfer_events` records planned restore bytes.
 
 Run cleanup with the `CLEANUP_TOKEN` bearer secret. Omit `?confirm=true` for the
-required dry runs.
+required dry runs. Each response includes `cleanup_run_id` and
+`candidate_fingerprint`; two consecutive dry runs must report identical
+candidate counts, bytes, and fingerprints before a confirmed run is accepted.
+
+```sh
+curl -H "Authorization: Bearer $CLEANUP_TOKEN" \
+  "https://urrxrntdkmmmqqwaihfj.supabase.co/functions/v1/cleanup-orphaned-zips"
+```
+
+Run that command twice and inspect both responses. Only after they match, use
+the same request with `?confirm=true`. A confirmed cleanup that has any failed
+deletion batch returns HTTP 207 and records the exact partial result.
 
 ## Post-launch cost task
 

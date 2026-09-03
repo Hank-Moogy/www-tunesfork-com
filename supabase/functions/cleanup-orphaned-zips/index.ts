@@ -205,8 +205,10 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({
           code: "TWO_MATCHING_DRY_RUNS_REQUIRED",
           error: "Run two matching dry runs before deleting storage objects",
+          cleanup_run_id: cleanupRunId,
           candidate_objects: candidateObjects,
           candidate_bytes: candidateBytes,
+          candidate_fingerprint: fingerprint,
         }), { status: 409, headers: { "Content-Type": "application/json" } });
       }
     }
@@ -271,6 +273,8 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       mode: confirm ? "delete" : "dry-run",
+      cleanup_run_id: cleanupRunId,
+      candidate_fingerprint: fingerprint,
       total_objects: zipScan.totalObjects + audioScan.totalObjects + blobScan.totalObjects,
       total_bytes: scannedBytes,
       referenced: referenced.size + referencedAudio.size + referencedBlobs.size,
