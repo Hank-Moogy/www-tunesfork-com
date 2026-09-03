@@ -36,8 +36,18 @@ Deno.serve(async (req) => {
         _size_bytes: size,
       });
       if (error || !reservation?.reservation_id) {
-        const code = error?.message?.includes("QUOTA_EXCEEDED") ? "QUOTA_EXCEEDED" : "PREVIEW_RESERVATION_FAILED";
-        return json({ code, error: error?.message ?? code }, code === "QUOTA_EXCEEDED" ? 413 : 400);
+        const message = error?.message ?? "PREVIEW_RESERVATION_FAILED";
+        const code = [
+          "QUOTA_EXCEEDED",
+          "PREVIEW_SIZE_INVALID",
+          "PREVIEW_UPLOAD_FORBIDDEN",
+          "VERSION_NOT_FOUND",
+        ].find((candidate) => message.includes(candidate)) ?? "PREVIEW_RESERVATION_FAILED";
+        const status = code === "QUOTA_EXCEEDED" ? 413
+          : code === "PREVIEW_UPLOAD_FORBIDDEN" ? 403
+          : code === "VERSION_NOT_FOUND" ? 404
+          : 400;
+        return json({ code, error: message }, status);
       }
       const { data: signed, error: signError } = await admin.storage.from("audio-previews")
         .createSignedUploadUrl(reservation.object_path, { upsert: false });
@@ -62,9 +72,10 @@ Deno.serve(async (req) => {
       const reservationId = String(body.reservation_id ?? "");
       const versionId = String(body.version_id ?? "");
       const { data: reservation } = await admin.from("upload_reservations")
-        .select("id,uploader_id,kind,status,object_path,reserved_bytes")
+        .select("id,uploader_id,kind,status,object_path,reserved_bytes,expires_at")
         .eq("id", reservationId).eq("uploader_id", userId).maybeSingle();
-      if (!reservation || reservation.kind !== "audio_preview" || reservation.status !== "active") {
+      if (!reservation || reservation.kind !== "audio_preview" || reservation.status !== "active"
+        || new Date(reservation.expires_at).getTime() <= Date.now()) {
         return json({ code: "RESERVATION_EXPIRED", error: "Preview reservation is unavailable" }, 409);
       }
       const slash = reservation.object_path.lastIndexOf("/");
@@ -86,7 +97,11 @@ Deno.serve(async (req) => {
         _public_url: publicData.publicUrl,
         _size_bytes: actualSize,
       });
-      if (finalizeError) return json({ code: "PREVIEW_FINALIZATION_FAILED", error: finalizeError.message }, 400);
+      if (finalizeError) {
+        const code = ["RESERVATION_EXPIRED", "VERSION_NOT_FOUND"]
+          .find((candidate) => finalizeError.message.includes(candidate)) ?? "PREVIEW_FINALIZATION_FAILED";
+        return json({ code, error: finalizeError.message }, code === "VERSION_NOT_FOUND" ? 404 : 409);
+      }
       return json({ audio_preview_url: publicData.publicUrl, usage });
     }
 
