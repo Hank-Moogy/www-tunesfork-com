@@ -10,11 +10,14 @@ DECLARE
   extra_id constant uuid := '10000000-0000-0000-0000-000000000004';
   project_id constant uuid := '20000000-0000-0000-0000-000000000001';
   outsider_project_id constant uuid := '20000000-0000-0000-0000-000000000002';
+  owner_project_two_id constant uuid := '20000000-0000-0000-0000-000000000003';
   initial_version_id constant uuid := '30000000-0000-0000-0000-000000000001';
   hash_a constant text := repeat('a', 64);
   hash_b constant text := repeat('b', 64);
   hash_c constant text := repeat('c', 64);
   hash_d constant text := repeat('d', 64);
+  hash_e constant text := repeat('e', 64);
+  hash_f constant text := repeat('f', 64);
   result jsonb;
   reservation_id uuid;
   expired_reservation_id uuid;
@@ -195,6 +198,20 @@ BEGIN
   END IF;
   created_version_id := (result->>'version_id')::uuid;
 
+  INSERT INTO public.projects (id, name, owner_id)
+  VALUES (owner_project_two_id, 'Second owner project', owner_id);
+  result := public.reserve_project_upload(
+    owner_id,
+    owner_project_two_id,
+    jsonb_build_array(jsonb_build_object('sha256', hash_a, 'size_bytes', 40))
+  );
+  IF jsonb_array_length(result->'missing') <> 0
+     OR (result->>'reused_bytes')::bigint <> 40
+     OR (result#>>'{usage,reserved_bytes}')::bigint <> 0 THEN
+    RAISE EXCEPTION 'same-owner blob was not reused across projects: %', result;
+  END IF;
+  PERFORM public.cancel_upload_reservation((result->>'reservation_id')::uuid, owner_id);
+
   BEGIN
     PERFORM public.reserve_project_upload(
       owner_id,
@@ -288,6 +305,25 @@ BEGIN
   IF (public.get_account_storage_usage(outsider_id)#>>'{reserved_bytes}')::bigint <> 0 THEN
     RAISE EXCEPTION 'expired reservation still counted against storage quota';
   END IF;
+
+  UPDATE public.account_entitlements
+  SET plan = 'legacy', storage_limit_bytes = NULL, max_projects = NULL,
+      max_collaborators_per_project = NULL, grandfathered = true
+  WHERE user_id = extra_id;
+  result := public.reserve_project_upload(
+    extra_id,
+    NULL,
+    jsonb_build_array(
+      jsonb_build_object('sha256', hash_e, 'size_bytes', 4294967296),
+      jsonb_build_object('sha256', hash_f, 'size_bytes', 2147483648)
+    )
+  );
+  IF result#>>'{usage,limit_bytes}' IS NOT NULL
+     OR (result#>>'{usage,reserved_bytes}')::bigint <> 6442450944
+     OR result#>>'{usage,warning_level}' <> 'unlimited' THEN
+    RAISE EXCEPTION 'legacy account was not unlimited and fully metered: %', result;
+  END IF;
+  PERFORM public.cancel_upload_reservation((result->>'reservation_id')::uuid, extra_id);
 
   UPDATE public.account_entitlements SET max_projects = 1 WHERE user_id = owner_id;
   BEGIN
