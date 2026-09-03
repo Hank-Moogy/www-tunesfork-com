@@ -12,8 +12,8 @@ Functions must be deployed before enabling the corresponding desktop build.
   missing blobs; the app never silently falls back to a full ZIP.
 - Legacy ZIP versions remain restorable. New versions cannot be inserted through
   browser storage policies.
-- Physical usage counts distinct referenced ready blobs, legacy ZIPs, and the
-  currently referenced preview. Logical history size remains a separate metric.
+- Physical usage counts distinct referenced ready blobs, legacy ZIP object
+  paths, and preview object URLs. Logical history size remains a separate metric.
 - Collaborator uploads reserve and consume the project owner's allowance.
 
 ## Entitlements

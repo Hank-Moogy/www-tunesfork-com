@@ -325,6 +325,18 @@ BEGIN
     IF SQLERRM NOT LIKE '%LAST_VERSION_REQUIRES_PROJECT_DELETE%' THEN RAISE; END IF;
   END;
 
+  INSERT INTO public.project_versions (
+    project_id, version_number, uploader_id, zip_url, file_size_bytes,
+    audio_preview_url, audio_preview_size_bytes
+  ) VALUES
+    (outsider_project_id, 1, outsider_id, outsider_id::text || '/legacy.zip', 10,
+     'https://example.test/storage/v1/object/public/audio-previews/' || outsider_id::text || '/preview', 3),
+    (outsider_project_id, 2, outsider_id, outsider_id::text || '/legacy.zip', 10,
+     'https://example.test/storage/v1/object/public/audio-previews/' || outsider_id::text || '/preview', 3);
+  IF public.account_physical_storage_bytes(outsider_id) <> 13 THEN
+    RAISE EXCEPTION 'physical accounting counted duplicate legacy object references more than once';
+  END IF;
+
   RAISE NOTICE 'storage entitlement acceptance tests passed';
 END;
 $test$;
