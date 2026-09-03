@@ -1,7 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { type StripeEnv, createStripeClient } from "../_shared/stripe.ts";
+import {
+  createStripeClient,
+  getConfiguredStripeEnvironment,
+  getPublicSiteUrl,
+} from "../_shared/stripe.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -14,13 +18,22 @@ serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({ error: "Method not allowed" }), {
+        status: 405,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader);
+
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!token) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -28,18 +41,21 @@ serve(async (req) => {
       });
     }
 
-    await req.json().catch(() => ({}));
-    const configuredEnvironment = Deno.env.get("STRIPE_ENVIRONMENT") || "sandbox";
-    if (configuredEnvironment !== "sandbox" && configuredEnvironment !== "live") throw new Error("Invalid Stripe environment");
-    const env = configuredEnvironment as StripeEnv;
+    const { environment } = await req.json();
+    const env = getConfiguredStripeEnvironment(environment);
     const stripe = createStripeClient(env);
+    const siteUrl = getPublicSiteUrl();
 
-    const { data: sub } = await supabase
+    const { data: sub, error: subscriptionError } = await supabase
       .from("subscriptions")
       .select("stripe_customer_id")
       .eq("user_id", user.id)
       .eq("environment", env)
-      .single();
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (subscriptionError) throw subscriptionError;
 
     if (!sub?.stripe_customer_id) {
       return new Response(JSON.stringify({ error: "No subscription found" }), {
@@ -48,21 +64,17 @@ serve(async (req) => {
       });
     }
 
-    const requestOrigin = req.headers.get("origin") || "";
-    const fallbackAllowed = /^https:\/\/(www\.)?tunesfork\.com$/i.test(requestOrigin)
-      || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
-    const siteUrl = (Deno.env.get("PUBLIC_SITE_URL") || (fallbackAllowed ? requestOrigin : "")).replace(/\/$/, "");
-    if (!siteUrl) throw new Error("PUBLIC_SITE_URL is not configured");
     const portal = await stripe.billingPortal.sessions.create({
       customer: sub.stripe_customer_id,
-      return_url: `${siteUrl}/profile`,
+      return_url: `${siteUrl}/billing`,
     });
 
     return new Response(JSON.stringify({ url: portal.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error("create-portal-session failed", error instanceof Error ? error.message : "unknown error");
+    return new Response(JSON.stringify({ error: "Unable to open billing portal" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

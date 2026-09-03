@@ -1,51 +1,76 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { type StripeEnv, createStripeClient } from "../_shared/stripe.ts";
+import {
+  createManagedPaymentsStripeClient,
+  getConfiguredStripeEnvironment,
+  getPublicSiteUrl,
+} from "../_shared/stripe.ts";
+import { assertPriceMatchesContract, isSubscriptionLookupKey } from "../_shared/payment-contract.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+const requestIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const blockingSubscriptionStatuses = ["active", "trialing", "past_due", "unpaid", "incomplete", "paused"];
+
+function respond(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
+}
+
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return respond({ error: "Method not allowed" }, 405);
 
   try {
-    const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-    if (!bearer) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const { data: { user }, error: authError } = await supabase.auth.getUser(bearer);
-    if (authError || !user?.email) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!token) return respond({ error: "Unauthorized" }, 401);
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user?.email) return respond({ error: "Unauthorized" }, 401);
+
+    const body = await req.json();
+    const { priceId, checkoutRequestId, environment } = body;
+    if (!isSubscriptionLookupKey(priceId)) return respond({ error: "Unknown subscription price" }, 400);
+    if (typeof checkoutRequestId !== "string" || !requestIdPattern.test(checkoutRequestId)) {
+      return respond({ error: "Invalid checkout request" }, 400);
     }
 
-    const { priceId } = await req.json();
-    const allowedPrices = new Set([
-      "producer_monthly", "producer_yearly",
-      "founding_producer_monthly", "founding_producer_yearly",
-      "studio_monthly", "studio_yearly",
-    ]);
-    if (typeof priceId !== "string" || !allowedPrices.has(priceId)) {
-      return new Response(JSON.stringify({ error: "Invalid priceId" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const env = getConfiguredStripeEnvironment(environment);
+    const stripe = createManagedPaymentsStripeClient(env);
+    const siteUrl = getPublicSiteUrl();
+    const plan = priceId.replace(/_(monthly|yearly)$/, "");
+
+    const { data: existingSubscription, error: subscriptionError } = await supabase
+      .from("subscriptions")
+      .select("stripe_customer_id,status")
+      .eq("user_id", user.id)
+      .eq("environment", env)
+      .in("status", blockingSubscriptionStatuses)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (subscriptionError) throw subscriptionError;
+    if (existingSubscription) {
+      return respond({
+        error: "An existing subscription must be managed through the billing portal",
+        code: "subscription_exists",
+      }, 409);
     }
 
-    const configuredEnvironment = Deno.env.get("STRIPE_ENVIRONMENT") || "sandbox";
-    if (configuredEnvironment !== "sandbox" && configuredEnvironment !== "live") {
-      throw new Error("STRIPE_ENVIRONMENT must be sandbox or live");
-    }
-    const env = configuredEnvironment as StripeEnv;
-    const stripe = createStripeClient(env);
+    const { data: previousSubscription, error: previousSubscriptionError } = await supabase
+      .from("subscriptions")
+      .select("stripe_customer_id")
+      .eq("user_id", user.id)
+      .eq("environment", env)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (previousSubscriptionError) throw previousSubscriptionError;
 
     if (priceId.startsWith("founding_producer_")) {
       const { data: reserved, error: reserveError } = await supabase.rpc("reserve_founding_producer_slot", {
@@ -53,50 +78,34 @@ serve(async (req) => {
         _environment: env,
         _interval: priceId.endsWith("yearly") ? "year" : "month",
       });
-      if (reserveError || !reserved) {
-        return new Response(JSON.stringify({ error: "Launch offer sold out" }), {
-          status: 410,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      if (reserveError || !reserved) return respond({ error: "Launch offer sold out" }, 410);
     }
 
-    // Resolve human-readable price ID to Stripe price ID
-    const prices = await stripe.prices.list({ lookup_keys: [priceId] });
-    if (!prices.data.length) {
-      return new Response(JSON.stringify({ error: "Price not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const prices = await stripe.prices.list({ active: true, lookup_keys: [priceId], limit: 2 });
+    if (prices.data.length !== 1) return respond({ error: "Subscription price is unavailable" }, 503);
     const stripePrice = prices.data[0];
-    if (stripePrice.type !== "recurring") throw new Error("Configured price is not recurring");
+    assertPriceMatchesContract(priceId, stripePrice);
 
-    const requestOrigin = req.headers.get("origin") || "";
-    const fallbackAllowed = /^https:\/\/(www\.)?tunesfork\.com$/i.test(requestOrigin)
-      || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
-    const siteUrl = (Deno.env.get("PUBLIC_SITE_URL") || (fallbackAllowed ? requestOrigin : "")).replace(/\/$/, "");
-    if (!siteUrl) throw new Error("PUBLIC_SITE_URL is not configured");
     const session = await stripe.checkout.sessions.create({
-      line_items: [{ price: stripePrice.id, quantity: 1 }],
       mode: "subscription",
-      ui_mode: "embedded",
-      return_url: `${siteUrl}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
-      customer_email: user.email,
+      line_items: [{ price: stripePrice.id, quantity: 1 }],
+      success_url: `${siteUrl}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${siteUrl}/pricing?checkout=canceled`,
       client_reference_id: user.id,
-      metadata: { userId: user.id, lookupKey: priceId, plan: priceId.replace(/_(monthly|yearly)$/, "") },
-      subscription_data: {
-        metadata: { userId: user.id, lookupKey: priceId, plan: priceId.replace(/_(monthly|yearly)$/, "") },
-      },
+      ...(previousSubscription?.stripe_customer_id
+        ? { customer: previousSubscription.stripe_customer_id }
+        : { customer_email: user.email }),
+      metadata: { userId: user.id, lookupKey: priceId, plan, environment: env },
+      subscription_data: { metadata: { userId: user.id, lookupKey: priceId, plan, environment: env } },
+      managed_payments: { enabled: true },
+    } as Parameters<typeof stripe.checkout.sessions.create>[0], {
+      idempotencyKey: `tf_checkout_${env}_${user.id}_${checkoutRequestId}`,
     });
 
-    return new Response(JSON.stringify({ clientSecret: session.client_secret }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    if (!session.url) throw new Error("Stripe did not return a Checkout URL");
+    return respond({ url: session.url });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("create-checkout failed", error instanceof Error ? error.message : "unknown error");
+    return respond({ error: "Unable to start checkout" }, 500);
   }
 });

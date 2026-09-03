@@ -5,7 +5,7 @@ export type { SemanticEventName } from "../../shared/analytics-events";
 
 export type PageName =
   | "landing" | "landing_gitsound" | "auth" | "onboarding" | "dashboard"
-  | "project" | "share" | "pricing" | "checkout" | "checkout_return"
+  | "project" | "share" | "pricing" | "checkout" | "checkout_return" | "billing"
   | "plugin" | "admin" | "not_found";
 
 type IdentityContext = {

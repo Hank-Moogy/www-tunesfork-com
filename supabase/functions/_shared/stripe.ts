@@ -1,32 +1,73 @@
-import { encode } from "https://deno.land/std@0.168.0/encoding/hex.ts";
+import Stripe from "https://esm.sh/stripe@22.4.0";
+import {
+  MANAGED_PAYMENTS_PREVIEW_VERSION_FALLBACK,
+  resolveStripeEnvironment,
+  STRIPE_STABLE_API_VERSION,
+  type StripeEnv,
+} from "./payment-contract.ts";
 
-export type StripeEnv = 'sandbox' | 'live';
+export type { StripeEnv } from "./payment-contract.ts";
+
+export function getConfiguredStripeEnvironment(requested?: unknown): StripeEnv {
+  return resolveStripeEnvironment(Deno.env.get("STRIPE_ENVIRONMENT"), requested);
+}
 
 export function getConnectionApiKey(env: StripeEnv): string {
-  const key = env === 'sandbox'
-    ? Deno.env.get('STRIPE_SANDBOX_API_KEY')
-    : Deno.env.get('STRIPE_LIVE_API_KEY');
+  const key = env === "sandbox"
+    ? Deno.env.get("STRIPE_SANDBOX_API_KEY")
+    : Deno.env.get("STRIPE_LIVE_API_KEY");
   if (!key) throw new Error(`STRIPE_${env.toUpperCase()}_API_KEY is not configured`);
   return key;
 }
 
-import Stripe from "https://esm.sh/stripe@18.5.0";
+export function getPublicSiteUrl(): string {
+  const configured = Deno.env.get("PUBLIC_SITE_URL");
+  if (!configured) throw new Error("PUBLIC_SITE_URL is not configured");
 
-export function createStripeClient(env: StripeEnv): Stripe {
+  const url = new URL(configured);
+  if (url.protocol !== "https:" && url.hostname !== "localhost") {
+    throw new Error("PUBLIC_SITE_URL must use HTTPS");
+  }
+  return url.origin;
+}
+
+export function createStripeClient(
+  env: StripeEnv,
+  apiVersion = STRIPE_STABLE_API_VERSION,
+): Stripe {
   const apiKey = getConnectionApiKey(env);
   return new Stripe(apiKey, {
+    apiVersion: apiVersion as Stripe.LatestApiVersion,
     httpClient: Stripe.createFetchHttpClient(),
   });
 }
 
-export async function verifyWebhook(req: Request, env: StripeEnv): Promise<{ type: string; data: { object: any } }> {
+export function createManagedPaymentsStripeClient(env: StripeEnv): Stripe {
+  const previewVersion = Deno.env.get("STRIPE_MANAGED_PAYMENTS_API_VERSION") ||
+    MANAGED_PAYMENTS_PREVIEW_VERSION_FALLBACK;
+  if (!/^\d{4}-\d{2}-\d{2}\.preview$/.test(previewVersion)) {
+    throw new Error("STRIPE_MANAGED_PAYMENTS_API_VERSION must be a Stripe preview version");
+  }
+  return createStripeClient(env, previewVersion);
+}
+
+function decodeHex(value: string): Uint8Array | null {
+  if (!/^[0-9a-f]{64}$/i.test(value)) return null;
+  const bytes = new Uint8Array(value.length / 2);
+  for (let i = 0; i < bytes.length; i += 1) {
+    bytes[i] = Number.parseInt(value.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+export async function verifyWebhook(req: Request, env: StripeEnv): Promise<Stripe.Event> {
   const signature = req.headers.get("stripe-signature");
   const body = await req.text();
-  const secret = env === 'sandbox'
-    ? Deno.env.get('PAYMENTS_SANDBOX_WEBHOOK_SECRET')
-    : Deno.env.get('PAYMENTS_LIVE_WEBHOOK_SECRET');
+  const secret = env === "sandbox"
+    ? Deno.env.get("PAYMENTS_SANDBOX_WEBHOOK_SECRET")
+    : Deno.env.get("PAYMENTS_LIVE_WEBHOOK_SECRET");
 
-  if (!secret) throw new Error('Webhook secret environment variable is not configured');
+  if (!secret) throw new Error("Webhook secret environment variable is not configured");
   if (!signature || !body) throw new Error("Missing signature or body");
 
   let timestamp: string | undefined;
@@ -39,7 +80,9 @@ export async function verifyWebhook(req: Request, env: StripeEnv): Promise<{ typ
 
   if (!timestamp || v1Signatures.length === 0) throw new Error("Invalid signature format");
 
-  const age = Math.abs(Date.now() / 1000 - Number(timestamp));
+  const timestampNumber = Number(timestamp);
+  if (!Number.isFinite(timestampNumber)) throw new Error("Invalid webhook timestamp");
+  const age = Math.abs(Date.now() / 1000 - timestampNumber);
   if (age > 300) throw new Error("Webhook timestamp too old");
 
   const key = await crypto.subtle.importKey(
@@ -47,16 +90,16 @@ export async function verifyWebhook(req: Request, env: StripeEnv): Promise<{ typ
     new TextEncoder().encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"]
+    ["verify"],
   );
-  const signed = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(`${timestamp}.${body}`)
-  );
-  const expected = new TextDecoder().decode(encode(new Uint8Array(signed)));
+  const payload = new TextEncoder().encode(`${timestamp}.${body}`);
+  const valid = await Promise.all(v1Signatures.map(async (candidate) => {
+    const decoded = decodeHex(candidate);
+    return decoded ? crypto.subtle.verify("HMAC", key, decoded, payload) : false;
+  }));
+  if (!valid.some(Boolean)) throw new Error("Invalid webhook signature");
 
-  if (!v1Signatures.includes(expected)) throw new Error("Invalid webhook signature");
-
-  return JSON.parse(body);
+  const event = JSON.parse(body) as Stripe.Event;
+  if (!event.id || !event.type || !event.data?.object) throw new Error("Invalid webhook event");
+  return event;
 }
