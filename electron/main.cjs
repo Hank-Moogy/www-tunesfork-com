@@ -11,6 +11,7 @@ const { pipeline } = require("node:stream/promises");
 const { parseAlsFile } = require("./als-parser.cjs");
 const { buildSampleCheck } = require("./sample-check.cjs");
 const { buildProjectManifest, manifestForApi } = require("./incremental-sync.cjs");
+const { MAX_FILE_BYTES, safeRestoreDestination, validateLegacyZipEntries } = require("./restore-validation.cjs");
 const {
   assertFolderReadable,
   folderAccessMessage,
@@ -1205,14 +1206,18 @@ async function openProjectInAbleton(projectId, versionId) {
   } else {
     if (!signedUrl) throw new Error("Server returned no project download URL");
     zipPath = path.join(os.tmpdir(), `tfopen-${Date.now()}.zip`);
-    const buf = Buffer.from(await (await fetch(signedUrl)).arrayBuffer());
-    fs.writeFileSync(zipPath, buf);
+    const zipResponse = await fetch(signedUrl);
+    if (!zipResponse.ok || !zipResponse.body) {
+      throw new Error(`Project ZIP download failed (${zipResponse.status})`);
+    }
+    await pipeline(Readable.fromWeb(zipResponse.body), fs.createWriteStream(zipPath, { mode: 0o600 }));
     const zip = new adm(zipPath);
-    const alsEntry = zip.getEntries().find(
+    const legacyEntries = validateLegacyZipEntries(zip.getEntries(), destRoot);
+    const alsEntry = legacyEntries.find(
       (entry) => !entry.isDirectory && entry.entryName.toLowerCase().endsWith(".als")
     );
     if (!alsEntry) throw new Error("No .als file found in downloaded project");
-    alsPath = safeManifestDestination(destRoot, alsEntry.entryName);
+    alsPath = safeRestoreDestination(destRoot, alsEntry.entryName);
     zip.extractAllTo(destRoot, true);
   }
   if (!fs.existsSync(alsPath)) throw new Error("Downloaded Ableton set could not be extracted");
@@ -1242,22 +1247,6 @@ async function openProjectInAbleton(projectId, versionId) {
   if (zipPath) fs.unlink(zipPath, () => {});
 }
 
-function safeManifestDestination(destRoot, manifestPath) {
-  if (typeof manifestPath !== "string" || !manifestPath || manifestPath.includes("\\")) {
-    throw new Error("Downloaded project contained an invalid path");
-  }
-  const segments = manifestPath.split("/");
-  if (manifestPath.startsWith("/") || segments.some((segment) => !segment || segment === "." || segment === "..")) {
-    throw new Error("Downloaded project contained an invalid path");
-  }
-  const root = path.resolve(destRoot);
-  const destination = path.resolve(root, ...segments);
-  if (!destination.startsWith(`${root}${path.sep}`)) {
-    throw new Error("Downloaded project contained an invalid path");
-  }
-  return destination;
-}
-
 async function reconstructManifestVersion(destRoot, manifest, auth) {
   if (manifest?.schema_version !== 1 || !Array.isArray(manifest.files) || manifest.files.length === 0) {
     throw new Error("Server returned an invalid project manifest");
@@ -1265,13 +1254,18 @@ async function reconstructManifestVersion(destRoot, manifest, auth) {
   const seenPaths = new Set();
   const jobs = manifest.files.map((file) => {
     const normalizedPath = String(file.path || "").normalize("NFC");
+    const size = Number(file.size);
+    if (!Number.isSafeInteger(size) || size < 0 || size > MAX_FILE_BYTES) {
+      throw new Error(`Project manifest contains an invalid file size for ${normalizedPath}`);
+    }
     const collisionKey = normalizedPath.toLocaleLowerCase("en-US");
     if (seenPaths.has(collisionKey)) throw new Error(`Project contains colliding path ${normalizedPath}`);
     seenPaths.add(collisionKey);
     return {
       ...file,
+      size,
       path: normalizedPath,
-      destination: safeManifestDestination(destRoot, normalizedPath),
+      destination: safeRestoreDestination(destRoot, normalizedPath),
     };
   });
   const als = jobs.find((file) => file.path.toLowerCase().endsWith(".als"));
