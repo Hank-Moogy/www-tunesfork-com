@@ -491,7 +491,7 @@ async function startSync() {
     return;
   }
   // Lazy require so the tree-shaking pulls chokidar only when needed
-  let chokidar, archiver;
+  let chokidar;
   try {
     chokidar = require("chokidar");
   } catch (e) {
@@ -500,15 +500,6 @@ async function startSync() {
     log("err", "Packaging bug — please install the latest build from tunesfork.com/desktop-app.");
     return;
   }
-  try {
-    archiver = require("archiver");
-  } catch (e) {
-    log("err", `Failed to load 'archiver': ${e && e.code ? `[${e.code}] ` : ""}${e && e.message ? e.message : e}`);
-    log("err", `Looked in: ${(require.resolve.paths("archiver") || []).join(" | ")}`);
-    log("err", "Packaging bug — please install the latest build from tunesfork.com/desktop-app.");
-    return;
-  }
-
   const accessibleFolders = [];
   for (const folder of s.folders) {
     try {
@@ -549,7 +540,7 @@ async function startSync() {
     debouncers.set(projectFolder, setTimeout(() => {
       debouncers.delete(projectFolder);
       const latestAls = findLatestAls(projectFolder) || alsPath;
-      enqueueProjectSave(latestAls, archiver).catch((e) => {
+      enqueueProjectSave(latestAls).catch((e) => {
         if (isFolderPermissionError(e)) recordFolderAccessIssue(projectFolder, e);
         else if (e?.code === "SAMPLES_INCOMPLETE") log("warn", e.message);
         else log("err", e.message);
@@ -589,7 +580,7 @@ function findProjectFolder(alsPath) {
   return path.dirname(alsPath);
 }
 
-async function processAlsSave(alsPath, archiver) {
+async function processAlsSave(alsPath) {
   const projectFolder = findProjectFolder(alsPath);
   log("busy", `Save detected: ${path.basename(alsPath)}`);
   emitAnalytics("Project Save Detected", { project_name: path.basename(projectFolder).replace(/ Project$/i, "") });
@@ -598,7 +589,6 @@ async function processAlsSave(alsPath, archiver) {
     upload = await uploadProjectFolder({
       projectFolder,
       alsPath,
-      archiver,
       changeNote: "Auto-saved from Tunesfork Sync",
     });
   } catch (error) {
@@ -643,12 +633,12 @@ async function processAlsSave(alsPath, archiver) {
   trayWindow?.webContents.send("log", { ts: Date.now(), level: "ok", msg: `Uploaded ${projectName} v${result.version_number}` });
 }
 
-function enqueueProjectSave(alsPath, archiver) {
+function enqueueProjectSave(alsPath) {
   const projectFolder = normalizeFolder(findProjectFolder(alsPath));
   const prior = projectUploadChains.get(projectFolder) || Promise.resolve();
   const next = prior
     .catch(() => {})
-    .then(() => processAlsSave(alsPath, archiver));
+    .then(() => processAlsSave(alsPath));
   projectUploadChains.set(projectFolder, next);
   next.finally(() => {
     if (projectUploadChains.get(projectFolder) === next) {
@@ -658,7 +648,7 @@ function enqueueProjectSave(alsPath, archiver) {
   return next;
 }
 
-async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNote }) {
+async function uploadProjectFolder({ projectFolder, alsPath, changeNote }) {
   assertFolderReadable(projectFolder);
   clearFolderAccessIssue(projectFolder);
 
@@ -717,110 +707,6 @@ async function uploadProjectFolder({ projectFolder, alsPath, archiver, changeNot
   });
   recordSampleReadiness({ projectFolder, alsPath, projectName: incremental.projectName, sampleCheck });
   return incremental;
-
-  /* Legacy ZIP implementation is retained for reading old source history but
-     is unreachable for launch uploads. */
-  const tmpZip = path.join(os.tmpdir(), `tfsync-${Date.now()}.zip`);
-  try {
-    const out = fs.createWriteStream(tmpZip);
-    const zip = archiver("zip", { zlib: { level: 0 } });
-    await new Promise((resolve, reject) => {
-      out.on("close", resolve);
-      zip.on("error", reject);
-      zip.pipe(out);
-      zip.glob("**/*", {
-        cwd: projectFolder,
-        ignore: ["Backup/**", "**/.DS_Store", "**/Thumbs.db", "**/*.als~"],
-        dot: false,
-      }, { prefix: path.basename(projectFolder) });
-      zip.finalize();
-    });
-    const fileSize = fs.statSync(tmpZip).size;
-    log("busy", `Zipped ${(fileSize / 1e6).toFixed(1)} MB`);
-
-    // Upload via a one-time signed URL minted for this paired desktop token.
-    const token = readToken();
-    if (!token) throw new Error("Not paired — pair this Mac again before uploading");
-    const signedUploadRes = await fetch(`${FUNCTIONS_URL}/mint-storage-upload-url`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ content_type: "application/zip" }),
-    });
-    if (!signedUploadRes.ok) {
-      const t = await signedUploadRes.text();
-      throw new Error(`Upload auth failed ${signedUploadRes.status}: ${t}`);
-    }
-    const { objectPath, signedUrl, token: signedUploadToken } = await signedUploadRes.json();
-
-    log("busy", `Uploading to ${objectPath}…`);
-    if (signedUploadToken) {
-      await uploadZipResumable({
-        filePath: tmpZip,
-        fileSize,
-        objectPath,
-        signedUploadToken,
-      });
-    } else {
-      const uploadRes = await fetch(signedUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/zip",
-          "cache-control": "max-age=3600",
-          "x-upsert": "false",
-        },
-        body: fs.readFileSync(tmpZip),
-      });
-      if (!uploadRes.ok) {
-        const t = await uploadRes.text();
-        throw new Error(`Upload failed ${uploadRes.status}: ${t}`);
-      }
-    }
-
-    const projectName = path.basename(projectFolder).replace(/ Project$/i, "");
-    const existingLink = getProjectLink(projectFolder);
-
-    if (meta) {
-      const clipCount = meta.tracks.reduce((sum, track) => sum + (track.clips?.length || 0), 0);
-      log("info", `Parsed ${meta.tracks.length} tracks, ${clipCount} clips, ${meta.plugins.length} plugins${meta.bpm ? `, ${meta.bpm} BPM` : ""}`);
-    }
-
-    const body = {
-      project_name: projectName,
-      zip_storage_path: objectPath,
-      file_size_bytes: fileSize,
-      change_note: changeNote,
-      bpm: meta?.bpm ?? null,
-      plugin_list: meta?.plugins ?? null,
-      track_list: meta?.tracks ?? null,
-      ableton_version: meta?.abletonVersion ?? null,
-      sample_check: sampleCheck,
-    };
-    if (existingLink?.projectId) body.project_id = existingLink.projectId;
-
-    const cv = await fetch(`${FUNCTIONS_URL}/create-version-from-desktop`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
-    });
-    if (!cv.ok) {
-      const t = await cv.text();
-      throw new Error(`Register failed ${cv.status}: ${t}`);
-    }
-    const result = await cv.json();
-    setProjectLink(projectFolder, {
-      projectId: result.project_id,
-      projectName,
-      lastVersion: result.version_number,
-      lastVersionId: result.version_id,
-      lastContentHash: contentHash,
-    });
-    addRecentUpload(projectName, result.version_number);
-    recordSampleReadiness({ projectFolder, alsPath, projectName, sampleCheck });
-
-    return { projectName, result };
-  } finally {
-    fs.unlink(tmpZip, () => {});
-  }
 }
 
 async function updateVersionSampleCheck(versionId, sampleCheck) {
@@ -1002,17 +888,6 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
   return { projectName, result };
 }
 
-async function uploadZipResumable({ filePath, fileSize, objectPath, signedUploadToken }) {
-  return uploadSignedObjectResumable({
-    filePath,
-    fileSize,
-    objectPath,
-    signedUploadToken,
-    bucketName: "project-zips",
-    contentType: "application/zip",
-  });
-}
-
 async function uploadSignedObjectResumable({
   filePath,
   fileSize,
@@ -1149,7 +1024,6 @@ async function importWatchedFolders() {
 
   const summary = { found: 0, uploaded: 0, skipped: 0, failed: [] };
   try {
-    const archiver = require("archiver");
     const accessibleFolders = [];
     for (const folder of s.folders) {
       try {
@@ -1177,7 +1051,6 @@ async function importWatchedFolders() {
         const { result } = await uploadProjectFolder({
           projectFolder: project.folder,
           alsPath: project.alsPath,
-          archiver,
           changeNote: "Imported from Tunesfork Sync",
         });
         summary.uploaded += 1;

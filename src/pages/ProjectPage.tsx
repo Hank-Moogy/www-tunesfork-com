@@ -7,7 +7,6 @@ import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import ArrangementTimeline from "@/components/ArrangementTimeline";
 import SessionGrid from "@/components/SessionGrid";
-import UploadModal from "@/components/UploadModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 // Badge import removed (no longer used in new layout)
@@ -189,7 +188,6 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
-  const [uploadOpen, setUploadOpen] = useState(false);
   const [addCollabOpen, setAddCollabOpen] = useState(false);
   const [shareReadinessOpen, setShareReadinessOpen] = useState(false);
   const [pendingShareAction, setPendingShareAction] = useState<"share" | "collaborate" | null>(null);
@@ -1114,26 +1112,6 @@ export default function ProjectPage() {
           </div>
         </div>
       </main>
-
-      <UploadModal
-        open={uploadOpen}
-        onOpenChange={setUploadOpen}
-        existingProjectId={project.id}
-        existingProjectName={project.name}
-        onVersionUploaded={() => {
-          supabase
-            .from("project_versions").select("*").eq("project_id", project.id)
-            .order("version_number", { ascending: false })
-            .order("created_at", { ascending: false })
-            .then(({ data }) => {
-              if (data) {
-                setVersions(data);
-                setSelectedVersion(data[0]);
-                if (data[0]?.audio_preview_url) setPinnedPreviewVersionId(data[0].id);
-              }
-            });
-        }}
-      />
 
       <Dialog
         open={previewOpen}
