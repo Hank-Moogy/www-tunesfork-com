@@ -17,6 +17,7 @@ DECLARE
   hash_d constant text := repeat('d', 64);
   result jsonb;
   reservation_id uuid;
+  expired_reservation_id uuid;
   created_version_id uuid;
 BEGIN
   INSERT INTO auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
@@ -251,8 +252,41 @@ BEGIN
     outsider_project_id,
     jsonb_build_array(jsonb_build_object('sha256', hash_a, 'size_bytes', 40))
   );
+  expired_reservation_id := (result->>'reservation_id')::uuid;
   IF jsonb_array_length(result->'missing') <> 1 THEN
     RAISE EXCEPTION 'blob deduplication crossed account boundary: %', result;
+  END IF;
+  UPDATE public.upload_reservations
+  SET expires_at = now() - interval '1 second'
+  WHERE id = expired_reservation_id;
+  BEGIN
+    PERFORM public.finalize_manifest_project_version(
+      expired_reservation_id,
+      outsider_id,
+      'Outsider project',
+      jsonb_build_object(
+        'schema_version', 1,
+        'files', jsonb_build_array(jsonb_build_object(
+          'path', 'Outsider project.als', 'sha256', hash_a, 'size', 40
+        ))
+      ),
+      40,
+      'Expired reservation test',
+      120,
+      '[]'::jsonb,
+      '[]'::jsonb,
+      '12.1',
+      '{}'::jsonb,
+      jsonb_build_array(jsonb_build_object('sha256', hash_a, 'size', 40)),
+      40,
+      0
+    );
+    RAISE EXCEPTION 'expected RESERVATION_EXPIRED';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM NOT LIKE '%RESERVATION_EXPIRED%' THEN RAISE; END IF;
+  END;
+  IF (public.get_account_storage_usage(outsider_id)#>>'{reserved_bytes}')::bigint <> 0 THEN
+    RAISE EXCEPTION 'expired reservation still counted against storage quota';
   END IF;
 
   UPDATE public.account_entitlements SET max_projects = 1 WHERE user_id = owner_id;
