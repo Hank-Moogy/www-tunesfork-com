@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
       const { data, error } = await admin
         .from("project_versions")
         .select("zip_url,audio_preview_url")
+        .order("id", { ascending: true })
         .range(from, from + 999);
       if (error) throw error;
       for (const r of data ?? []) {
@@ -61,67 +62,89 @@ Deno.serve(async (req) => {
       const { data, error } = await admin.from("project_blobs")
         .select("user_id,sha256,object_path,project_version_blobs!inner(version_id)")
         .eq("status", "ready")
+        .order("user_id", { ascending: true })
+        .order("sha256", { ascending: true })
         .range(from, from + 999);
       if (error) throw error;
       for (const blob of data ?? []) referencedBlobs.add(blob.object_path || `${blob.user_id}/${blob.sha256}`);
       if (!data || data.length < 1000) break;
     }
 
-    const { data: activeReservationBlobs, error: reservationBlobError } = await admin
-      .from("upload_reservation_blobs")
-      .select("object_path,upload_reservations!inner(status,expires_at)")
-      .eq("upload_reservations.status", "active")
-      .gt("upload_reservations.expires_at", new Date().toISOString());
-    if (reservationBlobError) throw reservationBlobError;
-    for (const blob of activeReservationBlobs ?? []) referencedBlobs.add(blob.object_path);
+    for (let from = 0; ; from += 1000) {
+      const { data: activeReservationBlobs, error: reservationBlobError } = await admin
+        .from("upload_reservation_blobs")
+        .select("object_path,upload_reservations!inner(status,expires_at)")
+        .eq("upload_reservations.status", "active")
+        .gt("upload_reservations.expires_at", new Date().toISOString())
+        .order("reservation_id", { ascending: true })
+        .order("sha256", { ascending: true })
+        .range(from, from + 999);
+      if (reservationBlobError) throw reservationBlobError;
+      for (const blob of activeReservationBlobs ?? []) referencedBlobs.add(blob.object_path);
+      if (!activeReservationBlobs || activeReservationBlobs.length < 1000) break;
+    }
 
     const cutoff = Date.now() - 24 * 3600 * 1000;
-    const { data: graceCandidates, error: graceError } = await admin
-      .from("storage_deletion_candidates")
-      .select("bucket,object_path")
-      .gt("unreferenced_at", new Date(cutoff).toISOString());
-    if (graceError) throw graceError;
-    for (const candidate of graceCandidates ?? []) {
-      if (candidate.bucket === "project-zips") referenced.add(candidate.object_path);
-      else if (candidate.bucket === "audio-previews") referencedAudio.add(candidate.object_path);
-      else if (candidate.bucket === "project-blobs") referencedBlobs.add(candidate.object_path);
+    for (let from = 0; ; from += 1000) {
+      const { data: graceCandidates, error: graceError } = await admin
+        .from("storage_deletion_candidates")
+        .select("bucket,object_path")
+        .gt("unreferenced_at", new Date(cutoff).toISOString())
+        .order("bucket", { ascending: true })
+        .order("object_path", { ascending: true })
+        .range(from, from + 999);
+      if (graceError) throw graceError;
+      for (const candidate of graceCandidates ?? []) {
+        if (candidate.bucket === "project-zips") referenced.add(candidate.object_path);
+        else if (candidate.bucket === "audio-previews") referencedAudio.add(candidate.object_path);
+        else if (candidate.bucket === "project-blobs") referencedBlobs.add(candidate.object_path);
+      }
+      if (!graceCandidates || graceCandidates.length < 1000) break;
     }
+
     const scanBucket = async (bucket: string, bucketReferences: Set<string>) => {
       const orphans: { path: string; size: number }[] = [];
       let totalObjects = 0;
       let totalBytes = 0;
-      const { data: top, error: topErr } = await admin.storage
-        .from(bucket)
-        .list("", { limit: 1000 });
-      if (topErr) throw topErr;
+      for (let topOffset = 0; ; topOffset += 1000) {
+        const { data: top, error: topErr } = await admin.storage
+          .from(bucket)
+          .list("", { limit: 1000, offset: topOffset, sortBy: { column: "name", order: "asc" } });
+        if (topErr) throw topErr;
 
-      for (const entry of top ?? []) {
-        if (entry.id) {
-          totalObjects++;
-          const size = Number(entry.metadata?.size ?? 0);
-          totalBytes += size;
-          const createdAt = entry.created_at ? new Date(entry.created_at).getTime() : 0;
-          if (!bucketReferences.has(entry.name) && createdAt < cutoff) {
-            orphans.push({ path: entry.name, size });
-          }
-          continue;
-        }
-        for (let offset = 0; ; offset += 1000) {
-          const { data: files, error } = await admin.storage
-            .from(bucket)
-            .list(entry.name, { limit: 1000, offset });
-          if (error) throw error;
-          for (const file of files ?? []) {
-            if (!file.id) continue;
+        for (const entry of top ?? []) {
+          if (entry.id) {
             totalObjects++;
-            const size = Number(file.metadata?.size ?? 0);
+            const size = Number(entry.metadata?.size ?? 0);
             totalBytes += size;
-            const full = `${entry.name}/${file.name}`;
-            const createdAt = file.created_at ? new Date(file.created_at).getTime() : 0;
-            if (!bucketReferences.has(full) && createdAt < cutoff) orphans.push({ path: full, size });
+            const createdAt = entry.created_at ? new Date(entry.created_at).getTime() : 0;
+            if (!bucketReferences.has(entry.name) && createdAt < cutoff) {
+              orphans.push({ path: entry.name, size });
+            }
+            continue;
           }
-          if (!files || files.length < 1000) break;
+          for (let offset = 0; ; offset += 1000) {
+            const { data: files, error } = await admin.storage
+              .from(bucket)
+              .list(entry.name, {
+                limit: 1000,
+                offset,
+                sortBy: { column: "name", order: "asc" },
+              });
+            if (error) throw error;
+            for (const file of files ?? []) {
+              if (!file.id) continue;
+              totalObjects++;
+              const size = Number(file.metadata?.size ?? 0);
+              totalBytes += size;
+              const full = `${entry.name}/${file.name}`;
+              const createdAt = file.created_at ? new Date(file.created_at).getTime() : 0;
+              if (!bucketReferences.has(full) && createdAt < cutoff) orphans.push({ path: full, size });
+            }
+            if (!files || files.length < 1000) break;
+          }
         }
+        if (!top || top.length < 1000) break;
       }
       return { totalObjects, totalBytes, orphans };
     };
