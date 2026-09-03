@@ -283,6 +283,26 @@ BEGIN
     RAISE EXCEPTION 'authenticated self-service RPC grants are missing';
   END IF;
 
+  IF has_function_privilege('authenticated', 'public.set_version_audio_preview(uuid,text)', 'EXECUTE')
+     OR has_table_privilege('authenticated', 'public.project_versions', 'INSERT')
+     OR has_table_privilege('authenticated', 'public.project_versions', 'UPDATE')
+     OR has_table_privilege('authenticated', 'public.project_versions', 'DELETE') THEN
+    RAISE EXCEPTION 'legacy project-version storage write privileges remain enabled';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE (
+      (schemaname = 'public' AND tablename = 'project_versions')
+      OR (schemaname = 'storage' AND tablename = 'objects')
+    )
+      AND cmd IN ('ALL', 'INSERT')
+      AND roles && ARRAY['public', 'anon', 'authenticated']::name[]
+  ) THEN
+    RAISE EXCEPTION 'a direct client storage/version insertion policy remains enabled';
+  END IF;
+
   PERFORM set_config('request.jwt.claim.sub', owner_id::text, true);
   PERFORM public.delete_project_version(created_version_id);
   IF EXISTS (SELECT 1 FROM public.project_versions WHERE id = created_version_id) THEN
