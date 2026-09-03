@@ -169,10 +169,23 @@ Deno.serve(async (req) => {
     }
 
     const zipPath = String(body.zip_storage_path ?? "");
-    const manifest = parseManifest(body.manifest);
+    let manifest: ReturnType<typeof parseManifest>;
+    try {
+      manifest = parseManifest(body.manifest);
+    } catch (error) {
+      return new Response(JSON.stringify({
+        code: "MANIFEST_INVALID",
+        error: (error as Error).message,
+      }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const fileSize = Number(body.file_size_bytes ?? 0);
     if ((!zipPath && !manifest) || !Number.isSafeInteger(fileSize) || fileSize < 0) {
-      return new Response(JSON.stringify({ error: "A ZIP path or manifest and a valid file_size_bytes value are required" }), {
+      return new Response(JSON.stringify({
+        code: "MANIFEST_INVALID",
+        error: "A manifest and a valid file_size_bytes value are required",
+      }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -236,6 +249,16 @@ Deno.serve(async (req) => {
         readyBlobs.push({ sha256, size: actualSize });
       }
 
+      const bytesUploaded = Number(body.bytes_uploaded ?? 0);
+      if (!Number.isSafeInteger(bytesUploaded) || bytesUploaded < 0 || bytesUploaded > fileSize) {
+        return new Response(JSON.stringify({
+          code: "UPLOAD_CONFLICT",
+          error: "Uploaded byte accounting is invalid",
+        }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const { data: result, error: finalizeError } = await admin.rpc("finalize_manifest_project_version", {
         _reservation_id: reservationId,
         _uploader_id: userId,
@@ -249,15 +272,29 @@ Deno.serve(async (req) => {
         _ableton_version: body.ableton_version ?? null,
         _sample_check: sampleCheck,
         _ready_blobs: readyBlobs,
-        _uploaded_bytes: Number(body.bytes_uploaded ?? 0),
-        _reused_bytes: Math.max(0, fileSize - Number(body.bytes_uploaded ?? 0)),
+        _uploaded_bytes: bytesUploaded,
+        _reused_bytes: fileSize - bytesUploaded,
       });
       if (finalizeError || !result?.version_id) {
         const message = finalizeError?.message ?? "VERSION_FINALIZATION_FAILED";
-        const code = ["RESERVATION_EXPIRED", "BLOB_MISSING", "PROJECT_LIMIT_REACHED"]
+        const code = [
+          "RESERVATION_EXPIRED",
+          "BLOB_MISSING",
+          "BLOB_SIZE_MISMATCH",
+          "MANIFEST_INVALID",
+          "PROJECT_LIMIT_REACHED",
+          "UPLOAD_CONFLICT",
+        ]
           .find((candidate) => message.includes(candidate)) ?? "VERSION_FINALIZATION_FAILED";
+        const conflictCodes = new Set([
+          "RESERVATION_EXPIRED",
+          "BLOB_MISSING",
+          "BLOB_SIZE_MISMATCH",
+          "PROJECT_LIMIT_REACHED",
+          "UPLOAD_CONFLICT",
+        ]);
         return new Response(JSON.stringify({ code, error: message }), {
-          status: code === "BLOB_MISSING" || code === "RESERVATION_EXPIRED" ? 409 : 400,
+          status: conflictCodes.has(code) ? 409 : 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
