@@ -45,7 +45,25 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("get-stripe-price failed", error instanceof Error ? error.message : "unknown error");
-    return new Response(JSON.stringify({ error: "Unable to resolve subscription price" }), {
+    const stripeError = error as { type?: string; statusCode?: number };
+    const message = error instanceof Error ? error.message : "";
+    const diagnosticCode = message.includes("API_KEY is not configured")
+      ? "stripe_configuration_missing"
+      : message.toLowerCase().includes("api version")
+      ? "stripe_api_version_rejected"
+      : stripeError.type === "StripeAuthenticationError" || stripeError.statusCode === 401
+      ? "stripe_authentication_failed"
+      : stripeError.type === "StripePermissionError" || stripeError.statusCode === 403
+      ? "stripe_permission_failed"
+      : message.includes("does not match the TunesFork price contract")
+      ? "price_contract_mismatch"
+      : stripeError.type === "StripeInvalidRequestError"
+      ? "stripe_request_rejected"
+      : "stripe_unavailable";
+    return new Response(JSON.stringify({
+      error: "Unable to resolve subscription price",
+      code: diagnosticCode,
+    }), {
       status: 500,
       headers: jsonHeaders,
     });
