@@ -17,6 +17,16 @@ export function getConnectionApiKey(env: StripeEnv): string {
     ? Deno.env.get("STRIPE_SANDBOX_API_KEY")
     : Deno.env.get("STRIPE_LIVE_API_KEY");
   if (!key) throw new Error(`STRIPE_${env.toUpperCase()}_API_KEY is not configured`);
+  if (key !== key.trim() || /\s/.test(key)) {
+    throw new Error("Stripe API key contains whitespace");
+  }
+  const expectedPrefix = env === "sandbox" ? "sk_test_" : "sk_live_";
+  if (!key.startsWith(expectedPrefix)) {
+    throw new Error(`Stripe API key does not match the ${env} environment`);
+  }
+  if (!/^[A-Za-z0-9_]+$/.test(key)) {
+    throw new Error("Stripe API key contains invalid characters");
+  }
   return key;
 }
 
