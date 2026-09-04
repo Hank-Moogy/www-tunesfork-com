@@ -21,7 +21,7 @@ export function StripeCheckoutRedirect({ priceId }: StripeCheckoutRedirectProps)
 
     const redirect = async () => {
       try {
-        const { data, error: invokeError } = await supabase.functions.invoke("create-checkout", {
+        const { data, error: invokeError } = await supabase.functions.invoke("create-managed-checkout", {
           body: {
             priceId,
             checkoutRequestId: requestId.current,

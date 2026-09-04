@@ -60,7 +60,7 @@ export default function BillingPage() {
     setError(null);
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("create-portal-session", {
-        body: { environment: getStripeEnvironment() },
+        body: { environment: getStripeEnvironment(), returnPath: "/billing" },
       });
       if (invokeError || !isTrustedStripeBillingPortalUrl(data?.url)) {
         throw new Error("Unable to open the billing portal");

@@ -41,7 +41,7 @@ serve(async (req) => {
       });
     }
 
-    const { environment } = await req.json();
+    const { environment, returnPath } = await req.json();
     const env = getConfiguredStripeEnvironment(environment);
     const stripe = createStripeClient(env);
     const siteUrl = getPublicSiteUrl();
@@ -66,7 +66,7 @@ serve(async (req) => {
 
     const portal = await stripe.billingPortal.sessions.create({
       customer: sub.stripe_customer_id,
-      return_url: `${siteUrl}/billing`,
+      return_url: `${siteUrl}${returnPath === "/billing" ? "/billing" : "/profile"}`,
     });
 
     return new Response(JSON.stringify({ url: portal.url }), {

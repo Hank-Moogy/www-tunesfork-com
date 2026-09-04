@@ -61,7 +61,7 @@ Do not set `STRIPE_ENVIRONMENT=live`, a live API key, or a live webhook secret d
 
 The release migration `20260901170000_stripe_launch_hardening.sql` provides the webhook idempotency and founding-capacity tables and must already be applied. Then deploy only:
 
-- `create-checkout`
+- `create-managed-checkout`
 - `checkout-session-status`
 - `get-stripe-price`
 - `create-portal-session`
