@@ -873,7 +873,9 @@ async function tryIncrementalUpload({ changeNote, priorLink, contentHash, plan, 
     const file = uniqueFiles.get(target.sha256);
     if (!file) throw new Error(`Server requested an unknown blob ${target.sha256}`);
     log("busy", `Uploading changed file ${file.path} (${(file.size / 1e6).toFixed(1)} MB)…`);
-    if (target.token) {
+    // Supabase's resumable endpoint cannot create a zero-length upload — it answers
+    // the creation POST with 404 NotFound — so empty files take the one-shot PUT.
+    if (target.token && file.size > 0) {
       await uploadSignedObjectResumable({
         filePath: file.source_path,
         fileSize: file.size,
