@@ -47,9 +47,15 @@ function writeHashCache(cacheFile, entries) {
   fs.renameSync(tmp, cacheFile);
 }
 
+// Desktop-shell metadata that Finder/Explorer drop next to real project files.
+// "Icon\r" is macOS's custom folder icon: its data fork is always empty and the
+// artwork lives in a resource fork we never carry, so syncing it is pointless —
+// and a zero-byte blob cannot be uploaded resumably at all.
+const SHELL_METADATA_NAMES = new Set(["Icon\r", "Thumbs.db", "desktop.ini", "__MACOSX"]);
+
 function shouldInclude(entryName) {
   return !entryName.startsWith(".")
-    && entryName !== "Thumbs.db"
+    && !SHELL_METADATA_NAMES.has(entryName)
     && !entryName.endsWith(".als~");
 }
 
