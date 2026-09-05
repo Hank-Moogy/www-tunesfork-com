@@ -11,6 +11,7 @@ const { pipeline } = require("node:stream/promises");
 const { parseAlsFile } = require("./als-parser.cjs");
 const { buildSampleCheck } = require("./sample-check.cjs");
 const { buildProjectManifest, manifestForApi } = require("./incremental-sync.cjs");
+const alsDelta = require("./als-delta.cjs");
 const { MAX_FILE_BYTES, safeRestoreDestination, validateLegacyZipEntries } = require("./restore-validation.cjs");
 const {
   assertFolderReadable,
@@ -44,6 +45,9 @@ const stateDir = process.env.TUNESFORK_STATE_DIR || path.join(
 fs.mkdirSync(stateDir, { recursive: true });
 const stateFile = path.join(stateDir, "state.json");
 const hashCacheFile = path.join(stateDir, "hash-cache.json");
+// Copies of the .als revisions that later saves are stored as patches against.
+// Content-addressed, so projects sharing a revision share one file.
+const alsKeyframeDir = path.join(stateDir, "als-keyframes");
 
 const defaultState = {
   paired: false,
@@ -772,6 +776,82 @@ function collectVersionMetadata(projectFolder, alsPath, requireComplete = false)
   return { meta, sampleCheck };
 }
 
+function alsKeyframePath(sha256) {
+  return path.join(alsKeyframeDir, `${sha256}.als`);
+}
+
+function readAlsKeyframe(sha256) {
+  if (!sha256 || !/^[0-9a-f]{64}$/.test(sha256)) return null;
+  try {
+    const bytes = fs.readFileSync(alsKeyframePath(sha256));
+    // A cache file that no longer hashes to its name cannot be a delta base.
+    if (crypto.createHash("sha256").update(bytes).digest("hex") !== sha256) return null;
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
+function writeAlsKeyframe(sha256, bytes) {
+  try {
+    fs.mkdirSync(alsKeyframeDir, { recursive: true });
+    const target = alsKeyframePath(sha256);
+    const temp = `${target}.${process.pid}.tmp`;
+    fs.writeFileSync(temp, bytes, { mode: 0o600 });
+    fs.renameSync(temp, target);
+    return true;
+  } catch (error) {
+    log("warn", `Could not cache an .als delta base: ${error && error.message ? error.message : error}`);
+    return false;
+  }
+}
+
+// Drop keyframes no linked project still deltas against.
+function pruneAlsKeyframes() {
+  try {
+    const links = Object.values(readState().projectLinks ?? {});
+    const keep = new Set(links.map((link) => link?.alsKeyframeSha256).filter(Boolean));
+    for (const entry of fs.readdirSync(alsKeyframeDir)) {
+      if (!entry.endsWith(".als")) continue;
+      if (keep.has(entry.slice(0, -4))) continue;
+      try { fs.unlinkSync(path.join(alsKeyframeDir, entry)); } catch {}
+    }
+  } catch {}
+}
+
+/**
+ * Offer each changed .als as a patch against the revision we last stored whole.
+ * Returns proposals keyed by sha256; the server accepts or silently downgrades
+ * each one, so nothing here can fail a sync.
+ */
+function planAlsDeltas(plan, priorLink) {
+  const proposals = new Map();
+  const baseSha256 = priorLink?.alsKeyframeSha256;
+  if (!baseSha256) return proposals;
+  const baseBytes = readAlsKeyframe(baseSha256);
+  if (!baseBytes) return proposals;
+  const baseXml = alsDelta.readAlsXml(baseBytes);
+  if (!baseXml) return proposals;
+
+  for (const file of plan.manifest.files) {
+    if (!file.path.toLowerCase().endsWith(".als")) continue;
+    if (file.sha256 === baseSha256) continue;
+    try {
+      const payload = alsDelta.encodeAlsDelta(fs.readFileSync(file.source_path), baseXml);
+      if (!payload) continue;
+      proposals.set(file.sha256, {
+        encoding: alsDelta.ENCODING,
+        base_sha256: baseSha256,
+        stored_bytes: payload.length,
+        payload,
+      });
+    } catch (error) {
+      log("warn", `Could not delta ${file.path}: ${error && error.message ? error.message : error}`);
+    }
+  }
+  return proposals;
+}
+
 async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, contentHash, plan, meta, sampleCheck }) {
   const startedAt = Date.now();
   const token = readToken();
@@ -783,13 +863,24 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
     if (!uniqueFiles.has(file.sha256)) uniqueFiles.set(file.sha256, file);
   }
 
+  const alsProposals = planAlsDeltas(plan, priorLink);
   const negotiation = await fetch(`${FUNCTIONS_URL}/negotiate-project-upload`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({
       project_id: priorLink?.projectId ?? null,
       logical_size: plan.logicalSize,
-      files: Array.from(uniqueFiles.values(), (file) => ({ sha256: file.sha256, size: file.size })),
+      files: Array.from(uniqueFiles.values(), (file) => {
+        const proposal = alsProposals.get(file.sha256);
+        if (!proposal) return { sha256: file.sha256, size: file.size };
+        return {
+          sha256: file.sha256,
+          size: file.size,
+          encoding: proposal.encoding,
+          base_sha256: proposal.base_sha256,
+          stored_bytes: proposal.stored_bytes,
+        };
+      }),
     }),
   });
   if ([404, 405, 501].includes(negotiation.status)) {
@@ -822,10 +913,19 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
     for (const target of missing) {
       const file = uniqueFiles.get(target.sha256);
       if (!file) throw new Error(`Server requested an unknown blob ${target.sha256}`);
-      log("busy", `Uploading changed file ${file.path} (${(file.size / 1e6).toFixed(1)} MB)…`);
+      // The server decides the encoding: a delta it could not honour comes back
+      // as raw, and we upload the whole file instead.
+      const delta = target.encoding === alsDelta.ENCODING ? alsProposals.get(target.sha256) : null;
+      const storedBytes = delta ? delta.payload.length : file.size;
+      if (delta) {
+        log("busy", `Uploading changed file ${file.path} (${(storedBytes / 1e3).toFixed(1)} kB patch of ${(file.size / 1e6).toFixed(1)} MB)…`);
+      } else {
+        log("busy", `Uploading changed file ${file.path} (${(file.size / 1e6).toFixed(1)} MB)…`);
+      }
       // Supabase's resumable endpoint cannot create a zero-length upload — it answers
       // the creation POST with 404 NotFound — so empty files take the one-shot PUT.
-      if (target.token && file.size > 0) {
+      // Patches are a few kB, so they take it too.
+      if (!delta && target.token && file.size > 0) {
         await uploadSignedObjectResumable({
           filePath: file.source_path,
           fileSize: file.size,
@@ -838,11 +938,12 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
         const upload = await fetch(target.signed_url, {
           method: "PUT",
           headers: { "Content-Type": "application/octet-stream", "x-upsert": "false" },
-          body: fs.readFileSync(file.source_path),
+          body: delta ? delta.payload : fs.readFileSync(file.source_path),
         });
         if (!upload.ok) throw new Error(`Blob upload failed ${upload.status}: ${await upload.text()}`);
       }
-      bytesUploaded += file.size;
+      // Accounting follows what was stored, which is what the reservation held.
+      bytesUploaded += storedBytes;
     }
 
     const projectName = path.basename(projectFolder).replace(/ Project$/i, "");
@@ -876,13 +977,30 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
       throw error;
     }
     const result = await response.json();
+    // Whatever .als we just stored whole becomes the base later saves patch
+    // against. If this run only sent a patch, the existing base still stands.
+    let keyframeSha256 = priorLink?.alsKeyframeSha256 ?? null;
+    for (const target of missing) {
+      if (target.encoding === alsDelta.ENCODING) continue;
+      const file = uniqueFiles.get(target.sha256);
+      if (!file || !file.path.toLowerCase().endsWith(".als")) continue;
+      try {
+        if (writeAlsKeyframe(file.sha256, fs.readFileSync(file.source_path))) {
+          keyframeSha256 = file.sha256;
+        }
+      } catch (error) {
+        log("warn", `Could not cache ${file.path} as a delta base: ${error && error.message ? error.message : error}`);
+      }
+    }
     setProjectLink(projectFolder, {
       projectId: result.project_id,
       projectName,
       lastVersion: result.version_number,
       lastVersionId: result.version_id,
       lastContentHash: contentHash,
+      alsKeyframeSha256: keyframeSha256,
     });
+    pruneAlsKeyframes();
     addRecentUpload(projectName, result.version_number);
     log(
       "info",
@@ -1330,19 +1448,44 @@ async function reconstructManifestVersion(destRoot, manifest, auth) {
       throw new Error(`Could not authorize restore batch (${signedResponse.status})`);
     }
     const signed = await signedResponse.json();
-    const urlByHash = new Map((signed.blobs || []).map((blob) => [blob.sha256, blob.signed_url]));
+    const blobByHash = new Map((signed.blobs || []).map((blob) => [blob.sha256, blob]));
+    // Bases are shared between files in a batch, so fetch each at most once.
+    const baseCache = new Map();
+    const fetchBase = async (blob) => {
+      if (baseCache.has(blob.base_sha256)) return baseCache.get(blob.base_sha256);
+      if (!blob.base_signed_url) throw new Error(`Missing delta base for ${blob.sha256}`);
+      const response = await fetch(blob.base_signed_url);
+      if (!response.ok) throw new Error(`Delta base download failed ${response.status}`);
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (crypto.createHash("sha256").update(bytes).digest("hex") !== blob.base_sha256) {
+        throw new Error(`Delta base failed its integrity check for ${blob.sha256}`);
+      }
+      baseCache.set(blob.base_sha256, bytes);
+      return bytes;
+    };
     let cursor = 0;
     const worker = async () => {
       while (cursor < batch.length) {
         const file = batch[cursor++];
-        const signedUrl = urlByHash.get(file.sha256);
+        const blob = blobByHash.get(file.sha256);
+        const signedUrl = blob?.signed_url;
         if (!signedUrl) throw new Error(`Invalid download metadata for ${file.path}`);
         fs.mkdirSync(path.dirname(file.destination), { recursive: true });
         const partial = `${file.destination}.tfsync-part`;
         try {
-          const response = await fetch(signedUrl);
-          if (!response.ok || !response.body) throw new Error(`Download failed ${response.status}`);
-          await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(partial, { mode: 0o600 }));
+          if (blob.encoding === alsDelta.ENCODING) {
+            // Rebuild the file from its patch, then hold it to exactly the same
+            // integrity bar as a whole download.
+            const response = await fetch(signedUrl);
+            if (!response.ok) throw new Error(`Download failed ${response.status}`);
+            const payload = Buffer.from(await response.arrayBuffer());
+            const rebuilt = alsDelta.decodeAlsDelta(payload, await fetchBase(blob));
+            fs.writeFileSync(partial, rebuilt, { mode: 0o600 });
+          } else {
+            const response = await fetch(signedUrl);
+            if (!response.ok || !response.body) throw new Error(`Download failed ${response.status}`);
+            await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(partial, { mode: 0o600 }));
+          }
           const stat = fs.statSync(partial);
           if (stat.size !== file.size || hashFileSync(partial) !== file.sha256) {
             throw new Error(`Integrity check failed for ${file.path}`);

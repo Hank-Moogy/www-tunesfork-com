@@ -8,6 +8,12 @@ const BodySchema = z.object({
   files: z.array(z.object({
     sha256: z.string().regex(/^[0-9a-f]{64}$/),
     size: z.number().int().nonnegative().max(5 * 1024 * 1024 * 1024),
+    // Optional delta proposal. The client cannot know whether the server still
+    // holds the base it cached, so an unusable one is downgraded to a whole
+    // upload by reserve_project_upload rather than failing the sync.
+    encoding: z.enum(["raw", "als_xml_delta"]).optional(),
+    base_sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+    stored_bytes: z.number().int().positive().max(5 * 1024 * 1024 * 1024).optional(),
   })).max(20_000),
 });
 
@@ -54,6 +60,9 @@ Deno.serve(async (req) => {
       _files: [...unique.values()].map((file) => ({
         sha256: file.sha256,
         size_bytes: file.size,
+        encoding: file.encoding ?? "raw",
+        base_sha256: file.encoding === "als_xml_delta" ? file.base_sha256 ?? null : null,
+        stored_bytes: file.encoding === "als_xml_delta" ? file.stored_bytes ?? null : file.size,
       })),
     });
     if (reserveError || !reservation?.reservation_id) {
@@ -95,6 +104,10 @@ Deno.serve(async (req) => {
           object_path: target.object_path,
           signed_url: data.signedUrl,
           token: data.token,
+          // What the server actually accepted, which may be a downgrade to raw.
+          encoding: target.encoding ?? "raw",
+          base_sha256: target.base_sha256 ?? null,
+          stored_bytes: Number(target.stored_bytes ?? target.size),
         });
       }
     } catch (error) {
@@ -106,7 +119,7 @@ Deno.serve(async (req) => {
     }
 
     await admin.from("device_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tokenRow.id);
-    const missingBytes = missing.reduce((sum, blob) => sum + Number(blob.size || 0), 0);
+    const missingBytes = missing.reduce((sum, blob) => sum + Number(blob.stored_bytes || 0), 0);
     return json({
       reservation_id: reservation.reservation_id,
       expires_at: reservation.expires_at,
