@@ -51,3 +51,21 @@ test("reuses cached hashes and changes the aggregate only for logical changes", 
     fs.rmSync(temp, { recursive: true, force: true });
   }
 });
+
+test("excludes desktop-shell metadata that cannot round-trip through storage", () => {
+  const { temp, project, cache } = fixture();
+  try {
+    fs.writeFileSync(path.join(project, "Icon\r"), "");
+    fs.writeFileSync(path.join(project, "Thumbs.db"), "shell");
+    fs.writeFileSync(path.join(project, "desktop.ini"), "shell");
+    fs.writeFileSync(path.join(project, "Icon.png"), "a real file the user added");
+    const result = buildProjectManifest(project, cache);
+    assert.deepEqual(result.manifest.files.map((file) => file.path), [
+      "Demo Project/Demo.als",
+      "Demo Project/Icon.png",
+      "Demo Project/Samples/kick.wav",
+    ]);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});

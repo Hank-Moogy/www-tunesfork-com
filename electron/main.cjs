@@ -810,97 +810,123 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
   const negotiationResult = await negotiation.json();
   const { missing = [], reservation_id: reservationId, usage = null } = negotiationResult;
   if (!reservationId) throw new Error("Server returned no upload reservation");
-  emitAnalytics("Incremental Upload Negotiated", {
-    logical_bytes: plan.logicalSize,
-    uploaded_bytes: missing.reduce((sum, target) => sum + Number(target.size || 0), 0),
-    reused_bytes: Number(negotiationResult.reused_bytes || 0),
-    file_count: plan.manifest.files.length,
-    missing_blob_count: missing.length,
-  });
-  let bytesUploaded = 0;
-  for (const target of missing) {
-    const file = uniqueFiles.get(target.sha256);
-    if (!file) throw new Error(`Server requested an unknown blob ${target.sha256}`);
-    log("busy", `Uploading changed file ${file.path} (${(file.size / 1e6).toFixed(1)} MB)…`);
-    if (target.token) {
-      await uploadSignedObjectResumable({
-        filePath: file.source_path,
-        fileSize: file.size,
-        objectPath: target.object_path,
-        signedUploadToken: target.token,
-        bucketName: "project-blobs",
-        contentType: "application/octet-stream",
-      });
-    } else {
-      const upload = await fetch(target.signed_url, {
-        method: "PUT",
-        headers: { "Content-Type": "application/octet-stream", "x-upsert": "false" },
-        body: fs.readFileSync(file.source_path),
-      });
-      if (!upload.ok) throw new Error(`Blob upload failed ${upload.status}: ${await upload.text()}`);
+  try {
+    emitAnalytics("Incremental Upload Negotiated", {
+      logical_bytes: plan.logicalSize,
+      uploaded_bytes: missing.reduce((sum, target) => sum + Number(target.size || 0), 0),
+      reused_bytes: Number(negotiationResult.reused_bytes || 0),
+      file_count: plan.manifest.files.length,
+      missing_blob_count: missing.length,
+    });
+    let bytesUploaded = 0;
+    for (const target of missing) {
+      const file = uniqueFiles.get(target.sha256);
+      if (!file) throw new Error(`Server requested an unknown blob ${target.sha256}`);
+      log("busy", `Uploading changed file ${file.path} (${(file.size / 1e6).toFixed(1)} MB)…`);
+      // Supabase's resumable endpoint cannot create a zero-length upload — it answers
+      // the creation POST with 404 NotFound — so empty files take the one-shot PUT.
+      if (target.token && file.size > 0) {
+        await uploadSignedObjectResumable({
+          filePath: file.source_path,
+          fileSize: file.size,
+          objectPath: target.object_path,
+          signedUploadToken: target.token,
+          bucketName: "project-blobs",
+          contentType: "application/octet-stream",
+        });
+      } else {
+        const upload = await fetch(target.signed_url, {
+          method: "PUT",
+          headers: { "Content-Type": "application/octet-stream", "x-upsert": "false" },
+          body: fs.readFileSync(file.source_path),
+        });
+        if (!upload.ok) throw new Error(`Blob upload failed ${upload.status}: ${await upload.text()}`);
+      }
+      bytesUploaded += file.size;
     }
-    bytesUploaded += file.size;
-  }
 
-  const projectName = path.basename(projectFolder).replace(/ Project$/i, "");
-  const body = {
-    project_name: projectName,
-    reservation_id: reservationId,
-    manifest: apiManifest,
-    uploaded_blob_sha256: missing.map((target) => target.sha256),
-    file_size_bytes: plan.logicalSize,
-    bytes_uploaded: bytesUploaded,
-    change_note: changeNote,
-    bpm: meta?.bpm ?? null,
-    plugin_list: meta?.plugins ?? null,
-    track_list: meta?.tracks ?? null,
-    ableton_version: meta?.abletonVersion ?? null,
-    sample_check: sampleCheck,
-  };
-  if (priorLink?.projectId) body.project_id = priorLink.projectId;
+    const projectName = path.basename(projectFolder).replace(/ Project$/i, "");
+    const body = {
+      project_name: projectName,
+      reservation_id: reservationId,
+      manifest: apiManifest,
+      uploaded_blob_sha256: missing.map((target) => target.sha256),
+      file_size_bytes: plan.logicalSize,
+      bytes_uploaded: bytesUploaded,
+      change_note: changeNote,
+      bpm: meta?.bpm ?? null,
+      plugin_list: meta?.plugins ?? null,
+      track_list: meta?.tracks ?? null,
+      ableton_version: meta?.abletonVersion ?? null,
+      sample_check: sampleCheck,
+    };
+    if (priorLink?.projectId) body.project_id = priorLink.projectId;
 
-  const response = await fetch(`${FUNCTIONS_URL}/create-version-from-desktop`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    const responseText = await response.text();
-    let responseBody = null;
-    try { responseBody = JSON.parse(responseText); } catch {}
-    const error = new Error(responseBody?.error || `Register failed ${response.status}: ${responseText}`);
-    error.code = responseBody?.code || "VERSION_FINALIZATION_FAILED";
+    const response = await fetch(`${FUNCTIONS_URL}/create-version-from-desktop`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const responseText = await response.text();
+      let responseBody = null;
+      try { responseBody = JSON.parse(responseText); } catch {}
+      const error = new Error(responseBody?.error || `Register failed ${response.status}: ${responseText}`);
+      error.code = responseBody?.code || "VERSION_FINALIZATION_FAILED";
+      throw error;
+    }
+    const result = await response.json();
+    setProjectLink(projectFolder, {
+      projectId: result.project_id,
+      projectName,
+      lastVersion: result.version_number,
+      lastVersionId: result.version_id,
+      lastContentHash: contentHash,
+    });
+    addRecentUpload(projectName, result.version_number);
+    log(
+      "info",
+      `Incremental sync uploaded ${(bytesUploaded / 1e6).toFixed(1)} of ${(plan.logicalSize / 1e6).toFixed(1)} MB (${missing.length}/${uniqueFiles.size} blobs)`,
+    );
+    if (usage?.warning_level === "80" || usage?.warning_level === "95") {
+      log("warn", `Storage is ${usage.warning_level}% full. Delete old projects or upgrade before it reaches the limit.`);
+      emitAnalytics("Storage Warning Reached", { warning_level: usage.warning_level });
+    }
+    emitAnalytics("Project Upload Completed", {
+      project_id: result.project_id,
+      version_number: result.version_number,
+      logical_bytes: plan.logicalSize,
+      uploaded_bytes: bytesUploaded,
+      reused_bytes: Number(negotiationResult.reused_bytes || 0),
+      deduplication_percentage: plan.logicalSize > 0 ? (1 - bytesUploaded / plan.logicalSize) * 100 : 100,
+      file_count: plan.manifest.files.length,
+      duration_ms: Date.now() - startedAt,
+      result: "success",
+    });
+    return { projectName, result };
+  } catch (error) {
+    // A half-finished run must not hold the reservation for its full 24h life: the
+    // server treats those blobs as an in-flight upload and answers every retry with
+    // UPLOAD_CONFLICT until it expires.
+    await releaseUploadReservation(token, reservationId);
     throw error;
   }
-  const result = await response.json();
-  setProjectLink(projectFolder, {
-    projectId: result.project_id,
-    projectName,
-    lastVersion: result.version_number,
-    lastVersionId: result.version_id,
-    lastContentHash: contentHash,
-  });
-  addRecentUpload(projectName, result.version_number);
-  log(
-    "info",
-    `Incremental sync uploaded ${(bytesUploaded / 1e6).toFixed(1)} of ${(plan.logicalSize / 1e6).toFixed(1)} MB (${missing.length}/${uniqueFiles.size} blobs)`,
-  );
-  if (usage?.warning_level === "80" || usage?.warning_level === "95") {
-    log("warn", `Storage is ${usage.warning_level}% full. Delete old projects or upgrade before it reaches the limit.`);
-    emitAnalytics("Storage Warning Reached", { warning_level: usage.warning_level });
+}
+
+async function releaseUploadReservation(token, reservationId) {
+  if (!token || !reservationId) return;
+  try {
+    const response = await fetch(`${FUNCTIONS_URL}/cancel-project-upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ reservation_id: reservationId }),
+    });
+    if (!response.ok) {
+      log("warn", `Could not release the interrupted upload reservation (${response.status}); retries may be blocked for up to 24 hours.`);
+    }
+  } catch (e) {
+    log("warn", `Could not release the interrupted upload reservation: ${e && e.message ? e.message : e}`);
   }
-  emitAnalytics("Project Upload Completed", {
-    project_id: result.project_id,
-    version_number: result.version_number,
-    logical_bytes: plan.logicalSize,
-    uploaded_bytes: bytesUploaded,
-    reused_bytes: Number(negotiationResult.reused_bytes || 0),
-    deduplication_percentage: plan.logicalSize > 0 ? (1 - bytesUploaded / plan.logicalSize) * 100 : 100,
-    file_count: plan.manifest.files.length,
-    duration_ms: Date.now() - startedAt,
-    result: "success",
-  });
-  return { projectName, result };
 }
 
 async function uploadSignedObjectResumable({
