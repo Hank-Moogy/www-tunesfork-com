@@ -114,17 +114,44 @@ Deno.serve(async (req) => {
       if (blobError) return json({ error: blobError.message }, 500);
       if ((blobs ?? []).length !== hashesToSign.length) return json({ error: "BLOB_MISSING" }, 409);
       const ownerByHash = new Map((blobs ?? []).map((blob) => [blob.sha256, blob.user_id]));
-      const resolvedPaths = hashesToSign.map((sha256) => `${ownerByHash.get(sha256) ?? project.owner_id}/${sha256}`);
+
+      // A delta-encoded blob is a patch: the client also needs its base to rebuild
+      // the file, so sign both. Deltas are depth 1, so one extra lookup suffices.
+      const { data: encodings, error: encodingError } = await admin.from("project_blobs")
+        .select("sha256,user_id,encoding,base_sha256")
+        .eq("user_id", project.owner_id).in("sha256", hashesToSign);
+      if (encodingError) return json({ error: encodingError.message }, 500);
+      const encodingByHash = new Map((encodings ?? []).map((blob) => [blob.sha256, blob]));
+      const baseHashes = [...new Set(
+        (encodings ?? [])
+          .filter((blob) => blob.encoding === "als_xml_delta" && blob.base_sha256)
+          .map((blob) => blob.base_sha256 as string),
+      )].filter((sha256) => !hashesToSign.includes(sha256));
+
+      const pathsToSign = [
+        ...hashesToSign.map((sha256) => `${ownerByHash.get(sha256) ?? project.owner_id}/${sha256}`),
+        ...baseHashes.map((sha256) => `${project.owner_id}/${sha256}`),
+      ];
       const { data: signedBlobs, error: signError } = await admin.storage
-        .from("project-blobs").createSignedUrls(resolvedPaths, 900);
+        .from("project-blobs").createSignedUrls(pathsToSign, 900);
       if (signError || !signedBlobs) return json({ error: signError?.message ?? "sign failed" }, 500);
-      const urlByHash = new Map(hashesToSign.map((sha256, index) => [sha256, signedBlobs[index]?.signedUrl]));
+      const allHashes = [...hashesToSign, ...baseHashes];
+      const urlByHash = new Map(allHashes.map((sha256, index) => [sha256, signedBlobs[index]?.signedUrl]));
       if ([...urlByHash.values()].some((signedUrl) => !signedUrl)) {
         return json({ error: "Could not sign every content blob" }, 500);
       }
       return json({
         kind: "blob_urls",
-        blobs: hashesToSign.map((sha256) => ({ sha256, signed_url: urlByHash.get(sha256) })),
+        blobs: hashesToSign.map((sha256) => {
+          const encoding = encodingByHash.get(sha256);
+          return {
+            sha256,
+            signed_url: urlByHash.get(sha256),
+            encoding: encoding?.encoding ?? "raw",
+            base_sha256: encoding?.base_sha256 ?? null,
+            base_signed_url: encoding?.base_sha256 ? urlByHash.get(encoding.base_sha256) ?? null : null,
+          };
+        }),
         versionId: version.id,
       });
     }

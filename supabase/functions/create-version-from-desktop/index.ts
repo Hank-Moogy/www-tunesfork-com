@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
 
       const { data: reservedBlobs, error: reservedError } = await admin
         .from("upload_reservation_blobs")
-        .select("sha256,size_bytes,object_path")
+        .select("sha256,size_bytes,object_path,stored_bytes")
         .eq("reservation_id", reservationId);
       if (reservedError) throw reservedError;
 
@@ -241,12 +241,17 @@ Deno.serve(async (req) => {
             status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-        if (actualSize !== Number(expectedBlob.size_bytes)) {
+        // What sits in the bucket is the stored representation, which for a delta
+        // is the patch rather than the file. The reservation is the authority on
+        // both, so verify against stored_bytes and attest the logical size that
+        // finalization matches back to the manifest.
+        const storedBytes = Number(expectedBlob.stored_bytes ?? expectedBlob.size_bytes);
+        if (actualSize !== storedBytes) {
           return new Response(JSON.stringify({ code: "BLOB_SIZE_MISMATCH", error: `Invalid content blob ${sha256}` }), {
             status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-        readyBlobs.push({ sha256, size: actualSize });
+        readyBlobs.push({ sha256, size: Number(expectedBlob.size_bytes) });
       }
 
       const bytesUploaded = Number(body.bytes_uploaded ?? 0);
