@@ -46,7 +46,7 @@ export default function NewProjectCard({ onClick, onFilesDropped }: NewProjectCa
       <div className="space-y-1">
         <div className="font-semibold text-foreground">New Project</div>
         <div className="text-xs text-muted-foreground font-mono">
-          Click or drop .als / .zip
+          Sync from the desktop app
         </div>
       </div>
     </button>
