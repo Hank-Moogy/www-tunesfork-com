@@ -8,11 +8,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Upload, Download, ChevronDown, FolderOpen } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import ContributionHeatmap from "@/components/profile/ContributionHeatmap";
 import type { Tables } from "@/integrations/supabase/types";
-import UploadModal from "@/components/UploadModal";
-import ShareAfterUploadModal from "@/components/ShareAfterUploadModal";
 import ProjectCard, { type ProjectCardCollaborator } from "@/components/ProjectCard";
 import NewProjectCard from "@/components/NewProjectCard";
 import { usePageView } from "@/hooks/usePageView";
@@ -42,6 +40,7 @@ function useDebounced<T>(value: T, delay = 250) {
 export default function Dashboard() {
   usePageView("dashboard");
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [tab, setTab] = useState<Tab>("all");
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -85,11 +84,6 @@ export default function Dashboard() {
     Record<string, ProjectCardCollaborator[]>
   >({});
 
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [, setPendingFiles] = useState<FileList | null>(null);
-  const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [lastShareUrl, setLastShareUrl] = useState<string | undefined>();
-  const [lastShareProjectId, setLastShareProjectId] = useState<string | undefined>();
   const [hasAnyProjectsEver, setHasAnyProjectsEver] = useState<boolean | null>(null);
 
   const sharedIdsRef = useRef<string[] | null>(null);
@@ -284,35 +278,7 @@ export default function Dashboard() {
     void fetchPage({ append: true, pageIndex: next });
   };
 
-  const handleUploadComplete = ({ projectId, shareReady }: { projectId: string; shareReady: boolean; sampleIssueCount: number }) => {
-    const wasFirst = hasAnyProjectsEver === false;
-    setHasAnyProjectsEver(true);
-    setPage(0);
-    void fetchPage({ append: false, pageIndex: 0 });
-
-    if (wasFirst && shareReady) {
-      supabase
-        .from("projects")
-        .select("id")
-        .eq("owner_id", user!.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .then(async ({ data }) => {
-          const newestProjectId = data?.[0]?.id;
-          if (!newestProjectId || newestProjectId !== projectId) return;
-          const { data: token } = await supabase.rpc("ensure_project_share_token", {
-            _project_id: newestProjectId,
-          });
-          if (token) {
-            setLastShareProjectId(newestProjectId);
-            setLastShareUrl(`${window.location.origin}/share/${token}`);
-            setShareModalOpen(true);
-          }
-        });
-    }
-  };
-
-  const openUpload = () => setUploadOpen(true);
+  const openUpload = () => navigate("/desktop-app");
 
   // Only show the first-time empty state when we're certain the user has zero projects.
   // Guard against races where the standalone count query resolves with 0 even though
@@ -405,8 +371,8 @@ export default function Dashboard() {
               search={debouncedSearch}
               onNewProject={openUpload}
               onFilesDropped={(files) => {
-                setPendingFiles(files);
-                setUploadOpen(true);
+                trackButtonClick("dashboard_drop_redirect_to_sync", "dashboard", { file_count: files.length });
+                openUpload();
               }}
               showNewTile={tab !== "shared"}
             />
@@ -429,20 +395,6 @@ export default function Dashboard() {
           </>
         )}
 
-        <UploadModal
-          open={uploadOpen}
-          onOpenChange={(o) => {
-            setUploadOpen(o);
-            if (!o) setPendingFiles(null);
-          }}
-          onVersionUploaded={handleUploadComplete}
-        />
-        <ShareAfterUploadModal
-          open={shareModalOpen}
-          onOpenChange={setShareModalOpen}
-          shareUrl={lastShareUrl}
-          projectId={lastShareProjectId}
-        />
       </PageContainer>
     </div>
   );
