@@ -1,10 +1,9 @@
 // Centralized desktop-app download config.
-// Do not gate downloads on the GitHub releases API in the browser: that
-// request can be rate-limited or blocked and previously left production stuck
-// on "Checking latest release…". The stable /releases/latest/download URLs
-// redirect directly to the current published asset.
+// Downloads never depend on the GitHub API: the stable /releases/latest/download
+// URLs redirect directly to the current published asset. The API is only used
+// as a progressive enhancement for the version copy, with a generic fallback.
 
-export const DESKTOP_APP_VERSION_LABEL = "v0.1.0-alpha.16 · unsigned alpha";
+export const DESKTOP_APP_VERSION_LABEL = "Latest public build";
 
 export const REPO_SLUG: string | null = "Hank-Moogy/www-tunesfork-com";
 
@@ -43,3 +42,31 @@ export function detectPlatform(): DesktopPlatform {
 export const DOWNLOADS_AVAILABLE = Boolean(DOWNLOAD_URLS.mac || DOWNLOAD_URLS.windows);
 
 export type DesktopDownloadUrls = typeof DOWNLOAD_URLS;
+
+type GitHubReleasePayload = {
+  tag_name?: unknown;
+  name?: unknown;
+};
+
+export function desktopReleaseLabelFromPayload(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const { tag_name: tagName, name } = payload as GitHubReleasePayload;
+  if (typeof tagName !== "string" || !/^v[0-9A-Za-z][0-9A-Za-z._-]*$/.test(tagName)) return null;
+
+  const isUnsigned = typeof name === "string" && name.toLowerCase().includes("unsigned");
+  return isUnsigned ? `${tagName} · unsigned build` : tagName;
+}
+
+export async function fetchDesktopAppVersionLabel(): Promise<string | null> {
+  if (!REPO_SLUG) return null;
+  try {
+    const response = await fetch(`https://api.github.com/repos/${REPO_SLUG}/releases/latest`, {
+      cache: "no-store",
+      headers: { Accept: "application/vnd.github+json" },
+    });
+    if (!response.ok) return null;
+    return desktopReleaseLabelFromPayload(await response.json());
+  } catch {
+    return null;
+  }
+}
