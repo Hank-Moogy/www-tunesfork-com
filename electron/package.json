@@ -1,6 +1,6 @@
 {
   "name": "tunesfork-sync",
-  "version": "0.1.0-alpha.14",
+  "version": "0.1.0-alpha.15",
   "description": "Tunesfork Sync — auto-upload Ableton projects on save",
   "author": "Tunesfork",
   "main": "main.cjs",
@@ -12,6 +12,7 @@
     "test": "node scripts/test-folder-access.cjs && node --test scripts/test-incremental-sync.cjs scripts/test-restore-validation.cjs scripts/test-sample-check.cjs",
     "smoke:backend": "node scripts/smoke-backend.cjs",
     "smoke:mac-install": "node scripts/smoke-mac-install.cjs",
+    "smoke:packaged-launch": "node scripts/smoke-packaged-launch.cjs",
     "build:ui": "vite build",
     "verify:pack": "node scripts/verify-pack.cjs",
     "dist": "npm run build:ui && electron-builder && npm run verify:pack",
@@ -62,6 +63,7 @@
       "als-parser.cjs",
       "sample-check.cjs",
       "incremental-sync.cjs",
+      "restore-validation.cjs",
       "assets/**",
       "build/icon.png",
       "dist/**",

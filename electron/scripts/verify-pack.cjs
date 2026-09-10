@@ -25,6 +25,7 @@ const REQUIRED_APP_FILES = [
   "/als-parser.cjs",
   "/sample-check.cjs",
   "/incremental-sync.cjs",
+  "/restore-validation.cjs",
   "/dist/index.html",
 ];
 const releaseDir = path.join(__dirname, "..", "release");
@@ -108,6 +109,16 @@ for (const asar of asars) {
   if (asarApi) {
     for (const runtimeFile of ["main.cjs", "preload.cjs"]) {
       const runtimeSource = asarApi.extractFile(asar, runtimeFile).toString("utf8");
+      const localRequirePattern = /require\(\s*["'](\.\/[^"']+)["']\s*\)/g;
+      for (const match of runtimeSource.matchAll(localRequirePattern)) {
+        const requiredPath = path.posix.normalize(path.posix.join(path.posix.dirname(`/${runtimeFile}`), match[1]));
+        if (!listing.includes(`${requiredPath}\n`) && !listing.endsWith(requiredPath)) {
+          console.error(`[verify-pack]   MISSING LOCAL REQUIRE: ${runtimeFile} -> ${requiredPath}`);
+          failed = true;
+        } else {
+          console.log(`[verify-pack]   ok: ${runtimeFile} -> ${requiredPath}`);
+        }
+      }
       if (/https?:\/\/(localhost|127\.0\.0\.1)/i.test(runtimeSource)) {
         console.error(`[verify-pack]   LOCALHOST RUNTIME URL: ${runtimeFile}`);
         failed = true;

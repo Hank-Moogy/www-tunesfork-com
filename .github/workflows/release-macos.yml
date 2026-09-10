@@ -49,6 +49,9 @@ jobs:
       - name: Test quarantined install
         working-directory: electron
         run: npm run smoke:mac-install
+      - name: Launch packaged app
+        working-directory: electron
+        run: npm run smoke:packaged-launch
       - name: Publish immutable release assets
         env:
           GH_TOKEN: ${{ github.token }}

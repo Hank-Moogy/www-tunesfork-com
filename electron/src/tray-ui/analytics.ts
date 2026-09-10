@@ -14,7 +14,7 @@ type AnalyticsEvent = { event_properties?: Record<string, unknown>; [key: string
 
 const API_KEY = import.meta.env.VITE_AMPLITUDE_API_KEY;
 const SERVER_ZONE = import.meta.env.VITE_AMPLITUDE_SERVER_ZONE === "EU" ? "EU" : "US";
-const APP_VERSION = import.meta.env.VITE_APP_VERSION || "0.1.0-alpha.14";
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || "0.1.0-alpha.15";
 const queue: Array<() => void> = [];
 let identity: DesktopIdentity = { app_surface: "desktop", app_version: APP_VERSION };
 let ready = false;
