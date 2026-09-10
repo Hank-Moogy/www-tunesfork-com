@@ -9,6 +9,7 @@ import { trackButtonClick } from "@/lib/analytics";
 import {
   DESKTOP_APP_VERSION_LABEL,
   DOWNLOAD_URLS,
+  fetchDesktopAppVersionLabel,
 } from "@/lib/desktopDownload";
 
 export default function DesktopAppPage() {
@@ -16,6 +17,17 @@ export default function DesktopAppPage() {
   const [params] = useSearchParams();
   const isWelcome = params.get("welcome") === "1";
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
+  const [versionLabel, setVersionLabel] = useState(DESKTOP_APP_VERSION_LABEL);
+
+  useEffect(() => {
+    let active = true;
+    void fetchDesktopAppVersionLabel().then((label) => {
+      if (active && label) setVersionLabel(label);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isWelcome || !user) return;
@@ -68,7 +80,7 @@ export default function DesktopAppPage() {
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
             <p className="mt-3 font-mono text-xs text-muted-foreground">
-              {DESKTOP_APP_VERSION_LABEL} · Universal macOS DMG
+              {versionLabel} · Universal macOS DMG
             </p>
           </div>
 
