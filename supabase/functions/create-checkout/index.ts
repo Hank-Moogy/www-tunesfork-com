@@ -9,9 +9,7 @@ const supabase = createClient(
 );
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
@@ -35,8 +33,7 @@ serve(async (req) => {
     ]);
     if (typeof priceId !== "string" || !allowedPrices.has(priceId)) {
       return new Response(JSON.stringify({ error: "Invalid priceId" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -55,18 +52,15 @@ serve(async (req) => {
       });
       if (reserveError || !reserved) {
         return new Response(JSON.stringify({ error: "Launch offer sold out" }), {
-          status: 410,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     }
 
-    // Resolve human-readable price ID to Stripe price ID
     const prices = await stripe.prices.list({ lookup_keys: [priceId] });
     if (!prices.data.length) {
       return new Response(JSON.stringify({ error: "Price not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const stripePrice = prices.data[0];
@@ -94,9 +88,8 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

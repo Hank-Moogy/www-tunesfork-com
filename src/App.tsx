@@ -16,6 +16,7 @@ import PluginPage from "./pages/PluginPage";
 import AdminPage from "./pages/AdminPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import CheckoutReturn from "./pages/CheckoutReturn";
+import BillingPage from "./pages/BillingPage";
 import NotFound from "./pages/NotFound";
 import DesktopAppPage from "./pages/DesktopAppPage";
 import DesktopPairPage from "./pages/DesktopPairPage";
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
             <Route path="/checkout/return" element={<ProtectedRoute><CheckoutReturn /></ProtectedRoute>} />
+            <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
             <Route path="/desktop-app" element={<DesktopAppPage />} />
             <Route
               path="/desktop-pair"

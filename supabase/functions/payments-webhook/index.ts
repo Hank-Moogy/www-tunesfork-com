@@ -1,7 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { type StripeEnv, createStripeClient, verifyWebhook } from "../_shared/stripe.ts";
+import {
+  type StripeEnv,
+  createStripeClient,
+  getConfiguredStripeEnvironment,
+  verifyWebhook,
+} from "../_shared/stripe.ts";
+import { isSubscriptionLookupKey } from "../_shared/payment-contract.ts";
+import { invoiceSubscriptionId } from "../_shared/stripe-events.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -133,7 +140,11 @@ async function processEvent(event: any, env: StripeEnv) {
   switch (event.type) {
     case "checkout.session.completed": {
       const userId = object.metadata?.userId || object.client_reference_id;
-      const plan = planFromLookupKey(object.metadata?.lookupKey) || object.metadata?.plan;
+      const lookupKey = object.metadata?.lookupKey;
+      if (object.mode !== "subscription" || !isSubscriptionLookupKey(lookupKey)) {
+        throw new Error(`Checkout ${object.id} has no trusted subscription price`);
+      }
+      const plan = planFromLookupKey(lookupKey);
       if (!userId || !plan) throw new Error(`Checkout ${object.id} has no trusted plan identity`);
       if (object.payment_status !== "paid" && object.payment_status !== "no_payment_required") {
         throw new Error(`Checkout ${object.id} is not paid`);
@@ -172,7 +183,8 @@ async function processEvent(event: any, env: StripeEnv) {
       break;
     }
     case "invoice.payment_failed": {
-      const subscriptionId = typeof object.subscription === "string" ? object.subscription : object.subscription?.id;
+      const subscriptionId = invoiceSubscriptionId(object);
+      if (!subscriptionId) throw new Error(`Invoice ${object.id} is not linked to a subscription`);
       const { data: existing } = await supabase.from("subscriptions")
         .select("user_id").eq("stripe_subscription_id", subscriptionId)
         .eq("environment", env).maybeSingle();
@@ -191,14 +203,10 @@ async function processEvent(event: any, env: StripeEnv) {
 
 serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
-  const configuredEnv = new URL(req.url).searchParams.get("env") || "sandbox";
-  if (configuredEnv !== "sandbox" && configuredEnv !== "live") return new Response("Invalid environment", { status: 400 });
-  const serverEnv = Deno.env.get("STRIPE_ENVIRONMENT") || "sandbox";
-  if (configuredEnv !== serverEnv) return new Response("Webhook environment is disabled", { status: 404 });
-  const env = configuredEnv as StripeEnv;
   let event: any;
 
   try {
+    const env = getConfiguredStripeEnvironment(new URL(req.url).searchParams.get("env"));
     event = await verifyWebhook(req, env);
     const { error: insertError } = await supabase.from("stripe_webhook_events").insert({
       event_id: event.id, environment: env, event_type: event.type,

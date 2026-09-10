@@ -42,6 +42,8 @@ const PLANS: Plan[] = [
   },
 ];
 
+const FOUNDING_PRICES_ENABLED = import.meta.env.VITE_FOUNDING_PRICES_ENABLED !== "false";
+
 export default function PricingPage() {
   usePageView("pricing");
   const { user } = useAuth();
@@ -87,7 +89,7 @@ export default function PricingPage() {
       </section>
 
       <section className="mx-auto grid max-w-7xl grid-cols-1 gap-5 px-4 pb-24 md:grid-cols-2 xl:grid-cols-4">
-        {PLANS.map((plan) => (
+        {PLANS.filter((plan) => plan.id !== "founding_producer" || FOUNDING_PRICES_ENABLED).map((plan) => (
           <Card key={plan.id} className={`relative flex flex-col ${plan.featured ? "border-2 border-primary shadow-lg" : ""}`}>
             {plan.featured && (
               <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 gap-1 whitespace-nowrap">

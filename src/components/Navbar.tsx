@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminRole } from "@/hooks/useAdminRole";
-import { Bell, LogOut, User, Shield, BarChart3 } from "lucide-react";
+import { Bell, LogOut, User, Shield, BarChart3, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -70,6 +70,10 @@ export default function Navbar() {
               <DropdownMenuItem onClick={() => { trackButtonClick("nav_profile", "navbar_menu"); navigate("/profile"); }}>
                 <BarChart3 className="mr-2 h-4 w-4" />
                 My stats
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { trackButtonClick("nav_billing", "navbar_menu"); navigate("/billing"); }}>
+                <CreditCard className="mr-2 h-4 w-4" />
+                Billing
               </DropdownMenuItem>
               {isAdmin && (
                 <DropdownMenuItem onClick={() => { trackButtonClick("nav_admin", "navbar_menu"); navigate("/admin"); }}>
