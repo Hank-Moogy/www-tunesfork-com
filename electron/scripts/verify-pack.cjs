@@ -26,6 +26,7 @@ const REQUIRED_APP_FILES = [
   "/sample-check.cjs",
   "/incremental-sync.cjs",
   "/restore-validation.cjs",
+  "/storage-upload-errors.cjs",
   "/dist/index.html",
 ];
 const releaseDir = path.join(__dirname, "..", "release");

@@ -84,17 +84,30 @@ Deno.serve(async (req) => {
     const missing = [];
     try {
       for (const target of reservation.missing ?? []) {
-        const { data, error } = await admin.storage.from("project-blobs")
+        let allowUpsert = false;
+        let signedUpload = await admin.storage.from("project-blobs")
           .createSignedUploadUrl(target.object_path, { upsert: false });
-        if (error || !data?.signedUrl) {
-          throw new Error(error?.message ?? `Could not authorize ${target.sha256}`);
+
+        // Broken clients could upload an immutable object and fail before the DB
+        // finalization. The locked reservation only returns hashes without a ready
+        // blob record; authorize the current client to replace that exact orphan
+        // instead of leaving every retry stuck on a storage collision.
+        if (signedUpload.error && /resource already exists/i.test(signedUpload.error.message ?? "")) {
+          allowUpsert = true;
+          signedUpload = await admin.storage.from("project-blobs")
+            .createSignedUploadUrl(target.object_path, { upsert: true });
+        }
+
+        if (signedUpload.error || !signedUpload.data?.signedUrl) {
+          throw new Error(signedUpload.error?.message ?? `Could not authorize ${target.sha256}`);
         }
         missing.push({
           sha256: target.sha256,
           size: target.size,
           object_path: target.object_path,
-          signed_url: data.signedUrl,
-          token: data.token,
+          signed_url: signedUpload.data.signedUrl,
+          token: signedUpload.data.token,
+          upsert: allowUpsert,
         });
       }
     } catch (error) {
