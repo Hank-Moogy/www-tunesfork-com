@@ -4,6 +4,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getStripeEnvironment, isTrustedStripeCheckoutUrl } from "@/lib/stripe";
 import { Button } from "@/components/ui/button";
+import { flushAnalytics, trackSemanticEvent } from "@/lib/analytics";
 
 interface StripeCheckoutRedirectProps {
   priceId: string;
@@ -21,6 +22,13 @@ export function StripeCheckoutRedirect({ priceId }: StripeCheckoutRedirectProps)
 
     const redirect = async () => {
       try {
+        const billingInterval = priceId.endsWith("_yearly") ? "yearly" : "monthly";
+        const plan = priceId.replace(/_(monthly|yearly)$/, "");
+        trackSemanticEvent("Checkout Started", {
+          plan,
+          billing_interval: billingInterval,
+          lookup_key: priceId,
+        });
         const { data, error: invokeError } = await supabase.functions.invoke("create-managed-checkout", {
           body: {
             priceId,
@@ -32,6 +40,7 @@ export function StripeCheckoutRedirect({ priceId }: StripeCheckoutRedirectProps)
           if (data?.code === "subscription_exists") setExistingSubscription(true);
           throw new Error(data?.error || invokeError?.message || "Unable to start checkout");
         }
+        flushAnalytics();
         window.location.assign(data.url);
       } catch (checkoutError) {
         setError(checkoutError instanceof Error ? checkoutError.message : "Unable to start checkout");

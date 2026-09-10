@@ -125,7 +125,7 @@ async function upsertSubscription(subscription: any, env: StripeEnv) {
     cancel_at_period_end: subscription.cancel_at_period_end || false,
     environment: env,
     updated_at: new Date().toISOString(),
-  }, { onConflict: "stripe_subscription_id" });
+  }, { onConflict: "environment,stripe_subscription_id" });
   if (error) throw error;
   if (plan === "founding_producer") {
     await supabase.from("founding_checkout_reservations").delete()
@@ -133,6 +133,20 @@ async function upsertSubscription(subscription: any, env: StripeEnv) {
   }
   if (["active", "trialing", "past_due"].includes(subscription.status)) await applyPlan(userId, plan);
   return { userId, plan, lookupKey };
+}
+
+async function applyRemainingPlanOrFree(userId: string, env: StripeEnv, cancelledSubscriptionId: string) {
+  const { data: remaining, error } = await supabase.from("subscriptions")
+    .select("price_id")
+    .eq("user_id", userId)
+    .eq("environment", env)
+    .neq("stripe_subscription_id", cancelledSubscriptionId)
+    .in("status", ["active", "trialing", "past_due"])
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  await applyPlan(userId, planFromLookupKey(remaining?.price_id) || "free");
 }
 
 async function processEvent(event: any, env: StripeEnv) {
@@ -176,7 +190,7 @@ async function processEvent(event: any, env: StripeEnv) {
         status: "canceled", cancel_at_period_end: false, updated_at: new Date().toISOString(),
       }).eq("stripe_subscription_id", object.id).eq("environment", env);
       if (error) throw error;
-      await applyPlan(existing.user_id, "free");
+      await applyRemainingPlanOrFree(existing.user_id, env, object.id);
       await sendAmplitudeEvent("Subscription Cancelled", existing.user_id, await userEmail(existing.user_id), {
         stripe_subscription_id: object.id,
       }, `${event.id}:cancelled`);
@@ -189,6 +203,10 @@ async function processEvent(event: any, env: StripeEnv) {
         .select("user_id").eq("stripe_subscription_id", subscriptionId)
         .eq("environment", env).maybeSingle();
       if (existing?.user_id) {
+        const { error } = await supabase.from("subscriptions").update({
+          status: "past_due", updated_at: new Date().toISOString(),
+        }).eq("stripe_subscription_id", subscriptionId).eq("environment", env);
+        if (error) throw error;
         await sendAmplitudeEvent("Payment Failed", existing.user_id, await userEmail(existing.user_id), {
           stripe_subscription_id: subscriptionId, invoice_id: object.id,
           attempt_count: object.attempt_count,
@@ -204,39 +222,36 @@ async function processEvent(event: any, env: StripeEnv) {
 serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
   let event: any;
+  let eventEnv: StripeEnv | undefined;
 
   try {
     const env = getConfiguredStripeEnvironment(new URL(req.url).searchParams.get("env"));
+    eventEnv = env;
     event = await verifyWebhook(req, env);
-    const { error: insertError } = await supabase.from("stripe_webhook_events").insert({
-      event_id: event.id, environment: env, event_type: event.type,
+    const { data: claim, error: claimError } = await supabase.rpc("claim_stripe_webhook_event", {
+      _event_id: event.id, _environment: env, _event_type: event.type,
     });
-    if (insertError?.code === "23505") {
-      const { data: prior } = await supabase.from("stripe_webhook_events")
-        .select("status,attempts").eq("event_id", event.id).single();
-      if (prior?.status === "processed") {
-        return new Response(JSON.stringify({ received: true, duplicate: true }), {
-          status: 200, headers: { "Content-Type": "application/json" },
-        });
-      }
-      await supabase.from("stripe_webhook_events").update({
-        status: "processing", attempts: (prior?.attempts || 1) + 1, last_error: null,
-      }).eq("event_id", event.id);
-    } else if (insertError) throw insertError;
+    if (claimError) throw claimError;
+    if (claim === "duplicate") {
+      return new Response(JSON.stringify({ received: true, duplicate: true }), {
+        status: 200, headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (claim !== "claimed") throw new Error("Unable to claim Stripe webhook event");
 
     await processEvent(event, env);
     await supabase.from("stripe_webhook_events").update({
       status: "processed", processed_at: new Date().toISOString(), last_error: null,
-    }).eq("event_id", event.id);
+    }).eq("event_id", event.id).eq("environment", env);
     return new Response(JSON.stringify({ received: true }), {
       status: 200, headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
     console.error("Webhook error", error);
-    if (event?.id) {
+    if (event?.id && eventEnv) {
       await supabase.from("stripe_webhook_events").update({
         status: "failed", last_error: String((error as Error).message).slice(0, 1000),
-      }).eq("event_id", event.id);
+      }).eq("event_id", event.id).eq("environment", eventEnv);
     }
     return new Response("Webhook error", { status: 400 });
   }
