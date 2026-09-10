@@ -45,6 +45,22 @@ npm run dist:mac:release
 App Store Connect API credentials are also supported through `APPLE_API_KEY`,
 `APPLE_API_KEY_ID`, and `APPLE_API_ISSUER`. The release build refuses to
 notarize an ad-hoc signature and staples the accepted ticket to the `.app`.
+The release verifier then runs strict codesign validation, validates the
+stapled ticket, asks Gatekeeper to assess the app, writes `SHA256SUMS.txt`, and
+tests a copied app carrying a browser-style quarantine attribute.
+
+The tag-triggered workflow in `.github/workflows/release-macos.yml` performs
+the same build on a clean Apple Silicon runner. Configure these repository
+secrets before creating a production tag: `MACOS_CERTIFICATE_BASE64`,
+`MACOS_CERTIFICATE_PASSWORD`, `APPLE_API_KEY_BASE64`, `APPLE_API_KEY_ID`,
+`APPLE_API_ISSUER`, and `AMPLITUDE_PRODUCTION_API_KEY`.
+
+Before the first public release, the founder must complete the one-time Apple
+Developer enrollment, create the Developer ID Application certificate and
+notary key, and run the resulting DMG manually on one clean Intel Mac and one
+clean Apple Silicon Mac. On both machines verify pairing, Documents/Desktop
+folder permission prompts, tray/background relaunch, `tunesfork://` opening,
+uninstall/reinstall, and a full upload/restore round trip.
 
 ### Windows (run on Windows, or cross-compile from Mac)
 

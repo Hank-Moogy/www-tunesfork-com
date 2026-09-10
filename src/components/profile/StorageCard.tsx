@@ -27,7 +27,11 @@ const TOP_N = 8;
 export default function StorageCard({ stats }: { stats: UserStats }) {
   const [expanded, setExpanded] = useState(false);
   const items = stats.storage_by_project ?? [];
-  const total = stats.total_bytes || items.reduce((s, p) => s + p.bytes, 0);
+  const logicalTotal = stats.total_bytes || items.reduce((s, p) => s + p.bytes, 0);
+  const usage = stats.storage_usage;
+  const total = usage?.used_bytes ?? logicalTotal;
+  const limit = usage?.limit_bytes ?? null;
+  const percentage = limit && limit > 0 ? Math.min(100, ((total + (usage?.reserved_bytes ?? 0)) / limit) * 100) : null;
 
   if (items.length === 0) {
     return (
@@ -67,15 +71,33 @@ export default function StorageCard({ stats }: { stats: UserStats }) {
         </div>
         <p className="text-sm text-muted-foreground">
           <span className="font-mono font-semibold text-foreground">{formatBytes(total)}</span>{" "}
-          across {items.length} {items.length === 1 ? "project" : "projects"}
-          <span className="ml-2 text-xs">· No storage limit during alpha</span>
+          physically stored
+          {limit == null ? (
+            <span className="ml-2 text-xs">· Unlimited legacy account</span>
+          ) : (
+            <span className="ml-2 text-xs">of {formatBytes(limit)} · {percentage?.toFixed(0)}%</span>
+          )}
         </p>
       </header>
 
       {/* Segmented bar */}
       <div className="mt-4 flex h-3 w-full overflow-hidden rounded-full bg-muted/40">
+        {percentage != null ? (
+          <div
+            className={`h-full ${percentage >= 95 ? "bg-destructive" : percentage >= 80 ? "bg-pastel-orange" : "bg-pastel-green"}`}
+            style={{ width: `${percentage}%` }}
+            title={`${percentage.toFixed(1)}% of storage allowance used or reserved`}
+          />
+        ) : null}
+      </div>
+
+      <p className="mt-4 text-xs text-muted-foreground">
+        Project rows show logical version history; repeated files are deduplicated in the physical total above.
+      </p>
+
+      <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-muted/40">
         {segments.map((s) => {
-          const pct = total > 0 ? (s.bytes / total) * 100 : 0;
+          const pct = logicalTotal > 0 ? (s.bytes / logicalTotal) * 100 : 0;
           if (pct < 0.5) return null;
           return (
             <div
@@ -91,7 +113,7 @@ export default function StorageCard({ stats }: { stats: UserStats }) {
       {/* Breakdown list */}
       <ul className="mt-5 space-y-3">
         {visible.map((p, i) => {
-          const pct = total > 0 ? (p.bytes / total) * 100 : 0;
+          const pct = logicalTotal > 0 ? (p.bytes / logicalTotal) * 100 : 0;
           const color = SEGMENT_COLORS[i % SEGMENT_COLORS.length];
           return (
             <li key={p.project_id} className="flex items-center gap-3">

@@ -15,6 +15,11 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader);
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -23,8 +28,10 @@ serve(async (req) => {
       });
     }
 
-    const { returnUrl, environment } = await req.json();
-    const env = (environment || 'sandbox') as StripeEnv;
+    await req.json().catch(() => ({}));
+    const configuredEnvironment = Deno.env.get("STRIPE_ENVIRONMENT") || "sandbox";
+    if (configuredEnvironment !== "sandbox" && configuredEnvironment !== "live") throw new Error("Invalid Stripe environment");
+    const env = configuredEnvironment as StripeEnv;
     const stripe = createStripeClient(env);
 
     const { data: sub } = await supabase
@@ -41,9 +48,14 @@ serve(async (req) => {
       });
     }
 
+    const requestOrigin = req.headers.get("origin") || "";
+    const fallbackAllowed = /^https:\/\/(www\.)?tunesfork\.com$/i.test(requestOrigin)
+      || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
+    const siteUrl = (Deno.env.get("PUBLIC_SITE_URL") || (fallbackAllowed ? requestOrigin : "")).replace(/\/$/, "");
+    if (!siteUrl) throw new Error("PUBLIC_SITE_URL is not configured");
     const portal = await stripe.billingPortal.sessions.create({
       customer: sub.stripe_customer_id,
-      ...(returnUrl && { return_url: returnUrl }),
+      return_url: `${siteUrl}/profile`,
     });
 
     return new Response(JSON.stringify({ url: portal.url }), {

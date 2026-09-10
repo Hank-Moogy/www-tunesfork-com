@@ -43,8 +43,8 @@ const App = () => (
             <Route path="/invite/:token" element={<SharePage />} />
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
             <Route path="/pricing" element={<PricingPage />} />
-            <Route path="/checkout" element={<CheckoutPage />} />
-            <Route path="/checkout/return" element={<CheckoutReturn />} />
+            <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+            <Route path="/checkout/return" element={<ProtectedRoute><CheckoutReturn /></ProtectedRoute>} />
             <Route path="/desktop-app" element={<DesktopAppPage />} />
             <Route
               path="/desktop-pair"

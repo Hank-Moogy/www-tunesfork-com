@@ -47,16 +47,23 @@ function writeHashCache(cacheFile, entries) {
   fs.renameSync(tmp, cacheFile);
 }
 
+// Desktop-shell metadata that Finder/Explorer drop next to real project files.
+// "Icon\r" is macOS's custom folder icon: its data fork is always empty and the
+// artwork lives in a resource fork we never carry, so syncing it is pointless —
+// and a zero-byte blob cannot be uploaded resumably at all.
+const SHELL_METADATA_NAMES = new Set(["Icon\r", "Thumbs.db", "desktop.ini", "__MACOSX"]);
+
 function shouldInclude(entryName) {
   return !entryName.startsWith(".")
-    && entryName !== "Thumbs.db"
+    && !SHELL_METADATA_NAMES.has(entryName)
     && !entryName.endsWith(".als~");
 }
 
 function manifestPath(projectFolder, relativePath) {
   return [path.basename(projectFolder), ...relativePath.split(path.sep)]
     .filter(Boolean)
-    .join("/");
+    .join("/")
+    .normalize("NFC");
 }
 
 function buildProjectManifest(projectFolder, cacheFile) {
@@ -64,6 +71,7 @@ function buildProjectManifest(projectFolder, cacheFile) {
   const cache = readHashCache(cacheFile);
   const seen = new Set();
   const files = [];
+  const normalizedPaths = new Set();
   const stack = [root];
   let bytesHashed = 0;
 
@@ -81,6 +89,9 @@ function buildProjectManifest(projectFolder, cacheFile) {
       if (!entry.isFile()) continue;
 
       const stat = fs.statSync(absolutePath);
+      if (stat.size > 5 * 1024 * 1024 * 1024) {
+        throw new Error(`${entry.name} is larger than the 5 GB per-file launch limit`);
+      }
       const prior = cache[absolutePath];
       const cacheHit = prior
         && prior.size === stat.size
@@ -100,14 +111,23 @@ function buildProjectManifest(projectFolder, cacheFile) {
         logicalSha256,
       };
       seen.add(absolutePath);
+      const relativeManifestPath = manifestPath(root, path.relative(root, absolutePath));
+      const collisionKey = relativeManifestPath.toLocaleLowerCase("en-US");
+      if (normalizedPaths.has(collisionKey)) {
+        throw new Error(`Project contains colliding file paths: ${relativeManifestPath}`);
+      }
+      normalizedPaths.add(collisionKey);
       files.push({
-        path: manifestPath(root, path.relative(root, absolutePath)),
+        path: relativeManifestPath,
         sha256,
         logical_sha256: logicalSha256 === sha256 ? undefined : logicalSha256,
         size: stat.size,
         mtime_ms: stat.mtimeMs,
         source_path: absolutePath,
       });
+      if (files.length > 20_000) {
+        throw new Error("Project contains more than the 20,000-file launch limit");
+      }
     }
   }
 
@@ -119,6 +139,9 @@ function buildProjectManifest(projectFolder, cacheFile) {
   writeHashCache(cacheFile, cache);
 
   files.sort((a, b) => a.path.localeCompare(b.path));
+  if (!files.some((file) => file.path.toLowerCase().endsWith(".als"))) {
+    throw new Error("Project manifest does not contain an Ableton .als file");
+  }
   const aggregate = files.map((file) => `${file.path}\0${file.logical_sha256 || file.sha256}`).join("\n");
   const projectHash = crypto.createHash("sha256").update(aggregate).digest("hex");
   const logicalSize = files.reduce((sum, file) => sum + file.size, 0);

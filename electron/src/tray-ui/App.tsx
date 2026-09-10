@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import tunesforkLogo from "../../build/icon.png";
+import {
+  identifyDesktopUser,
+  resetDesktopAnalytics,
+  flushDesktopAnalytics,
+  trackDesktopEvent,
+  type DesktopEventName,
+} from "./analytics";
 
 // Bridge exposed by preload.cjs
 declare global {
@@ -21,6 +28,8 @@ declare global {
       stopSync: () => Promise<void>;
       signOut: () => Promise<void>;
       onLog: (cb: (line: LogLine) => void) => void;
+      onAnalytics: (cb: (event: { name: DesktopEventName; properties?: Record<string, unknown> }) => void) => void;
+      onAnalyticsFlush: (cb: () => void) => void;
     };
   }
 }
@@ -44,6 +53,11 @@ type SampleIssue = {
 type AppState = {
   paired: boolean;
   deviceName: string | null;
+  userId: string | null;
+  email: string | null;
+  plan: string | null;
+  storageUsedBytes: number;
+  storageLimitBytes: number | null;
   folders: string[];
   syncing: boolean;
   importing: boolean;
@@ -60,6 +74,11 @@ function createDevBridge(): Window["tfsync"] {
   const baseState: AppState = {
     paired: preview !== "unpaired",
     deviceName: "Preview",
+    userId: preview === "unpaired" ? null : "00000000-0000-4000-8000-000000000001",
+    email: preview === "unpaired" ? null : "producer@example.com",
+    plan: preview === "unpaired" ? null : "producer",
+    storageUsedBytes: 123456789,
+    storageLimitBytes: 107374182400,
     folders: preview === "empty" || preview === "unpaired" ? [] : ["/Users/demo/Music/Ableton Projects"],
     syncing: !["paused", "empty", "unpaired", "permission"].includes(preview),
     importing: preview === "importing",
@@ -116,6 +135,8 @@ function createDevBridge(): Window["tfsync"] {
         window.setTimeout(() => callback(line), index * 30);
       }
     },
+    onAnalytics: () => {},
+    onAnalyticsFlush: () => {},
   };
 }
 
@@ -133,7 +154,9 @@ function getBridge(): Window["tfsync"] {
 export default function App() {
   const tfsync = getBridge();
   const [state, setState] = useState<AppState>({
-    paired: false, deviceName: null, folders: [], syncing: false, importing: false, importedProjectCount: 0, recent: [], folderAccessIssues: [], sampleIssues: [],
+    paired: false, deviceName: null, userId: null, email: null, plan: null,
+    storageUsedBytes: 0, storageLimitBytes: null, folders: [], syncing: false,
+    importing: false, importedProjectCount: 0, recent: [], folderAccessIssues: [], sampleIssues: [],
   });
   const [stateLoaded, setStateLoaded] = useState(false);
   const [pairCode, setPairCode] = useState<string | null>(null);
@@ -164,6 +187,8 @@ export default function App() {
       next[existingIndex] = line;
       return next;
     }));
+    tfsync.onAnalytics(({ name, properties }) => trackDesktopEvent(name, properties));
+    tfsync.onAnalyticsFlush(flushDesktopAnalytics);
     const refreshInterval = window.setInterval(() => {
       tfsync.getState().then(setState);
     }, 5000);
@@ -172,6 +197,17 @@ export default function App() {
       if (readyTimer.current !== null) window.clearTimeout(readyTimer.current);
     };
   }, [tfsync]);
+
+  useEffect(() => {
+    if (!state.paired || !state.userId) return;
+    identifyDesktopUser({
+      userId: state.userId,
+      email: state.email,
+      plan: state.plan,
+      storageUsedBytes: state.storageUsedBytes,
+      storageLimitBytes: state.storageLimitBytes,
+    });
+  }, [state.paired, state.userId, state.email, state.plan, state.storageUsedBytes, state.storageLimitBytes]);
 
   const refreshState = () => tfsync.getState().then(setState);
 
@@ -183,6 +219,7 @@ export default function App() {
   };
 
   const startPair = async () => {
+    trackDesktopEvent("Device Pairing Started");
     stopPairRefresh();
     setPairing(true);
     try {
@@ -199,6 +236,7 @@ export default function App() {
           setPairUrl(null);
           setPairing(false);
           setState(s);
+          trackDesktopEvent("Device Pairing Completed");
         }
       }, 2000);
     } catch (e) {
@@ -226,11 +264,13 @@ export default function App() {
   };
 
   const addFolder = async () => {
+    trackDesktopEvent("Folder Selection Started", { location: "settings" });
     const folders = await tfsync.pickFolders();
     if (!folders.length) return;
     const next = Array.from(new Set([...state.folders, ...folders]));
     try {
       await tfsync.setFolders(next);
+      trackDesktopEvent("Folder Selection Completed", { location: "settings", folder_count: next.length });
     } catch (e) {
       alert(`Could not watch that folder: ${(e as Error).message}`);
     } finally {
@@ -239,11 +279,13 @@ export default function App() {
   };
 
   const completeFolderSetup = async () => {
+    trackDesktopEvent("Folder Selection Started", { location: "onboarding" });
     const folders = await tfsync.pickFolders();
     if (!folders.length) return;
     try {
       await tfsync.setFolders(Array.from(new Set(folders)));
       await tfsync.startSync();
+      trackDesktopEvent("Folder Selection Completed", { location: "onboarding", folder_count: folders.length });
       setShowReady(true);
       readyTimer.current = window.setTimeout(() => {
         setShowReady(false);
@@ -284,12 +326,17 @@ export default function App() {
   };
 
   const importAndWatch = async () => {
+    trackDesktopEvent("Project Import Started", { watched_folder_count: state.folders.length });
     setImporting(true);
     setLastImport(null);
     try {
       const summary = await tfsync.importWatchedFolders();
       setLastImport(summary);
+      trackDesktopEvent("Project Import Completed", {
+        found: summary.found, uploaded: summary.uploaded, skipped: summary.skipped, failed: summary.failed.length,
+      });
     } catch (e) {
+      trackDesktopEvent("Project Import Failed", { error: (e as Error).message });
       alert(`Import failed: ${(e as Error).message}`);
     } finally {
       setImporting(false);
@@ -300,6 +347,7 @@ export default function App() {
   const signOut = async () => {
     if (!confirm("Sign out and unlink this device?")) return;
     await tfsync.signOut();
+    resetDesktopAnalytics();
     refreshState();
   };
 

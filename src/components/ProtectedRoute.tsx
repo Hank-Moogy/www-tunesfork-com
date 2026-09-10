@@ -18,7 +18,9 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     return <Navigate to={`/auth?redirect=${encodeURIComponent(returnTo)}`} replace />;
   }
 
-  const canSkipOnboarding = location.pathname === "/onboarding" || location.pathname === "/desktop-pair";
+  const canSkipOnboarding = location.pathname === "/onboarding"
+    || location.pathname === "/desktop-pair"
+    || location.pathname.startsWith("/checkout");
 
   if (!onboardingCompleted && !canSkipOnboarding) {
     return <Navigate to="/onboarding" replace />;

@@ -9,6 +9,8 @@ project_id = "urrxrntdkmmmqqwaihfj"
     verify_jwt = false
   [functions.create-checkout]
     verify_jwt = false
+  [functions.verify-checkout-session]
+    verify_jwt = false
   [functions.payments-webhook]
     verify_jwt = false
   [functions.create-portal-session]
@@ -19,6 +21,8 @@ project_id = "urrxrntdkmmmqqwaihfj"
     verify_jwt = false
   [functions.pair-device-poll]
     verify_jwt = false
+  [functions.get-device-analytics-identity]
+    verify_jwt = false
   [functions.pair-device-confirm]
     verify_jwt = false
   [functions.mint-storage-upload-url]
@@ -26,6 +30,8 @@ project_id = "urrxrntdkmmmqqwaihfj"
   [functions.create-version-from-desktop]
     verify_jwt = false
   [functions.negotiate-project-upload]
+    verify_jwt = false
+  [functions.cancel-project-upload]
     verify_jwt = false
   [functions.send-transactional-email]
     verify_jwt = true
@@ -40,4 +46,6 @@ project_id = "urrxrntdkmmmqqwaihfj"
   [functions.notify-project-comment]
     verify_jwt = true
   [functions.cleanup-orphaned-zips]
+    verify_jwt = false
+  [functions.set-version-audio-preview]
     verify_jwt = false

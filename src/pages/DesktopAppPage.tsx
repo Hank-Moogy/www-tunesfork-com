@@ -5,7 +5,7 @@ import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { trackButtonClick } from "@/lib/analytics";
+import { flushAnalytics, trackButtonClick, trackSemanticEvent } from "@/lib/analytics";
 import {
   DESKTOP_APP_VERSION_LABEL,
   DOWNLOAD_URLS,
@@ -41,6 +41,8 @@ export default function DesktopAppPage() {
 
   const downloadMac = () => {
     trackButtonClick("desktop_download", "desktop_app", { platform: "mac" });
+    trackSemanticEvent("Desktop Download Started", { platform: "mac", version: DESKTOP_APP_VERSION_LABEL });
+    flushAnalytics();
     if (DOWNLOAD_URLS.mac) window.location.href = DOWNLOAD_URLS.mac;
   };
 

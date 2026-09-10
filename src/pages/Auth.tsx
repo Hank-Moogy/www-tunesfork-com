@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { usePageView } from "@/hooks/usePageView";
-import { trackButtonClick } from "@/lib/analytics";
+import { trackButtonClick, trackSemanticEvent } from "@/lib/analytics";
 import { getInAppBrowserName, tryOpenInExternalBrowser } from "@/lib/inAppBrowser";
 import { ExternalLink, AlertTriangle } from "lucide-react";
 
@@ -35,7 +35,8 @@ export default function Auth() {
   // Persist invite token across the auth round-trip (incl. Google OAuth)
   const inviteToken = searchParams.get("invite");
   if (inviteToken) {
-    try { sessionStorage.setItem("tf_pending_invite", inviteToken); } catch {}
+    try { sessionStorage.setItem("tf_pending_invite", inviteToken); }
+    catch (error) { console.warn("Could not preserve pending invite", error); }
   }
 
   const handleOpenExternal = async () => {
@@ -67,6 +68,9 @@ export default function Auth() {
       "auth"
     );
     setLoading(true);
+    if (!isLogin && !isResetMode) {
+      trackSemanticEvent("Signup Started", { method: isDesktopPairing ? "magic_link" : "email" });
+    }
 
     try {
       if (isDesktopPairing) {
@@ -109,10 +113,10 @@ export default function Auth() {
           description: "We sent you a confirmation link to verify your account.",
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Authentication failed",
         variant: "destructive",
       });
     } finally {
@@ -122,6 +126,7 @@ export default function Auth() {
 
   const handleGoogleSignIn = async () => {
     trackButtonClick("auth_google_continue", "auth");
+    trackSemanticEvent("Signup Started", { method: "google" });
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -131,10 +136,10 @@ export default function Auth() {
         },
       });
       if (error) throw error;
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Google sign-in failed",
         variant: "destructive",
       });
     } finally {

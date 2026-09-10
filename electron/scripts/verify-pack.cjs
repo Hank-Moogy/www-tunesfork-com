@@ -25,6 +25,8 @@ const REQUIRED_APP_FILES = [
   "/als-parser.cjs",
   "/sample-check.cjs",
   "/incremental-sync.cjs",
+  "/restore-validation.cjs",
+  "/storage-upload-errors.cjs",
   "/dist/index.html",
 ];
 const releaseDir = path.join(__dirname, "..", "release");
@@ -108,6 +110,16 @@ for (const asar of asars) {
   if (asarApi) {
     for (const runtimeFile of ["main.cjs", "preload.cjs"]) {
       const runtimeSource = asarApi.extractFile(asar, runtimeFile).toString("utf8");
+      const localRequirePattern = /require\(\s*["'](\.\/[^"']+)["']\s*\)/g;
+      for (const match of runtimeSource.matchAll(localRequirePattern)) {
+        const requiredPath = path.posix.normalize(path.posix.join(path.posix.dirname(`/${runtimeFile}`), match[1]));
+        if (!listing.includes(`${requiredPath}\n`) && !listing.endsWith(requiredPath)) {
+          console.error(`[verify-pack]   MISSING LOCAL REQUIRE: ${runtimeFile} -> ${requiredPath}`);
+          failed = true;
+        } else {
+          console.log(`[verify-pack]   ok: ${runtimeFile} -> ${requiredPath}`);
+        }
+      }
       if (/https?:\/\/(localhost|127\.0\.0\.1)/i.test(runtimeSource)) {
         console.error(`[verify-pack]   LOCALHOST RUNTIME URL: ${runtimeFile}`);
         failed = true;
@@ -149,6 +161,26 @@ if (process.platform === "darwin") {
         failed = true;
       } else {
         console.log("[verify-pack]   ok: hardened runtime");
+      }
+      if (process.env.TUNESFORK_NOTARIZE === "1") {
+        if (!details.includes("Authority=Developer ID Application:")) {
+          console.error(`[verify-pack]   RELEASE IS NOT DEVELOPER ID SIGNED: ${app}`);
+          failed = true;
+        }
+        try {
+          execSync(`xcrun stapler validate "${app}"`, { stdio: "pipe" });
+          console.log("[verify-pack]   ok: notarization ticket stapled");
+        } catch (error) {
+          console.error(`[verify-pack]   NOTARIZATION TICKET INVALID: ${error.message}`);
+          failed = true;
+        }
+        try {
+          execSync(`spctl --assess --type execute --verbose=4 "${app}"`, { stdio: "pipe" });
+          console.log("[verify-pack]   ok: Gatekeeper accepts app");
+        } catch (error) {
+          console.error(`[verify-pack]   GATEKEEPER REJECTED APP: ${error.message}`);
+          failed = true;
+        }
       }
       const info = execSync(`plutil -p "${path.join(app, "Contents", "Info.plist")}"`, { encoding: "utf8" });
       for (const key of [

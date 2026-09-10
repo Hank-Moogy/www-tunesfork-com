@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
     // Pick version
     let q = admin
       .from("project_versions")
-      .select("id, version_number, zip_url, manifest, sample_check")
+      .select("id, version_number, zip_url, manifest, sample_check, file_size_bytes")
       .eq("project_id", projectId);
     if (versionId) q = q.eq("id", versionId);
     else q = q.order("version_number", { ascending: false }).order("created_at", { ascending: false }).limit(1);
@@ -79,32 +79,53 @@ Deno.serve(async (req) => {
 
     if (version.manifest?.schema_version === 1 && Array.isArray(version.manifest.files)) {
       const uniqueHashes = [...new Set<string>(version.manifest.files.map((file: { sha256: string }) => file.sha256))];
+      const requestedHashes = Array.isArray(body.blob_hashes)
+        ? [...new Set<string>(body.blob_hashes.map(String))]
+        : null;
+      if (requestedHashes && (requestedHashes.length === 0 || requestedHashes.length > 100)) {
+        return json({ error: "blob_hashes must contain between 1 and 100 hashes" }, 400);
+      }
+      if (requestedHashes?.some((sha256) => !uniqueHashes.includes(sha256))) {
+        return json({ error: "requested blob is not part of this version" }, 400);
+      }
+      const hashesToSign = requestedHashes ?? [];
+
+      if (!requestedHashes) {
+        await admin.from("storage_transfer_events").insert({
+          user_id: userId, project_id: projectId, version_id: version.id,
+          direction: "restore", bytes: Number(version.file_size_bytes || 0), app_surface: dt ? "desktop" : "web",
+        });
+        return json({
+          kind: "manifest",
+          manifest: {
+            schema_version: 1,
+            files: version.manifest.files,
+          },
+          projectName: project.name,
+          versionId: version.id,
+          versionNumber: version.version_number,
+        });
+      }
+
       // Older rows may not expose uploader_id in the selected shape. Resolve blob
       // ownership from the registry so collaborator downloads remain supported.
       const { data: blobs, error: blobError } = await admin.from("project_version_blobs")
-        .select("sha256,user_id").eq("version_id", version.id);
+        .select("sha256,user_id").eq("version_id", version.id).in("sha256", hashesToSign);
       if (blobError) return json({ error: blobError.message }, 500);
+      if ((blobs ?? []).length !== hashesToSign.length) return json({ error: "BLOB_MISSING" }, 409);
       const ownerByHash = new Map((blobs ?? []).map((blob) => [blob.sha256, blob.user_id]));
-      const resolvedPaths = uniqueHashes.map((sha256) => `${ownerByHash.get(sha256) ?? userId}/${sha256}`);
+      const resolvedPaths = hashesToSign.map((sha256) => `${ownerByHash.get(sha256) ?? project.owner_id}/${sha256}`);
       const { data: signedBlobs, error: signError } = await admin.storage
-        .from("project-blobs").createSignedUrls(resolvedPaths, 300);
+        .from("project-blobs").createSignedUrls(resolvedPaths, 900);
       if (signError || !signedBlobs) return json({ error: signError?.message ?? "sign failed" }, 500);
-      const urlByHash = new Map(uniqueHashes.map((sha256, index) => [sha256, signedBlobs[index]?.signedUrl]));
+      const urlByHash = new Map(hashesToSign.map((sha256, index) => [sha256, signedBlobs[index]?.signedUrl]));
       if ([...urlByHash.values()].some((signedUrl) => !signedUrl)) {
         return json({ error: "Could not sign every content blob" }, 500);
       }
       return json({
-        kind: "manifest",
-        manifest: {
-          schema_version: 1,
-          files: version.manifest.files.map((file: Record<string, unknown>) => ({
-            ...file,
-            signed_url: urlByHash.get(String(file.sha256)),
-          })),
-        },
-        projectName: project.name,
+        kind: "blob_urls",
+        blobs: hashesToSign.map((sha256) => ({ sha256, signed_url: urlByHash.get(sha256) })),
         versionId: version.id,
-        versionNumber: version.version_number,
       });
     }
 
@@ -116,6 +137,10 @@ Deno.serve(async (req) => {
     // Touch last_used_at on the device token (best-effort)
     admin.from("device_tokens").update({ last_used_at: new Date().toISOString() })
       .eq("token_hash", tokenHash).then(() => {});
+    await admin.from("storage_transfer_events").insert({
+      user_id: userId, project_id: projectId, version_id: version.id,
+      direction: "restore", bytes: Number(version.file_size_bytes || 0), app_surface: dt ? "desktop" : "web",
+    });
 
     return json({
       kind: "zip",

@@ -4,7 +4,7 @@ This document captures promising product directions that are intentionally **not
 
 ## Realtime collaborative tracks inside Ableton
 
-**Status:** Future opportunity / technical spike recommended  
+**Status:** Future opportunity / technical spike recommended
 **Product thesis:** **Realtime collaborative tracks inside Ableton, backed by Tunesfork version control.**
 
 ### Why this is interesting
