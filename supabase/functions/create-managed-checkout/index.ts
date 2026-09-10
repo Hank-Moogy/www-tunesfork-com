@@ -27,11 +27,13 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return respond({ error: "Method not allowed" }, 405);
 
+  let diagnosticStage = "request";
   try {
     const authHeader = req.headers.get("authorization");
     const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
     if (!token) return respond({ error: "Unauthorized" }, 401);
 
+    diagnosticStage = "authentication";
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user?.email) return respond({ error: "Unauthorized" }, 401);
 
@@ -42,6 +44,7 @@ serve(async (req) => {
       return respond({ error: "Invalid checkout request" }, 400);
     }
 
+    diagnosticStage = "environment";
     const env = getConfiguredStripeEnvironment(environment);
     const stripe = createManagedPaymentsStripeClient(env);
     const siteUrl = getPublicSiteUrl();
@@ -83,11 +86,13 @@ serve(async (req) => {
       if (reserveError || !reserved) return respond({ error: "Launch offer sold out" }, 410);
     }
 
+    diagnosticStage = "price_lookup";
     const prices = await stripe.prices.list({ active: true, lookup_keys: [priceId], limit: 2 });
     if (prices.data.length !== 1) return respond({ error: "Subscription price is unavailable" }, 503);
     const stripePrice = prices.data[0];
     assertPriceMatchesContract(priceId, stripePrice);
 
+    diagnosticStage = "checkout_session";
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price: stripePrice.id, quantity: 1 }],
@@ -107,7 +112,26 @@ serve(async (req) => {
     if (!session.url) throw new Error("Stripe did not return a Checkout URL");
     return respond({ url: session.url });
   } catch (error) {
+    const stripeError = error as { code?: string; param?: string; statusCode?: number; type?: string };
+    const message = error instanceof Error ? error.message.toLowerCase() : "";
     console.error("create-managed-checkout failed", error instanceof Error ? error.message : "unknown error");
-    return respond({ error: "Unable to start checkout" }, 500);
+    const code = message.includes("tax code") || message.includes("tax_code")
+      ? "managed_payments_tax_code_required"
+      : message.includes("terms") && message.includes("managed")
+      ? "managed_payments_terms_required"
+      : message.includes("managed_payments") && message.includes("unknown parameter")
+      ? "managed_payments_api_version_mismatch"
+      : message.includes("managed payments") && (message.includes("enable") || message.includes("activate"))
+      ? "managed_payments_not_enabled"
+      : message.includes("managed payments") && message.includes("eligible")
+      ? "managed_payments_product_ineligible"
+      : stripeError.type === "StripeAuthenticationError" || stripeError.statusCode === 401
+      ? "stripe_authentication_failed"
+      : stripeError.type === "StripePermissionError" || stripeError.statusCode === 403
+      ? "stripe_permission_failed"
+      : diagnosticStage === "checkout_session"
+      ? "stripe_checkout_rejected"
+      : "checkout_unavailable";
+    return respond({ error: "Unable to start checkout", code, stage: diagnosticStage }, 500);
   }
 });
