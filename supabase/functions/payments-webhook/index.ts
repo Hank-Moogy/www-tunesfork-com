@@ -237,6 +237,12 @@ serve(async (req) => {
         status: 200, headers: { "Content-Type": "application/json" },
       });
     }
+    if (claim === "busy") {
+      return new Response(JSON.stringify({ received: false, retry: true }), {
+        status: 409,
+        headers: { "Content-Type": "application/json", "Retry-After": "5" },
+      });
+    }
     if (claim !== "claimed") throw new Error("Unable to claim Stripe webhook event");
 
     await processEvent(event, env);

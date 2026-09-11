@@ -138,7 +138,7 @@ Run all of these before considering live mode:
 3. Customer cancellation before payment returns to Pricing and creates no subscription.
 4. Checkout return is not shown as successful for a missing, foreign, open, expired, or malformed Session ID.
 5. A completed session creates/updates the correct `subscriptions` row with the exact lookup key and `environment=sandbox`.
-6. Re-delivering the same webhook event does not duplicate or regress data.
+6. Re-delivering the same processed webhook event does not duplicate or regress data; a concurrent in-flight delivery receives a retryable response, and a claim abandoned for more than five minutes is reclaimed.
 7. A failed invoice marks the local subscription `past_due`; Billing shows recovery guidance and opens Customer Portal.
 8. Portal cancellation sets `cancel_at_period_end`; access continues until the recorded period end.
 9. A deleted subscription becomes `canceled` locally.

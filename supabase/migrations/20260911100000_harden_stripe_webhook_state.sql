@@ -24,6 +24,7 @@ SET search_path = public
 AS $$
 DECLARE
   current_status text;
+  current_received_at timestamptz;
 BEGIN
   IF _environment NOT IN ('sandbox', 'live') OR
      _event_id IS NULL OR _event_id = '' OR
@@ -42,19 +43,28 @@ BEGIN
     RETURN 'claimed';
   END IF;
 
-  SELECT status INTO current_status
+  SELECT status, received_at INTO current_status, current_received_at
   FROM public.stripe_webhook_events
   WHERE environment = _environment AND event_id = _event_id
   FOR UPDATE;
 
-  IF current_status IN ('processing', 'processed') THEN
+  IF current_status = 'processed' THEN
     RETURN 'duplicate';
+  END IF;
+
+  -- A concurrent delivery must not acknowledge success while the owner of the
+  -- claim can still fail. Stripe will retry the busy delivery. Claims abandoned
+  -- by an Edge Function crash become reclaimable after a bounded lease.
+  IF current_status = 'processing' AND
+     current_received_at > now() - interval '5 minutes' THEN
+    RETURN 'busy';
   END IF;
 
   UPDATE public.stripe_webhook_events
   SET status = 'processing',
       attempts = attempts + 1,
       event_type = _event_type,
+      received_at = now(),
       processed_at = NULL,
       last_error = NULL
   WHERE environment = _environment AND event_id = _event_id;
