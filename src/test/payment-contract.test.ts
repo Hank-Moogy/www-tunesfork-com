@@ -14,6 +14,7 @@ import {
 import {
   invoiceSubscriptionId,
   stripeObjectId,
+  subscriptionGrantsPaidAccess,
   subscriptionPeriod,
 } from "../../supabase/functions/_shared/stripe-events";
 
@@ -93,6 +94,17 @@ describe("Stripe redirect allowlists", () => {
 });
 
 describe("Stripe webhook payload compatibility", () => {
+  it("grants paid entitlements only for active, trialing, or recoverable past-due subscriptions", () => {
+    expect(subscriptionGrantsPaidAccess("active")).toBe(true);
+    expect(subscriptionGrantsPaidAccess("trialing")).toBe(true);
+    expect(subscriptionGrantsPaidAccess("past_due")).toBe(true);
+    expect(subscriptionGrantsPaidAccess("unpaid")).toBe(false);
+    expect(subscriptionGrantsPaidAccess("paused")).toBe(false);
+    expect(subscriptionGrantsPaidAccess("canceled")).toBe(false);
+    expect(subscriptionGrantsPaidAccess("incomplete_expired")).toBe(false);
+    expect(subscriptionGrantsPaidAccess(undefined)).toBe(false);
+  });
+
   it("extracts object IDs without trusting arbitrary shapes", () => {
     expect(stripeObjectId("sub_123")).toBe("sub_123");
     expect(stripeObjectId({ id: "sub_456" })).toBe("sub_456");

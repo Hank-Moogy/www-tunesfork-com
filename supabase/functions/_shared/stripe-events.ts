@@ -26,6 +26,12 @@ export interface InvoicePayload {
   parent?: { subscription_details?: { subscription?: StripeIdReference } };
 }
 
+const PAID_ACCESS_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past_due"]);
+
+export function subscriptionGrantsPaidAccess(status: unknown): boolean {
+  return typeof status === "string" && PAID_ACCESS_SUBSCRIPTION_STATUSES.has(status);
+}
+
 export function stripeObjectId(value: unknown): string | null {
   if (typeof value === "string") return value;
   if (value && typeof value === "object" && "id" in value && typeof value.id === "string") {

@@ -8,7 +8,10 @@ import {
   verifyWebhook,
 } from "../_shared/stripe.ts";
 import { isSubscriptionLookupKey } from "../_shared/payment-contract.ts";
-import { invoiceSubscriptionId } from "../_shared/stripe-events.ts";
+import {
+  invoiceSubscriptionId,
+  subscriptionGrantsPaidAccess,
+} from "../_shared/stripe-events.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -131,7 +134,11 @@ async function upsertSubscription(subscription: any, env: StripeEnv) {
     await supabase.from("founding_checkout_reservations").delete()
       .eq("user_id", userId).eq("environment", env);
   }
-  if (["active", "trialing", "past_due"].includes(subscription.status)) await applyPlan(userId, plan);
+  if (subscriptionGrantsPaidAccess(subscription.status)) {
+    await applyPlan(userId, plan);
+  } else {
+    await applyRemainingPlanOrFree(userId, env, subscription.id);
+  }
   return { userId, plan, lookupKey };
 }
 

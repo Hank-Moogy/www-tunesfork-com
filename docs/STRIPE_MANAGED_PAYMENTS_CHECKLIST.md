@@ -140,6 +140,7 @@ Run all of these before considering live mode:
 5. A completed session creates/updates the correct `subscriptions` row with the exact lookup key and `environment=sandbox`.
 6. Re-delivering the same processed webhook event does not duplicate or regress data; a concurrent in-flight delivery receives a retryable response, and a claim abandoned for more than five minutes is reclaimed.
 7. A failed invoice marks the local subscription `past_due`; Billing shows recovery guidance and opens Customer Portal.
+   A later `unpaid`, `paused`, `canceled`, `incomplete`, or unknown subscription status removes paid entitlement unless another access-granting subscription remains.
 8. Portal cancellation sets `cancel_at_period_end`; access continues until the recorded period end.
 9. A deleted subscription becomes `canceled` locally.
 10. A sandbox client request cannot select the live server environment, and no live key is required.
