@@ -87,7 +87,12 @@ serve(async (req) => {
     }
 
     diagnosticStage = "price_lookup";
-    const prices = await stripe.prices.list({ active: true, lookup_keys: [priceId], limit: 2 });
+    const prices = await stripe.prices.list({
+      active: true,
+      lookup_keys: [priceId],
+      limit: 2,
+      expand: ["data.product"],
+    });
     if (prices.data.length !== 1) return respond({ error: "Subscription price is unavailable" }, 503);
     const stripePrice = prices.data[0];
     assertPriceMatchesContract(priceId, stripePrice);

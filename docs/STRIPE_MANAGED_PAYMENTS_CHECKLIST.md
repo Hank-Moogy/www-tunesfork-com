@@ -17,7 +17,11 @@ Managed Payments is preview-gated. It is not compatible with TunesFork's former 
 
 ## Sandbox catalog
 
-Create three recurring-service products. Set an appropriate digital SaaS tax category and keep each price's lookup key exact.
+Create three recurring-service products. Set Stripe tax code `txcd_10103100`
+(`Software as a service (SaaS) - electronic download - personal use`) on each
+product and keep each price's lookup key exact. TunesFork combines its hosted
+service with a downloadable desktop client, so this is the eligible Managed
+Payments category that matches the launch product.
 
 | Product | Amount | Interval | Lookup key |
 |---|---:|---|---|

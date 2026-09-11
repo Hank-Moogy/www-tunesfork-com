@@ -2,6 +2,7 @@ export type StripeEnv = "sandbox" | "live";
 
 export const STRIPE_STABLE_API_VERSION = "2026-02-25.clover";
 export const MANAGED_PAYMENTS_PREVIEW_VERSION_FALLBACK = "2026-03-04.preview";
+export const TUNESFORK_PRODUCT_TAX_CODE = "txcd_10103100";
 
 export const SUBSCRIPTION_PRICE_CONTRACT = {
   producer_monthly: { amount: 799, currency: "eur", interval: "month" },
@@ -41,6 +42,7 @@ export function assertPriceMatchesContract(
     type?: string;
     unit_amount?: number | null;
     recurring?: { interval?: string; interval_count?: number } | null;
+    product?: string | { tax_code?: string | null };
   },
 ): void {
   const expected = SUBSCRIPTION_PRICE_CONTRACT[lookupKey];
@@ -49,7 +51,9 @@ export function assertPriceMatchesContract(
     price.currency === expected.currency &&
     price.unit_amount === expected.amount &&
     price.recurring?.interval === expected.interval &&
-    (price.recurring?.interval_count ?? 1) === 1;
+    (price.recurring?.interval_count ?? 1) === 1 &&
+    typeof price.product === "object" &&
+    price.product.tax_code === TUNESFORK_PRODUCT_TAX_CODE;
 
   if (!matches) {
     throw new Error(`Stripe price ${lookupKey} does not match the TunesFork price contract`);

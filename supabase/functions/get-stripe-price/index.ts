@@ -35,6 +35,7 @@ serve(async (req) => {
     const env = getConfiguredStripeEnvironment(environment);
     const query = new URLSearchParams({ active: "true", limit: "2" });
     query.append("lookup_keys[]", priceId);
+    query.append("expand[]", "data.product");
     diagnosticStage = "stripe_request";
     const stripeResponse = await fetch(`https://api.stripe.com/v1/prices?${query}`, {
       headers: {

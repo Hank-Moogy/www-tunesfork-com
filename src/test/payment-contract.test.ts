@@ -5,6 +5,7 @@ import {
   resolveStripeEnvironment,
   STRIPE_STABLE_API_VERSION,
   SUBSCRIPTION_PRICE_CONTRACT,
+  TUNESFORK_PRODUCT_TAX_CODE,
 } from "../../supabase/functions/_shared/payment-contract";
 import {
   isTrustedStripeBillingPortalUrl,
@@ -42,6 +43,7 @@ describe("TunesFork Stripe price contract", () => {
       type: "recurring",
       unit_amount: 799,
       recurring: { interval: "month", interval_count: 1 },
+      product: { tax_code: TUNESFORK_PRODUCT_TAX_CODE },
     })).not.toThrow();
 
     expect(() => assertPriceMatchesContract("producer_monthly", {
@@ -50,6 +52,18 @@ describe("TunesFork Stripe price contract", () => {
       type: "recurring",
       unit_amount: 999,
       recurring: { interval: "month", interval_count: 1 },
+      product: { tax_code: TUNESFORK_PRODUCT_TAX_CODE },
+    })).toThrow(/does not match/);
+  });
+
+  it("rejects products without TunesFork's eligible downloadable-SaaS tax code", () => {
+    expect(() => assertPriceMatchesContract("producer_monthly", {
+      active: true,
+      currency: "eur",
+      type: "recurring",
+      unit_amount: 799,
+      recurring: { interval: "month", interval_count: 1 },
+      product: { tax_code: null },
     })).toThrow(/does not match/);
   });
 });
