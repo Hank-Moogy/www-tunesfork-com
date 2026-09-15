@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from "motion/react";
-import { ArrowRight, Folder, Link2, Music4, Radio } from "lucide-react";
+import { Folder, Link2, Music4, Radio } from "lucide-react";
 
 /**
  * One physical object per step. They share a construction so the sequence
@@ -27,12 +27,11 @@ export function NameplateObject({
   value,
   onChange,
   onSubmit,
-  busy,
 }: {
   value: string;
   onChange: (v: string) => void;
+  /** Enter still submits; the button itself lives in the action dock. */
   onSubmit: () => void;
-  busy?: boolean;
 }) {
   const filled = value.trim().length > 0;
   return (
@@ -47,7 +46,7 @@ export function NameplateObject({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && filled && !busy) onSubmit();
+            if (e.key === "Enter" && filled) onSubmit();
           }}
           placeholder="Type your name"
           aria-label="Your name"
@@ -61,22 +60,11 @@ export function NameplateObject({
       </div>
       <span
         aria-hidden
-        className={`absolute bottom-[54px] h-[2px] rounded-full transition-all duration-500 ${
+        className={`absolute bottom-10 h-[2px] rounded-full transition-all duration-500 ${
           filled ? "w-40 bg-brand" : "w-16 bg-border"
         }`}
         style={filled ? { boxShadow: "0 0 14px hsl(var(--brand) / 0.8)" } : undefined}
       />
-      {/* The action lives on the object, so the screen holds one thing. */}
-      <button
-        type="button"
-        onClick={onSubmit}
-        disabled={!filled || busy}
-        style={{ transform: "translateZ(50px)" }}
-        className="absolute bottom-5 flex items-center gap-1.5 rounded-full border border-brand/40 bg-brand/10 px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-brand transition-all hover:bg-brand/20 disabled:pointer-events-none disabled:border-border disabled:bg-transparent disabled:text-subtle-foreground"
-      >
-        {busy ? "Saving" : "Continue"}
-        <ArrowRight className="h-3 w-3" />
-      </button>
     </div>
   );
 }

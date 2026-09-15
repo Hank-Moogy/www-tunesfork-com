@@ -24,11 +24,15 @@ export default function StepRail({
   const reduceMotion = useReducedMotion();
 
   return (
-    <ol className="relative space-y-1">
-      {/* The spine the lamps sit on. */}
+    // Below lg the rail collapses to a row of lamps. Six labelled rows is a
+    // full phone screen of chrome, which pushed the object off the bottom —
+    // and the heading already names the current step, so the labels are
+    // redundant at that size.
+    <ol className="relative flex items-center gap-2 lg:block lg:space-y-1">
+      {/* The spine the lamps sit on. Vertical rail only. */}
       <span
         aria-hidden
-        className="absolute left-[15px] top-3 bottom-3 w-px bg-border"
+        className="absolute left-[15px] top-3 bottom-3 hidden w-px bg-border lg:block"
       />
       {steps.map((step, i) => {
         const complete = done[step.id];
@@ -37,13 +41,13 @@ export default function StepRail({
         // skip forward into a step whose prerequisite has not happened.
         const reachable = complete || active;
         return (
-          <li key={step.id} className="relative">
+          <li key={step.id} className="relative flex-1 lg:flex-none">
             <button
               type="button"
               disabled={!reachable}
               onClick={() => reachable && onJump(step.id)}
               className={cn(
-                "group flex w-full items-start gap-3 rounded-lg p-2.5 text-left transition-colors",
+                "group flex w-full items-center justify-center rounded-lg text-left transition-colors lg:items-start lg:justify-start lg:gap-3 lg:p-2.5",
                 reachable ? "cursor-pointer hover:bg-[rgb(var(--film-1))]" : "cursor-default",
               )}
             >
@@ -65,7 +69,7 @@ export default function StepRail({
                 {complete ? <Check className="h-3.5 w-3.5" /> : i + 1}
               </span>
 
-              <span className="min-w-0 pt-1">
+              <span className="hidden min-w-0 pt-1 lg:block">
                 <span
                   className={cn(
                     "block text-sm transition-colors",

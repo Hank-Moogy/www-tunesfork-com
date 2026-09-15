@@ -208,22 +208,16 @@ export default function Onboarding() {
         <span className="text-[15px] font-semibold tracking-tight">Tunesfork</span>
       </div>
 
-      <div className="relative mx-auto grid min-h-screen max-w-6xl grid-cols-1 content-center items-center gap-10 px-6 py-10 lg:grid-cols-[260px_1fr] lg:gap-16 lg:px-10">
+      <div className="relative mx-auto grid min-h-screen max-w-6xl grid-cols-1 content-center items-center gap-10 px-6 pb-40 pt-10 lg:pb-10 lg:grid-cols-[260px_1fr] lg:gap-16 lg:px-10">
         {/* Progress rail */}
         <aside className="self-center">
           <StepRail steps={STEPS} activeId={step} done={progress.done} onJump={setViewing} />
-          {progress.unlocked && (
-            <button
-              onClick={finish}
-              className="mt-8 text-xs font-medium text-subtle-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Skip the rest for now
-            </button>
-          )}
         </aside>
 
         {/* Stage */}
-        <main className="relative flex min-h-[520px] flex-col items-center justify-center self-center">
+        <main className="relative flex w-full flex-col items-center self-center lg:h-[620px]">
+          {/* Content takes the slack above the dock. */}
+          <div className="flex w-full flex-1 items-center justify-center">
           <AnimatePresence mode="wait">
             {burst ? (
               <SuccessBurst key="burst" label={burst} onDone={() => setBurst(null)} />
@@ -244,7 +238,7 @@ export default function Onboarding() {
 
                 <Stage className="my-8 h-[250px] w-full">
                   {step === "name" && (
-                    <NameplateObject value={name} onChange={setName} onSubmit={saveName} busy={saving} />
+                    <NameplateObject value={name} onChange={setName} onSubmit={saveName} />
                   )}
                   {step === "install" && <AppObject />}
                   {step === "pair" && <PairObject paired={progress.hasDevice} />}
@@ -253,26 +247,33 @@ export default function Onboarding() {
                   {step === "watch" && <LibraryObject count={progress.projectCount} />}
                 </Stage>
 
-                <StepBody
-                  step={step}
-                  progress={progress}
-                  name={name}
-                  setName={setName}
-                  saving={saving}
-                  saveName={saveName}
-                  waitlistEmail={waitlistEmail}
-                  setWaitlistEmail={setWaitlistEmail}
-                  waitlistDone={waitlistDone}
-                  joinWaitlist={joinWaitlist}
-                  userEmail={user?.email ?? ""}
-                  firstProject={firstProject}
-                  shareFirstProject={shareFirstProject}
-                  finish={finish}
-                  goNext={() => setViewing(STEP_ORDER[Math.min(stepIndex + 1, STEP_ORDER.length - 1)])}
-                />
               </motion.div>
             )}
           </AnimatePresence>
+          </div>
+
+          {/* The action dock. Centred under the stage and outside the animated
+              block, so it holds one position for the whole flow instead of
+              being re-found on every step — and stays clear of the object
+              rather than crammed onto it. */}
+          <div className="z-20 w-full max-w-[280px] shrink-0 pt-2">
+            <ActionDock
+          step={step}
+          progress={progress}
+          name={name}
+          saving={saving}
+          saveName={saveName}
+          waitlistEmail={waitlistEmail}
+          setWaitlistEmail={setWaitlistEmail}
+          waitlistDone={waitlistDone}
+          joinWaitlist={joinWaitlist}
+          userEmail={user?.email ?? ""}
+          firstProject={firstProject}
+          shareFirstProject={shareFirstProject}
+          finish={finish}
+              goNext={() => setViewing(STEP_ORDER[Math.min(stepIndex + 1, STEP_ORDER.length - 1)])}
+            />
+          </div>
         </main>
       </div>
     </div>
@@ -281,11 +282,10 @@ export default function Onboarding() {
 
 /* ------------------------------------------------------------------ */
 
-type BodyProps = {
+type DockProps = {
   step: StepId;
   progress: ReturnType<typeof useOnboardingProgress>;
   name: string;
-  setName: (v: string) => void;
   saving: boolean;
   saveName: () => void;
   waitlistEmail: string;
@@ -352,93 +352,114 @@ function Waiting({ text }: { text: string }) {
   );
 }
 
-function StepBody(p: BodyProps) {
+/**
+ * The action dock.
+ *
+ * Every step's primary action lands in the same place — bottom left, under the
+ * rail, always visible. A button that moves between screens makes the user
+ * re-find it on every step; a fixed dock means the eye learns one location and
+ * the centre of the screen stays purely the object being configured.
+ *
+ * Steps that complete elsewhere (pairing, the first save) show a waiting lamp
+ * here rather than a button, so the dock always says what the screen is doing
+ * instead of going blank.
+ */
+function ActionDock(p: DockProps) {
   const { step, progress } = p;
 
-  // Step one has no body: you type into the nameplate and press Continue on
-  // the object itself.
-  if (step === "name") return null;
-
-  if (step === "install") {
-    // The Sync app is macOS-only. A Windows user cannot complete this step, so
-    // they are offered the waitlist and let through rather than trapped behind
-    // a door that does not exist for them yet.
-    if (!progress.canInstall) {
+  const primary = (() => {
+    if (step === "name") {
       return (
-        <>
-          {p.waitlistDone ? (
-            <p className="flex items-center gap-2 text-sm font-medium text-status-synced">
-              <Check className="h-4 w-4" /> You're on the list.
-            </p>
-          ) : (
-            <div className="flex w-full max-w-sm gap-2">
-              <Input
-                type="email"
-                value={p.waitlistEmail || p.userEmail}
-                onChange={(e) => p.setWaitlistEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="h-11 text-center text-base"
-              />
-              <Button onClick={p.joinWaitlist} className="h-11 shrink-0 gap-2">
-                <Monitor className="h-4 w-4" /> Join
-              </Button>
-            </div>
-          )}
-          <button onClick={p.finish} className="mt-6 text-xs text-subtle-foreground underline-offset-4 hover:text-foreground hover:underline">
-            Continue to Tunesfork
-          </button>
-        </>
+        <Button onClick={p.saveName} disabled={!p.name.trim() || p.saving} size="lg" className="w-full gap-2">
+          {p.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Continue
+          {!p.saving && <ArrowRight className="h-4 w-4" />}
+        </Button>
       );
     }
-    return (
-      <>
-        <Button asChild size="lg" className="h-11 gap-2" onClick={() => progress.markInstallClicked()}>
+
+    if (step === "install") {
+      if (!progress.canInstall) {
+        if (p.waitlistDone) {
+          return (
+            <Button onClick={p.finish} size="lg" className="w-full gap-2">
+              Continue to Tunesfork <ArrowRight className="h-4 w-4" />
+            </Button>
+          );
+        }
+        return (
+          <div className="space-y-2">
+            <Input
+              type="email"
+              value={p.waitlistEmail || p.userEmail}
+              onChange={(e) => p.setWaitlistEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="h-10"
+            />
+            <Button onClick={p.joinWaitlist} size="lg" className="w-full gap-2">
+              <Monitor className="h-4 w-4" /> Join the Windows list
+            </Button>
+          </div>
+        );
+      }
+      return (
+        <Button asChild size="lg" className="w-full gap-2" onClick={() => progress.markInstallClicked()}>
           <a href={DOWNLOAD_MAC}>
             <Apple className="h-4 w-4" /> Download for macOS
           </a>
         </Button>
-        <button onClick={p.goNext} className="mt-5 text-xs text-subtle-foreground underline-offset-4 hover:text-foreground hover:underline">
-          Already installed it
-        </button>
-      </>
-    );
-  }
+      );
+    }
 
-  if (step === "pair") {
-    return (
-      <>
-        <Waiting text="Waiting for the app" />
-      </>
-    );
-  }
+    if (step === "pair" || step === "backup") {
+      return (
+        <div className="flex h-11 items-center gap-2.5 rounded-md border border-border bg-[rgb(var(--film-1))] px-4">
+          <i className="tf-lamp" data-state="syncing" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            {step === "pair" ? "Waiting for the app" : "Watching for a save"}
+          </span>
+        </div>
+      );
+    }
 
-  if (step === "backup") {
-    return (
-      <>
-        <Waiting text="Watching for a save" />
-      </>
-    );
-  }
-
-  if (step === "share") {
-    return (
-      <>
-        <Button onClick={p.shareFirstProject} disabled={!p.firstProject} size="lg" className="h-11 gap-2">
-          <Copy className="h-4 w-4" />
-          Copy a link to {p.firstProject?.name ?? "your project"}
+    if (step === "share") {
+      return (
+        <Button onClick={p.shareFirstProject} disabled={!p.firstProject} size="lg" className="w-full gap-2">
+          <Copy className="h-4 w-4" /> Copy share link
         </Button>
-        <button onClick={p.goNext} className="mt-5 text-xs text-subtle-foreground underline-offset-4 hover:text-foreground hover:underline">
-          Maybe later
-        </button>
-      </>
-    );
-  }
+      );
+    }
 
-  return (
-    <>
-      <Button onClick={p.finish} size="lg" className="h-11 gap-2">
+    return (
+      <Button onClick={p.finish} size="lg" className="w-full gap-2">
         Go to my projects <ArrowRight className="h-4 w-4" />
       </Button>
-    </>
+    );
+  })();
+
+  const secondary = (() => {
+    if (step === "install" && progress.canInstall) return { label: "Already installed it", act: p.goNext };
+    if (step === "share") return { label: "Maybe later", act: p.goNext };
+    if (progress.unlocked) return { label: "Skip the rest for now", act: p.finish };
+    return null;
+  })();
+
+  return (
+    <div className="w-full">
+      {progress.canInstall && step === "install" && p.waitlistDone && (
+        <p className="mb-2 flex items-center gap-1.5 text-xs text-status-synced">
+          <Check className="h-3.5 w-3.5" /> You're on the list.
+        </p>
+      )}
+      {primary}
+      {secondary && (
+        <button
+          onClick={secondary.act}
+          className="mt-3 w-full text-center text-xs text-subtle-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+        >
+          {secondary.label}
+        </button>
+      )}
+    </div>
   );
 }
