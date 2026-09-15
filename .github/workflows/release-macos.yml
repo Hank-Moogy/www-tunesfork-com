@@ -43,7 +43,7 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           VITE_AMPLITUDE_API_KEY: ${{ secrets.AMPLITUDE_PRODUCTION_API_KEY }}
-          VITE_AMPLITUDE_SERVER_ZONE: EU
+          VITE_AMPLITUDE_SERVER_ZONE: US
           VITE_APP_VERSION: ${{ inputs.tag || github.ref_name }}
         run: npm run dist:mac:release
       - name: Test quarantined install
