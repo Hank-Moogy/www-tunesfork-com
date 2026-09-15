@@ -195,6 +195,24 @@ The one unobservable signal is the install click — a browser cannot see a
 download. It is remembered in `localStorage` and superseded as soon as a
 device pairs, since you cannot pair without having installed.
 
+### Testing it
+
+Progress is derived from real data, so an established account is already past
+the gate and will never see the flow. Two dev-only URL overrides exist for
+this, both compiled out of production by `import.meta.env.DEV`:
+
+| Override | Does |
+|---|---|
+| `/onboarding?tf_step=share` | Jump to any step (`name`, `install`, `pair`, `backup`, `share`, `watch`) |
+| `/onboarding?tf_platform=windows` | Force the non-macOS branch |
+
+The platform one exists because the Windows path is otherwise unreachable from
+a Mac: `navigator.platform` stays `"MacIntel"` even under a DevTools
+user-agent override.
+
+To exercise the flow for real rather than preview it, sign up a fresh account —
+that is the only way to see the gate actually hold and release.
+
 **The gate lives in `ProtectedRoute`,** not in `App.tsx`, which is edited in
 parallel constantly. The app opens once a device is paired *and* one project is
 backed up.

@@ -63,7 +63,18 @@ export default function Onboarding() {
   const [waitlistDone, setWaitlistDone] = useState(false);
   const [firstProject, setFirstProject] = useState<{ id: string; name: string } | null>(null);
 
-  const step = viewing ?? progress.currentStep;
+  // Dev-only: ?tf_step=share jumps straight to a screen, so the six stages can
+  // be reviewed without first faking six steps of real data. Compiled out of
+  // production builds.
+  const forcedStep =
+    import.meta.env.DEV && typeof window !== "undefined"
+      ? (new URLSearchParams(window.location.search).get("tf_step") as StepId | null)
+      : null;
+
+  const step =
+    forcedStep && STEP_ORDER.includes(forcedStep)
+      ? forcedStep
+      : (viewing ?? progress.currentStep);
   const stepIndex = STEP_ORDER.indexOf(step);
 
   // Seed the name field from the profile so returning here is not a blank slate.

@@ -31,6 +31,14 @@ const WATCHING_THRESHOLD = 3;
 const INSTALL_CLICKED_KEY = "tf_onboarding_install_clicked";
 
 function isMac() {
+  // Dev-only override. The Windows path cannot otherwise be tested from a Mac:
+  // navigator.platform stays "MacIntel" even under a DevTools user-agent
+  // override, so there is no way to reach that branch by hand. Compiled out of
+  // production builds by import.meta.env.DEV.
+  if (import.meta.env.DEV && typeof window !== "undefined") {
+    const forced = new URLSearchParams(window.location.search).get("tf_platform");
+    if (forced) return forced === "mac";
+  }
   if (typeof navigator === "undefined") return true;
   const p = `${navigator.platform ?? ""} ${navigator.userAgent ?? ""}`.toLowerCase();
   // Treat unknown platforms as capable rather than locking someone out of a
