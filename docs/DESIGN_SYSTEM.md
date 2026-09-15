@@ -175,11 +175,39 @@ looking at a screenshot.
 
 ---
 
+## Onboarding
+
+`src/pages/Onboarding.tsx` is a six-step first-run flow shaped like a
+character-setup screen: one decision per page, the object being configured lit
+at the centre (`components/onboarding/Stage.tsx` tilts it toward the pointer on
+a spring), and progress as a column of lamps that never reorders.
+
+**Progress is derived, never counted.** `useOnboardingProgress` reads real
+signals — `profiles.display_name`, a live row in `device_tokens`, owned
+`projects`, a `share_token` or collaborator. There is no step column, on
+purpose: most of these steps complete *outside* the web app (pairing happens
+in the tray app, a backup happens in Ableton), so a stored counter would
+immediately disagree with reality. While the user sits on a step that
+completes elsewhere the page polls, and the screen advances itself the moment
+the thing actually happens.
+
+The one unobservable signal is the install click — a browser cannot see a
+download. It is remembered in `localStorage` and superseded as soon as a
+device pairs, since you cannot pair without having installed.
+
+**The gate lives in `ProtectedRoute`,** not in `App.tsx`, which is edited in
+parallel constantly. The app opens once a device is paired *and* one project is
+backed up.
+
+> **Sync ships for macOS only.** Gating every user on "install and pair" would
+> permanently trap Windows users: they cannot install, and the web ZIP upload
+> path was closed at the database, so they cannot back up either. `unlocked`
+> therefore returns true on non-macOS, and those users get the Windows waitlist
+> (`sync_waitlist`, surfaced in AdminPage) instead of a door with no key.
+> **Do not "simplify" this check away.**
+
 ## Not done yet
 
-- **Onboarding.** The real first-run gap. `src/pages/Onboarding.tsx` collects
-  a survey and shows three tour cards, but never gets a new user to first
-  value: install Sync → connect Ableton → watch version one appear.
 - **Layout passes** on Billing, DesktopApp, Admin and Share. Tokens are
   correct; the shape is untouched.
 - **The tray app** still leads with orange. Aligning it to green is a
