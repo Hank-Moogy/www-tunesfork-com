@@ -1,6 +1,7 @@
 import Stripe from "https://esm.sh/stripe@22.4.0";
 import {
   MANAGED_PAYMENTS_PREVIEW_VERSION_FALLBACK,
+  normalizePublicSiteUrl,
   resolveStripeEnvironment,
   STRIPE_STABLE_API_VERSION,
   type StripeEnv,
@@ -31,14 +32,7 @@ export function getConnectionApiKey(env: StripeEnv): string {
 }
 
 export function getPublicSiteUrl(): string {
-  const configured = Deno.env.get("PUBLIC_SITE_URL");
-  if (!configured) throw new Error("PUBLIC_SITE_URL is not configured");
-
-  const url = new URL(configured);
-  if (url.protocol !== "https:" && url.hostname !== "localhost") {
-    throw new Error("PUBLIC_SITE_URL must use HTTPS");
-  }
-  return url.origin;
+  return normalizePublicSiteUrl(Deno.env.get("PUBLIC_SITE_URL"));
 }
 
 export function createStripeClient(

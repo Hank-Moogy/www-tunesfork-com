@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertPriceMatchesContract,
   isSubscriptionLookupKey,
+  normalizePublicSiteUrl,
   resolveStripeEnvironment,
   STRIPE_STABLE_API_VERSION,
   SUBSCRIPTION_PRICE_CONTRACT,
@@ -77,6 +78,20 @@ describe("Stripe environment isolation", () => {
 
   it("rejects a client environment mismatch", () => {
     expect(() => resolveStripeEnvironment("sandbox", "live")).toThrow(/does not match/);
+  });
+});
+
+describe("Stripe return URL configuration", () => {
+  it("allows production HTTPS and explicit local HTTP origins", () => {
+    expect(normalizePublicSiteUrl("https://tunesfork.com/checkout")).toBe("https://tunesfork.com");
+    expect(normalizePublicSiteUrl("http://localhost:8080/path")).toBe("http://localhost:8080");
+    expect(normalizePublicSiteUrl("http://127.0.0.1:5173")).toBe("http://127.0.0.1:5173");
+  });
+
+  it("rejects insecure public origins and non-HTTP localhost schemes", () => {
+    expect(() => normalizePublicSiteUrl("http://tunesfork.com")).toThrow(/HTTPS or local HTTP/);
+    expect(() => normalizePublicSiteUrl("ftp://localhost/files")).toThrow(/HTTPS or local HTTP/);
+    expect(() => normalizePublicSiteUrl(undefined)).toThrow(/not configured/);
   });
 });
 

@@ -34,6 +34,21 @@ export function resolveStripeEnvironment(
   return configured;
 }
 
+export function normalizePublicSiteUrl(configured: unknown): string {
+  if (typeof configured !== "string" || !configured.trim()) {
+    throw new Error("PUBLIC_SITE_URL is not configured");
+  }
+
+  const url = new URL(configured);
+  const localHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
+  const allowed = url.protocol === "https:" ||
+    (url.protocol === "http:" && localHosts.has(url.hostname));
+  if (!allowed) {
+    throw new Error("PUBLIC_SITE_URL must use HTTPS or local HTTP");
+  }
+  return url.origin;
+}
+
 export function assertPriceMatchesContract(
   lookupKey: SubscriptionLookupKey,
   price: {
