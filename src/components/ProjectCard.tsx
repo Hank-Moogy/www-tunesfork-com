@@ -1,3 +1,4 @@
+import { motion, useReducedMotion } from "motion/react";
 import { Calendar, Music2, Archive } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,8 @@ export interface ProjectCardCollaborator {
 interface ProjectCardProps {
   project: Project;
   collaborators?: ProjectCardCollaborator[];
+  /** Grid position, used to stagger the card's arrival. */
+  index?: number;
 }
 
 /**
@@ -67,22 +70,38 @@ function initials(name: string | null, fallback: string) {
     .toUpperCase();
 }
 
-export default function ProjectCard({ project, collaborators = [] }: ProjectCardProps) {
+export default function ProjectCard({ project, collaborators = [], index = 0 }: ProjectCardProps) {
   const status = statusMeta(project);
   const visible = collaborators.slice(0, 3);
   const extra = Math.max(0, collaborators.length - visible.length);
+  const reduceMotion = useReducedMotion();
 
   return (
-    <a
+    <motion.a
       href={`/project/${project.id}`}
       onClick={() =>
         trackButtonClick("dashboard_open_project", "dashboard_card", { project_id: project.id })
       }
+      // Cards arrive as one wave rather than a row of independent pop-ins:
+      // the stagger is derived from grid position, so the field settles in
+      // the direction the grid is read. Ambientic's interface transitions sit
+      // at 180-500ms with a long settle, hence the spring rather than a
+      // linear ease.
+      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.42,
+        delay: reduceMotion ? 0 : Math.min(index, 11) * 0.045,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      // Responsive under the hand: the lift answers immediately and settles
+      // soft. On a near-black page a drop shadow reads as mud, so the lift is
+      // carried by the edge catching more light instead.
+      whileHover={reduceMotion ? undefined : { y: -4 }}
+      whileTap={reduceMotion ? undefined : { y: -1, scale: 0.99 }}
       className={cn(
-        "group tf-surface flex aspect-square flex-col rounded-xl transition-all duration-200",
-        // On a near-black page a drop shadow reads as mud, so the lift is
-        // carried by the edge catching more light instead.
-        "hover:-translate-y-0.5 hover:border-[rgb(var(--edge-strong))]"
+        "group tf-surface flex aspect-square flex-col rounded-xl",
+        "transition-colors duration-200 hover:border-[rgb(var(--edge-strong))]",
       )}
     >
       <div
@@ -146,6 +165,6 @@ export default function ProjectCard({ project, collaborators = [] }: ProjectCard
           </div>
         )}
       </div>
-    </a>
+    </motion.a>
   );
 }

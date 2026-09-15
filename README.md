@@ -3,6 +3,13 @@
 TunesFork is a web app and Electron sync client for Ableton project
 collaboration.
 
+## Design
+
+The web app runs on a dark, token-driven design system. Read
+[`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) before changing any colour,
+surface or animation — it documents the tokens and the mistakes that have
+already shipped.
+
 ## Web App
 
 ```bash

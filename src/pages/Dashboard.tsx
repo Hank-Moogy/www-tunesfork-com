@@ -477,11 +477,12 @@ function ProjectGrid({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-      {projects.map((p) => (
+      {projects.map((p, i) => (
         <ProjectCard
           key={p.id}
           project={p}
           collaborators={collabsByProject[p.id] ?? []}
+          index={i}
         />
       ))}
       {showNewTile && (
