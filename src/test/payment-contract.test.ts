@@ -15,6 +15,7 @@ import {
 import {
   invoiceSubscriptionId,
   stripeObjectId,
+  subscriptionCancelsAtPeriodEnd,
   subscriptionGrantsPaidAccess,
   subscriptionPeriod,
 } from "../../supabase/functions/_shared/stripe-events";
@@ -141,5 +142,24 @@ describe("Stripe webhook payload compatibility", () => {
       start: "2023-11-14T22:13:20.000Z",
       end: "2023-12-14T22:13:20.000Z",
     });
+  });
+
+  it("recognizes both Stripe representations of a period-end cancellation", () => {
+    expect(subscriptionCancelsAtPeriodEnd({
+      id: "sub_boolean",
+      cancel_at_period_end: true,
+    })).toBe(true);
+    expect(subscriptionCancelsAtPeriodEnd({
+      id: "sub_portal",
+      cancel_at: 1_702_592_000,
+    }, {
+      current_period_end: 1_702_592_000,
+    })).toBe(true);
+    expect(subscriptionCancelsAtPeriodEnd({
+      id: "sub_custom_date",
+      cancel_at: 1_701_000_000,
+    }, {
+      current_period_end: 1_702_592_000,
+    })).toBe(false);
   });
 });

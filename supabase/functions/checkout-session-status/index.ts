@@ -6,6 +6,7 @@ import {
   getConfiguredStripeEnvironment,
 } from "../_shared/stripe.ts";
 import { isSubscriptionLookupKey } from "../_shared/payment-contract.ts";
+import { subscriptionCancelsAtPeriodEnd } from "../_shared/stripe-events.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -55,9 +56,6 @@ serve(async (req) => {
     const subscriptionStatus = subscription && "status" in subscription
       ? subscription.status
       : null;
-    const cancelAtPeriodEnd = subscription && "cancel_at_period_end" in subscription
-      ? subscription.cancel_at_period_end
-      : null;
     const cancelAt = subscription && "cancel_at" in subscription && subscription.cancel_at
       ? new Date(subscription.cancel_at * 1000).toISOString()
       : null;
@@ -66,6 +64,9 @@ serve(async (req) => {
       : null;
     const periodEnd = subscriptionItem?.current_period_end ??
       (subscription && "current_period_end" in subscription ? subscription.current_period_end : null);
+    const cancelAtPeriodEnd = subscription
+      ? subscriptionCancelsAtPeriodEnd(subscription, subscriptionItem)
+      : null;
     const lookupKey = isSubscriptionLookupKey(session.metadata?.lookupKey)
       ? session.metadata.lookupKey
       : null;

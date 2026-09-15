@@ -10,6 +10,7 @@ import {
 import { isSubscriptionLookupKey } from "../_shared/payment-contract.ts";
 import {
   invoiceSubscriptionId,
+  subscriptionCancelsAtPeriodEnd,
   subscriptionGrantsPaidAccess,
 } from "../_shared/stripe-events.ts";
 
@@ -116,6 +117,7 @@ async function upsertSubscription(subscription: any, env: StripeEnv) {
   const plan = planFromLookupKey(lookupKey) || subscription.metadata?.plan || "producer";
   const periodStart = item?.current_period_start ?? subscription.current_period_start;
   const periodEnd = item?.current_period_end ?? subscription.current_period_end;
+  const cancelsAtPeriodEnd = subscriptionCancelsAtPeriodEnd(subscription, item);
   const { error } = await supabase.from("subscriptions").upsert({
     user_id: userId,
     stripe_subscription_id: subscription.id,
@@ -125,7 +127,7 @@ async function upsertSubscription(subscription: any, env: StripeEnv) {
     status: subscription.status,
     current_period_start: periodStart ? new Date(periodStart * 1000).toISOString() : null,
     current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
-    cancel_at_period_end: subscription.cancel_at_period_end || false,
+    cancel_at_period_end: cancelsAtPeriodEnd,
     environment: env,
     updated_at: new Date().toISOString(),
   }, { onConflict: "environment,stripe_subscription_id" });
@@ -189,7 +191,10 @@ async function processEvent(event: any, env: StripeEnv) {
       if (["active", "trialing"].includes(currentSubscription.status)) {
         await sendAmplitudeEvent("Subscription Activated", result.userId, await userEmail(result.userId), {
           plan: result.plan, lookup_key: result.lookupKey, status: currentSubscription.status,
-          cancel_at_period_end: currentSubscription.cancel_at_period_end || false,
+          cancel_at_period_end: subscriptionCancelsAtPeriodEnd(
+            currentSubscription,
+            currentSubscription.items?.data?.[0],
+          ),
         }, `${event.id}:subscription`);
       }
       break;

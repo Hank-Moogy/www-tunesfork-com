@@ -16,6 +16,7 @@ export interface SubscriptionPayload {
   status?: string;
   current_period_start?: number;
   current_period_end?: number;
+  cancel_at?: number | null;
   cancel_at_period_end?: boolean;
   metadata?: { userId?: string; lookupKey?: string };
   items?: { data?: SubscriptionItemPayload[] };
@@ -30,6 +31,17 @@ const PAID_ACCESS_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past_d
 
 export function subscriptionGrantsPaidAccess(status: unknown): boolean {
   return typeof status === "string" && PAID_ACCESS_SUBSCRIPTION_STATUSES.has(status);
+}
+
+export function subscriptionCancelsAtPeriodEnd(
+  subscription: SubscriptionPayload,
+  item?: SubscriptionItemPayload,
+): boolean {
+  if (subscription.cancel_at_period_end === true) return true;
+  const periodEnd = subscription.current_period_end ?? item?.current_period_end;
+  return typeof subscription.cancel_at === "number" &&
+    typeof periodEnd === "number" &&
+    subscription.cancel_at === periodEnd;
 }
 
 export function stripeObjectId(value: unknown): string | null {
