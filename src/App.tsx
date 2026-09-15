@@ -4,7 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
-import LandingPage from "./pages/LandingPage";
+import LandingPageGalaxyClassic from "./pages/LandingPageGalaxyClassic";
 import LandingPageGithub from "./pages/LandingPageGithub";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
@@ -36,7 +36,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/" element={<AuthRedirect />} />
-            <Route path="/welcome" element={<LandingPage />} />
+            <Route path="/welcome" element={<LandingPageGalaxyClassic />} />
             <Route path="/welcome/gitsound" element={<LandingPageGithub />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/share/:token" element={<SharePage />} />
