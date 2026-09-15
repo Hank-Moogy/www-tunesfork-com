@@ -18,7 +18,7 @@ const SEGMENT_COLORS = [
   "bg-pastel-orange",
   "bg-pastel-pink",
   "bg-pastel-yellow",
-  "bg-accent",
+  "bg-brand",
   "bg-primary",
 ];
 
@@ -120,7 +120,7 @@ export default function StorageCard({ stats }: { stats: UserStats }) {
               <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${color}`} />
               <Link
                 to={`/project/${p.project_id}`}
-                className="min-w-0 flex-1 truncate text-sm font-medium hover:text-accent"
+                className="min-w-0 flex-1 truncate text-sm font-medium hover:text-brand"
               >
                 {p.project_name}
               </Link>
@@ -141,7 +141,7 @@ export default function StorageCard({ stats }: { stats: UserStats }) {
       {items.length > TOP_N && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="mt-4 text-xs font-medium text-accent hover:underline"
+          className="mt-4 text-xs font-medium text-brand hover:underline"
         >
           {expanded ? "Show less" : `Show all ${items.length} projects`}
         </button>

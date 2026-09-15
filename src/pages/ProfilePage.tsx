@@ -171,7 +171,7 @@ export default function ProfilePage() {
           <div className="flex items-center gap-4">
             <Avatar className="h-16 w-16 ring-2 ring-white/70">
               {profile?.avatar_url && <AvatarImage src={profile.avatar_url} alt="" />}
-              <AvatarFallback className="bg-accent/20 text-accent text-lg font-semibold">
+              <AvatarFallback className="bg-brand/20 text-brand text-lg font-semibold">
                 {initials}
               </AvatarFallback>
             </Avatar>

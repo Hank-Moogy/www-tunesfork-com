@@ -37,7 +37,7 @@ export function SampleCheckBadge({ check, size = "sm" }: Props) {
     return (
       <span
         title={`All ${check.included} samples included`}
-        className={`inline-flex items-center rounded-full bg-accent/15 text-accent font-medium ${sizeClasses}`}
+        className={`inline-flex items-center rounded-full bg-brand/15 text-brand font-medium ${sizeClasses}`}
       >
         <Check className={iconClass} />
         Samples

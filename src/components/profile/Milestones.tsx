@@ -47,8 +47,8 @@ export default function Milestones({ stats }: { stats: UserStats }) {
                 <div
                   className={`flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border p-2 transition ${
                     b.unlocked
-                      ? "border-accent/40 bg-accent/10 text-accent"
-                      : "border-white/40 bg-white/30 text-muted-foreground/50 grayscale"
+                      ? "border-brand/40 bg-brand/10 text-brand"
+                      : "border-[rgb(var(--edge))] bg-[rgb(var(--film-1))] text-subtle-foreground grayscale"
                   }`}
                 >
                   <b.icon className="h-5 w-5" />

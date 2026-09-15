@@ -137,7 +137,7 @@ function CollaboratorRow({
           </AvatarFallback>
         </Avatar>
         {online && (
-          <span className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-card" />
+          <span className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-card" />
         )}
       </div>
       <div className="min-w-0 flex-1">
@@ -744,7 +744,7 @@ export default function ProjectPage() {
                             <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>
                           </div>
                           {isCurrent ? (
-                            <span className="shrink-0 rounded-full bg-accent/15 text-accent text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5">
+                            <span className="shrink-0 rounded-full bg-brand/15 text-brand text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5">
                               Current
                             </span>
                           ) : (
@@ -911,7 +911,7 @@ export default function ProjectPage() {
                   <Share2 className="h-4 w-4" /> Share
                 </Button>
                 <Button
-                  className="h-9 gap-2 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+                  className="h-9 gap-2 rounded-xl bg-brand hover:bg-brand/90 text-brand-foreground"
                   onClick={handleDownload}
                   disabled={downloading || !selectedVersion}
                 >
@@ -1101,7 +1101,7 @@ export default function ProjectPage() {
                 />
                 <Button
                   size="icon"
-                  className="h-10 w-10 shrink-0 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+                  className="h-10 w-10 shrink-0 rounded-xl bg-brand hover:bg-brand/90 text-brand-foreground"
                   onClick={handleSendComment}
                   disabled={!newComment.trim() || sendingComment}
                 >

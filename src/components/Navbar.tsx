@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { Bell, LogOut, User, Shield, BarChart3, CreditCard } from "lucide-react";
@@ -11,6 +11,52 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { trackButtonClick } from "@/lib/analytics";
+import { cn } from "@/lib/utils";
+
+
+/**
+ * One navigation destination. Ambientic marks location with light rather
+ * than with a filled control -- so the current route gets a lit underline
+ * and full-contrast text, while the others recede to muted.
+ */
+function NavLink({
+  to,
+  label,
+  badge,
+  onSelect,
+}: {
+  to: string;
+  label: string;
+  badge?: string;
+  onSelect?: () => void;
+}) {
+  const { pathname } = useLocation();
+  const active = pathname === to || pathname.startsWith(`${to}/`);
+  return (
+    <Link
+      to={to}
+      onClick={onSelect}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "relative flex h-14 items-center gap-1.5 px-3 text-sm transition-colors",
+        active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {label}
+      {badge && (
+        <span className="tf-lit rounded-full px-1.5 py-px text-[9px] font-semibold tracking-wide">
+          {badge}
+        </span>
+      )}
+      {active && (
+        <span
+          aria-hidden
+          className="absolute inset-x-3 bottom-0 h-px bg-brand shadow-[0_0_10px_1px_hsl(var(--brand)/0.55)]"
+        />
+      )}
+    </Link>
+  );
+}
 
 export default function Navbar() {
   const { user, signOut } = useAuth();
@@ -26,34 +72,42 @@ export default function Navbar() {
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? "?";
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-white/40 bg-white/60 backdrop-blur-xl">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6 lg:px-10">
-        <Link to="/dashboard" className="flex items-center gap-2">
-          <img src="/logo.png" alt="TunesFork" className="tf-mark h-5 w-auto" />
-          <span className="text-lg font-bold tracking-tight">TunesFork</span>
+    <nav className="tf-glass sticky top-0 z-50 border-b">
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-8 px-6 lg:px-10">
+        <Link
+          to="/dashboard"
+          className="flex shrink-0 items-center gap-2.5 transition-opacity hover:opacity-80"
+        >
+          <img src="/logo.png" alt="" className="tf-mark h-[18px] w-auto" />
+          <span className="text-[15px] font-semibold tracking-tight">Tunesfork</span>
         </Link>
 
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" asChild className="relative">
-            <Link to="/desktop-app" onClick={() => trackButtonClick("nav_desktop_app", "navbar")}>
-              Desktop app
-              <span className="ml-1.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">NEW</span>
-            </Link>
-          </Button>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/pricing" onClick={() => trackButtonClick("nav_pricing", "navbar")}>Pricing</Link>
-          </Button>
-          <Button variant="ghost" size="icon" className="relative" asChild>
-            <Link to="/dashboard" onClick={() => trackButtonClick("nav_notifications", "navbar")}>
+        {/* Primary navigation reads as text on a hairline rail, not as a row
+            of competing buttons. The active route is marked by a lit
+            underline rather than a filled pill. */}
+        <div className="hidden items-center gap-1 md:flex">
+          <NavLink to="/dashboard" label="Projects" onSelect={() => trackButtonClick("nav_dashboard", "navbar")} />
+          <NavLink to="/desktop-app" label="Desktop" badge="NEW" onSelect={() => trackButtonClick("nav_desktop_app", "navbar")} />
+          <NavLink to="/pricing" label="Pricing" onSelect={() => trackButtonClick("nav_pricing", "navbar")} />
+        </div>
+
+        <div className="ml-auto flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-lg" asChild>
+            <Link to="/dashboard" onClick={() => trackButtonClick("nav_notifications", "navbar")} aria-label="Notifications">
               <Bell className="h-4 w-4" />
             </Link>
           </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Avatar className="h-7 w-7">
-                  <AvatarFallback className="bg-primary/20 text-xs text-primary">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="ml-1 h-9 w-9 rounded-full"
+                aria-label="Account menu"
+              >
+                <Avatar className="h-7 w-7 border border-[rgb(var(--edge-strong))]">
+                  <AvatarFallback className="bg-[rgb(var(--film-3))] text-[11px] font-semibold text-foreground">
                     {initials}
                   </AvatarFallback>
                 </Avatar>

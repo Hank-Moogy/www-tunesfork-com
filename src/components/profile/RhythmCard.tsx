@@ -58,7 +58,7 @@ export default function RhythmCard({ stats }: { stats: UserStats }) {
 
 function Stat({ icon: Icon, label, value }: { icon: typeof Calendar; label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white/40 p-3">
+    <div className="tf-well rounded-xl p-3">
       <Icon className="mb-2 h-4 w-4 text-muted-foreground" />
       <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className="mt-1 truncate text-base font-semibold">{value}</p>

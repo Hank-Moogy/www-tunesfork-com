@@ -40,7 +40,7 @@ export default function ShareAfterUploadModal({ open, onOpenChange, shareUrl, pr
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-2">
-            <PartyPopper className="h-5 w-5 text-accent" />
+            <PartyPopper className="h-5 w-5 text-brand" />
             <DialogTitle>Project saved!</DialogTitle>
           </div>
           <DialogDescription>Share your project or invite a collaborator.</DialogDescription>

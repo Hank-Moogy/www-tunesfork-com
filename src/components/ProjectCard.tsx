@@ -72,7 +72,7 @@ export default function ProjectCard({ project, collaborators = [] }: ProjectCard
         <div className="absolute top-3 right-3">
           <span
             className={cn(
-              "inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full backdrop-blur-md bg-white/70",
+              "inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full backdrop-blur-md bg-[rgb(var(--film-3))] border border-[rgb(var(--edge))]",
               status.className
             )}
           >

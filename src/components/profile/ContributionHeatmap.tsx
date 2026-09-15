@@ -6,12 +6,18 @@ type Entry = { d: string; c: number };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAYS = ["Mon", "Wed", "Fri"];
 
+/**
+ * Ambientic treats a lit cell as a light source rather than a coloured tile:
+ * colour fills the face and washes softly into the page, with no hard-edged
+ * halo. An unlit cell keeps its moulding and emits nothing, so light on the
+ * field always means real activity.
+ */
 function intensity(c: number): string {
-  if (c === 0) return "bg-muted/50";
-  if (c === 1) return "bg-accent/30";
-  if (c <= 3) return "bg-accent/55";
-  if (c <= 6) return "bg-accent/80";
-  return "bg-accent";
+  if (c === 0) return "bg-[rgb(var(--film-1))]";
+  if (c === 1) return "bg-brand/25";
+  if (c <= 3) return "bg-brand/45 shadow-[0_0_5px_-1px_hsl(var(--brand)/0.4)]";
+  if (c <= 6) return "bg-brand/70 shadow-[0_0_7px_-1px_hsl(var(--brand)/0.55)]";
+  return "bg-brand shadow-[0_0_10px_-1px_hsl(var(--brand)/0.75)]";
 }
 
 export default function ContributionHeatmap({
@@ -68,7 +74,7 @@ export default function ContributionHeatmap({
   }, [heatmap, weekCount]);
 
   return (
-    <section className="glass-card p-6">
+    <section className="tf-surface rounded-xl p-6">
       <div className="mb-4">
         <h2 className="text-lg font-semibold">{title}</h2>
         <p className="text-sm text-muted-foreground">
@@ -77,7 +83,7 @@ export default function ContributionHeatmap({
       </div>
 
       <TooltipProvider delayDuration={50}>
-        <div className="overflow-x-auto">
+        <div className="tf-well overflow-x-auto rounded-lg p-3">
           <div className="inline-block min-w-full">
             {/* Month labels */}
             <div className="relative ml-8 mb-1 h-4">
@@ -106,7 +112,7 @@ export default function ContributionHeatmap({
                     <Tooltip key={di}>
                       <TooltipTrigger asChild>
                         <div
-                          className={`h-3 w-3 rounded-sm ${
+                          className={`h-3 w-3 rounded-[3px] ${
                             day.isFuture ? "bg-transparent" : intensity(day.count)
                           }`}
                         />
@@ -130,11 +136,9 @@ export default function ContributionHeatmap({
             {/* Legend */}
             <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
               <span>Less</span>
-              <span className="h-3 w-3 rounded-sm bg-muted/50" />
-              <span className="h-3 w-3 rounded-sm bg-accent/30" />
-              <span className="h-3 w-3 rounded-sm bg-accent/55" />
-              <span className="h-3 w-3 rounded-sm bg-accent/80" />
-              <span className="h-3 w-3 rounded-sm bg-accent" />
+              {[0, 1, 2, 5, 9].map((c) => (
+                <span key={c} className={`h-3 w-3 rounded-[3px] ${intensity(c)}`} />
+              ))}
               <span>More</span>
             </div>
           </div>

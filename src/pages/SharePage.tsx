@@ -145,7 +145,7 @@ export default function SharePage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Minimal navbar */}
-      <header className="border-b border-border bg-white">
+      <header className="tf-glass border-b">
         <div className="mx-auto max-w-4xl flex items-center justify-between px-6 h-14">
           <span className="font-bold text-lg tracking-tight">TunesFork</span>
           <Button

@@ -11,15 +11,15 @@ export default function GearCard({ stats }: { stats: UserStats }) {
       <h2 className="mb-4 text-lg font-semibold">Your sound</h2>
 
       <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-xl bg-white/40 p-3">
+        <div className="tf-well rounded-xl p-3">
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Favorite BPM</p>
           <p className="mt-1 font-mono text-lg font-bold">{favoriteBpm ? favoriteBpm.bpm : "—"}</p>
         </div>
-        <div className="rounded-xl bg-white/40 p-3">
+        <div className="tf-well rounded-xl p-3">
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Avg tracks</p>
           <p className="mt-1 font-mono text-lg font-bold">{stats.avg_tracks_per_save.toFixed(0)}</p>
         </div>
-        <div className="rounded-xl bg-white/40 p-3">
+        <div className="tf-well rounded-xl p-3">
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Plugins used</p>
           <p className="mt-1 font-mono text-lg font-bold">{stats.distinct_plugins}</p>
         </div>

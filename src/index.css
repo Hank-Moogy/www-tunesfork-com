@@ -26,10 +26,10 @@
     /* --- Ground and surfaces -------------------------------------------
        A four-step elevation ramp. Elevation is carried by surface colour,
        not by shadow — shadows read as mud on a near-black ground. */
-    --background: 220 12% 5%;       /* #0b0c0e  app ground                */
-    --surface-1: 225 10% 8%;        /* #131417  cards, panels             */
-    --surface-2: 220 10% 11%;       /* #1a1c20  raised, hover             */
-    --surface-3: 220 8% 15%;        /* #232529  inputs, pressed           */
+    --background: 250 13% 5%;       /* cool near-black, Ambientic hue     */
+    --surface-1: 250 11% 8%;        /* cards, panels                      */
+    --surface-2: 250 10% 11%;       /* raised, hover                      */
+    --surface-3: 250 9% 15%;        /* inputs, pressed                    */
 
     --card: var(--surface-1);
     --card-foreground: var(--foreground);
@@ -40,9 +40,9 @@
        Paper white is warm (60 14% 93%), matching the landing page's
        --paper #f0f0eb. Pure #fff is too clinical against this ground. */
     --foreground: 60 14% 93%;       /* #f0f0eb                            */
-    --muted: 220 10% 11%;
-    --muted-foreground: 220 5% 62%; /* secondary copy, labels             */
-    --subtle-foreground: 220 5% 45%;/* timestamps, disabled               */
+    --muted: 250 10% 11%;
+    --muted-foreground: 250 6% 63%; /* secondary copy, labels             */
+    --subtle-foreground: 250 6% 46%;/* timestamps, disabled               */
 
     /* --- Brand: electric green -----------------------------------------
        The CTA. Foreground on it is near-black, not white — #45ff72 is far
@@ -60,10 +60,10 @@
     --primary-foreground: var(--brand-foreground);
 
     /* shadcn's hover/active surface. Quiet by design. */
-    --accent: 220 10% 11%;
+    --accent: 250 10% 11%;
     --accent-foreground: 60 14% 93%;
 
-    --secondary: 220 8% 15%;
+    --secondary: 250 9% 15%;
     --secondary-foreground: 60 14% 93%;
 
     /* --- Status ---------------------------------------------------------
@@ -73,7 +73,7 @@
     --status-syncing: 182 82% 59%;  /* #3fe5ec  in flight, uploading      */
     --status-pending: 39 100% 59%;  /* #ffb52e  waiting, unshipped, warn  */
     --status-error: 1 100% 64%;     /* #ff4d49  failed                    */
-    --status-idle: 220 5% 45%;      /* archived, inactive                 */
+    --status-idle: 250 6% 46%;      /* archived, inactive                 */
 
     --destructive: var(--status-error);
     --destructive-foreground: 0 0% 100%;
@@ -87,9 +87,9 @@
     /* --- Lines ----------------------------------------------------------
        Hairlines, as on the landing page. Borders separate; they don't
        decorate. */
-    --border: 220 8% 18%;
-    --border-strong: 220 8% 26%;
-    --input: 220 8% 18%;
+    --border: 250 9% 18%;
+    --border-strong: 250 9% 26%;
+    --input: 250 9% 18%;
     --ring: var(--brand);
 
     /* --- Categorical ramp ------------------------------------------------
@@ -119,14 +119,30 @@
     --pastel-yellow: var(--data-3);  /* was undefined entirely; now valid */
 
     /* --- Sidebar --------------------------------------------------------- */
-    --sidebar-background: 225 10% 8%;
+    --sidebar-background: 250 11% 8%;
     --sidebar-foreground: 60 14% 93%;
     --sidebar-primary: var(--brand);
     --sidebar-primary-foreground: var(--brand-foreground);
-    --sidebar-accent: 220 10% 11%;
+    --sidebar-accent: 250 10% 11%;
     --sidebar-accent-foreground: 60 14% 93%;
-    --sidebar-border: 220 8% 18%;
+    --sidebar-border: 250 9% 18%;
     --sidebar-ring: var(--brand);
+
+    /* --- Translucent films (Ambientic) ----------------------------------
+       Ambientic builds surfaces from faint white light laid over a cool
+       ground rather than from opaque grey tiles -- "light moving through
+       mist or translucent material". Films read as depth without becoming
+       fog, and they stack: a film over a film is legitimately brighter.
+
+       Use a film when something floats (nav, overlay, chip, inner well);
+       use the solid --surface-* ramp when something IS the page. */
+    --film-1: 255 255 255 / 0.035;
+    --film-2: 255 255 255 / 0.055;
+    --film-3: 255 255 255 / 0.085;
+
+    /* Edges are light too, not dark lines. */
+    --edge: 255 255 255 / 0.09;
+    --edge-strong: 255 255 255 / 0.17;
 
     /* --- Geometry -------------------------------------------------------
        Slightly rounded, Apple-restrained. shadcn derives md/sm from this. */
@@ -219,6 +235,91 @@
   @keyframes tf-pulse {
     from { opacity: 0.45; }
     to   { opacity: 1; }
+  }
+
+  /* --- Ambientic surfaces ------------------------------------------------
+     A floating surface is a film of light over the ground, lifted by a soft
+     top-light rather than by a drop shadow. Shadows read as mud on a near
+     black page; a highlight reads as an edge catching the light. */
+  .tf-surface {
+    border: 1px solid rgb(var(--edge));
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgb(var(--film-2)), transparent 60%),
+      rgb(var(--film-1));
+    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+  }
+
+  /* Floating chrome: nav bars, sticky headers, overlays. */
+  .tf-glass {
+    border-color: rgb(var(--edge));
+    background: hsl(var(--background) / 0.72);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+  }
+
+  /* An inner well -- something recessed INTO a surface (inputs, code, the
+     heatmap field). Darker than its parent, not lighter. */
+  .tf-well {
+    border: 1px solid rgb(var(--edge));
+    background: hsl(var(--background) / 0.55);
+  }
+
+  /* --- Light, not colour -------------------------------------------------
+     Ambientic: "a lit pad is a light source, not a coloured tile." Colour
+     fills the face AND washes softly into the page, with no hard-edged
+     halo. Set --glow to any colour; defaults to the brand. */
+  .tf-lit {
+    --glow: hsl(var(--brand));
+    border: 1px solid color-mix(in oklab, var(--glow) 45%, transparent);
+    background: color-mix(in oklab, var(--glow) 12%, transparent);
+    box-shadow:
+      inset 0 0 12px color-mix(in oklab, var(--glow) 18%, transparent),
+      0 0 18px -4px color-mix(in oklab, var(--glow) 40%, transparent);
+    color: var(--glow);
+  }
+
+  /* --- Ambient motion ----------------------------------------------------
+     Ambient cycles run 6-16s and are safe to ignore; interface transitions
+     run 180-500ms with a long settle. Never a uniform spinner rhythm. */
+  .tf-breathe { animation: tf-breathe 7s ease-in-out infinite; }
+  .tf-drift   { animation: tf-drift 13s ease-in-out infinite; }
+
+  @keyframes tf-breathe {
+    0%, 100% { opacity: 0.72; }
+    50%      { opacity: 1; }
+  }
+  @keyframes tf-drift {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-8px); }
+  }
+
+  /* Waiting is drawn as the shape of the answer: a slow light sweeps across
+     the exact footprint the value will take, left to right, so nothing
+     shifts when the real value lands. Stagger with --tf-delay. */
+  .tf-pending {
+    position: relative;
+    overflow: hidden;
+    background: rgb(var(--film-1));
+  }
+  .tf-pending::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgb(var(--film-3)), transparent);
+    transform: translateX(-100%);
+    animation: tf-sweep 1.9s ease-in-out infinite;
+    animation-delay: var(--tf-delay, 0s);
+  }
+  @keyframes tf-sweep {
+    to { transform: translateX(100%); }
+  }
+
+  /* Reduced motion keeps depth, colour and hierarchy -- it only stops the
+     field from moving. The sweep resolves to a flat resting tone. */
+  @media (prefers-reduced-motion: reduce) {
+    .tf-breathe, .tf-drift { animation: none; }
+    .tf-pending::after { animation: none; opacity: 0; }
+    .tf-pending { background: rgb(var(--film-2)); }
   }
 
   /* --- Brand mark ------------------------------------------------------

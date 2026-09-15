@@ -31,7 +31,7 @@ const TOUR_CARDS = [
   {
     title: "Hey 👋",
     body: "I built TunesFork because I was sick of making music alone in my room and I wanted to secure my projects after I lost all my music when my computer died last year.",
-    gradient: "from-primary/10 to-accent/10",
+    gradient: "from-primary/10 to-brand/10",
   },
   {
     title: "The GitHub of music production",
@@ -46,7 +46,7 @@ const TOUR_CARDS = [
       { icon: GitFork, text: "Collaborate, comment on versions, track iterations, plan releases, and fork to other versions" },
       { icon: Music, text: "Open-source your music and get remixes by other producers" },
     ],
-    gradient: "from-accent/10 to-primary/10",
+    gradient: "from-brand/10 to-primary/10",
   },
 ];
 
@@ -300,7 +300,7 @@ export default function Onboarding() {
           </Button>
 
           {isLastStep ? (
-            <Button onClick={handleFinish} disabled={saving} className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
+            <Button onClick={handleFinish} disabled={saving} className="bg-brand hover:bg-brand/90 text-brand-foreground gap-2">
               <Sparkles className="h-4 w-4" />
               {saving ? "Setting up..." : "Let's go"}
             </Button>

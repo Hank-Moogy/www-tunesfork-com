@@ -318,7 +318,7 @@ export default function Dashboard() {
                   openUpload();
                 }}
                 size="lg"
-                className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2 rounded-full shadow-md"
+                className="bg-brand hover:bg-brand/90 text-brand-foreground gap-2 rounded-full shadow-md"
               >
                 <Upload className="h-4 w-4" />
                 Upload Project
@@ -329,13 +329,13 @@ export default function Dashboard() {
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
                 <TabsList className="glass-pill h-11 p-1">
-                  <TabsTrigger value="all" className="rounded-full px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                  <TabsTrigger value="all" className="rounded-full px-4 data-[state=active]:bg-[rgb(var(--film-3))]">
                     All
                   </TabsTrigger>
-                  <TabsTrigger value="my" className="rounded-full px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                  <TabsTrigger value="my" className="rounded-full px-4 data-[state=active]:bg-[rgb(var(--film-3))]">
                     My Projects
                   </TabsTrigger>
-                  <TabsTrigger value="shared" className="rounded-full px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                  <TabsTrigger value="shared" className="rounded-full px-4 data-[state=active]:bg-[rgb(var(--film-3))]">
                     Shared With Me
                   </TabsTrigger>
                 </TabsList>
@@ -405,8 +405,8 @@ export default function Dashboard() {
 function FirstTimeEmpty({ onUpload }: { onUpload: () => void }) {
   return (
     <div className="glass-card p-12 flex flex-col items-center justify-center text-center">
-      <div className="mb-6 rounded-2xl bg-accent/15 p-6">
-        <Download className="h-12 w-12 text-accent" />
+      <div className="mb-6 rounded-2xl bg-brand/15 p-6">
+        <Download className="h-12 w-12 text-brand" />
       </div>
       <h1 className="text-2xl font-bold mb-2">Welcome to Tunesfork 👋</h1>
       <p className="text-muted-foreground mb-8 max-w-md">
@@ -416,7 +416,7 @@ function FirstTimeEmpty({ onUpload }: { onUpload: () => void }) {
       <Button
         asChild
         size="lg"
-        className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2 rounded-full"
+        className="bg-brand hover:bg-brand/90 text-brand-foreground gap-2 rounded-full"
       >
         <Link
           to="/desktop-app"
@@ -460,7 +460,7 @@ function ProjectGrid({
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} className="h-[260px] rounded-2xl bg-white/50" />
+          <Skeleton key={i} className="h-[260px] rounded-2xl" />
         ))}
       </div>
     );
