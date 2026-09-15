@@ -162,7 +162,9 @@ const abletonTracks = [
 
 // Drop a real session screenshot at public/ableton-session.png and it is used
 // automatically; the drawn arrangement below stands in until then.
-const ABLETON_SHOT = "/ableton-session.png";
+const ABLETON_SHOT = "/ableton-session.jpg";
+// Phones get the arrangement on its own — the full window is unreadable at 350px.
+const ABLETON_SHOT_NARROW = "/ableton-session-arrangement.jpg";
 
 function AbletonArrangement() {
   return (
@@ -217,14 +219,20 @@ function AbletonProject() {
         <span className="gcab-app">Ableton Live 12 Suite</span>
       </div>
       {hasShot ? (
-        <img
-          className="gcab-shot"
-          src={ABLETON_SHOT}
-          alt="Breakbeat 909 open in Ableton Live"
-          loading="lazy"
-          decoding="async"
-          onError={() => setHasShot(false)}
-        />
+        <div className="gcab-shot-wrap">
+          <picture>
+            <source media="(max-width: 700px)" srcSet={ABLETON_SHOT_NARROW} />
+            <img
+              className="gcab-shot"
+              src={ABLETON_SHOT}
+              alt="Breakbeat 909 open in Ableton Live"
+              loading="lazy"
+              decoding="async"
+              onError={() => setHasShot(false)}
+            />
+          </picture>
+          <i className="gcab-live-playhead" aria-hidden="true" />
+        </div>
       ) : (
         <AbletonArrangement />
       )}
@@ -463,7 +471,7 @@ export default function LandingPageGalaxyClassic() {
                 <StartFreeLink location="galaxy_classic_hero" className="gc-download-hero" />
                 <a className="gc-secondary" href="#auto-save"><span>SEE HOW IT WORKS</span><i aria-hidden="true">↓</i></a>
               </div>
-              <small className="gc-availability">FREE PLAN · UNLIMITED PROJECTS AND VERSIONS</small>
+              <p className="gc-platform"><span>macOS ONLY FOR NOW</span></p>
             </div>
 
             <div className="gc-stage" aria-label="Tunesfork Sync automatically uploading and sharing an Ableton project">
@@ -500,11 +508,22 @@ export default function LandingPageGalaxyClassic() {
         </div>
 
         <section className="tf-final gc-final" data-field-stop aria-labelledby="gc-final-title">
-          <h2 id="gc-final-title"><span>MUSIC BUT</span><span>MULTIPLAYER.</span></h2>
+          <h2 id="gc-final-title">
+            <span>ABLETON, BUT</span>
+            <span className="gc-rotate">
+              <span className="gc-rotate-track">
+                <i>IN THE CLOUD</i>
+                <i>MULTIPLAYER</i>
+                <i>SMARTER</i>
+                <i>BETTER</i>
+                <i aria-hidden="true">IN THE CLOUD</i>
+              </span>
+            </span>
+          </h2>
           <div>
             <p className="gc-verbs">Record, save, share and <span>fork</span>.</p>
             <StartFreeLink location="galaxy_classic_final" className="tf-download-large" />
-            <small>FREE PLAN · UNLIMITED PROJECTS AND VERSIONS</small>
+            <p className="gc-platform"><span>macOS ONLY FOR NOW</span></p>
           </div>
           <footer>
             <span>© {new Date().getFullYear()} TUNESFORK</span>

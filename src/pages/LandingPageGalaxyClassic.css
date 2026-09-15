@@ -61,14 +61,6 @@
 .gc-secondary:hover { border-color: rgba(255, 255, 255, 0.6); color: var(--paper); }
 .gc-secondary i { font-style: normal; animation: gc-bob 1.9s ease-in-out infinite; }
 
-.gc-availability {
-  display: block;
-  margin-top: 20px;
-  font: 500 8px/1 "Roboto", sans-serif;
-  letter-spacing: 0.12em;
-  color: #777;
-}
-
 /* Hero stage: the Sync tray plus the upload / share / comment / version notifications. */
 .gc-stage { position: relative; min-height: min(660px, calc(100svh - 240px)); perspective: 1600px; }
 .gc-root .gc-stage .gcd {
@@ -611,12 +603,16 @@
 /* Real session screenshot, when public/ableton-session.png is present. */
 .gcab-shot { display: block; width: 100%; height: auto; border-top: 1px solid #232423; border-bottom: 1px solid #232423; }
 
-/* ── Auto Save scene: the saved session plus its cloud notification ──── */
+/* ── Auto Save scene: the saved session plus its cloud notification ────
+   The notification sits top-right over the app window, where macOS actually
+   puts it when Tunesfork captures a save. */
 .gc-save-scene { position: relative; }
 .gc-save-alert {
   position: absolute;
-  right: -5%;
-  bottom: -13%;
+  z-index: 3;
+  top: 4%;
+  right: -3%;
+  bottom: auto;
   width: min(74%, 344px);
   animation: gc-save-notify 9s cubic-bezier(.2, .8, .2, 1) infinite;
 }
@@ -869,7 +865,7 @@
   .gcab-clip { height: 30px; top: 6px; }
   .gcab-audio { height: 16px; }
   .gcab-status { height: 30px; padding: 0 10px; font-size: 9px; }
-  .gc-save-alert { right: 0; bottom: -9%; width: min(96%, 320px); }
+  .gc-save-alert { top: -6%; right: -1%; width: min(88%, 300px); }
 }
 
 @media (max-width: 460px) {
@@ -877,7 +873,7 @@
   .gc-root .gc-wordmark-text { font-size: 14px; }
   .gc-root .tf-nav > div > a:not(.tf-download) { font-size: 8px; }
   .gcab-track > strong { font-size: 8px; }
-  .gc-save-alert { bottom: -12%; }
+  .gc-save-alert { top: -5%; right: -1%; }
   .gc-alert { padding: 10px 11px; grid-template-columns: 34px 1fr; gap: 9px; }
   .gc-alert-icon { width: 34px; height: 34px; }
   .gc-alert-body strong { font-size: 11.5px; }
@@ -892,3 +888,115 @@
 
 /* Keep the nav links on one line on narrow screens. */
 .gc-root .tf-nav > div > a { white-space: nowrap; }
+
+/* A playhead travelling across the captured session, so the screenshot reads
+   as a project that is actually running. It is confined to the arrangement
+   surface — as in Ableton, it never crosses the browser or the mixer. */
+.gcab-shot-wrap { position: relative; }
+.gcab-live-playhead {
+  position: absolute;
+  top: 5.8%;
+  bottom: 3.8%;
+  width: 1px;
+  background: #fff;
+  box-shadow: 0 0 7px rgba(255, 255, 255, 0.85), 0 0 18px rgba(255, 255, 255, 0.35);
+  animation: gcab-run 19s linear infinite;
+}
+@keyframes gcab-run { from { left: 23.6%; } to { left: 78.8%; } }
+
+/* The product surfaces were reading cramped — give them more of the row. */
+.gc-root .tf-chapter-visual { width: min(55vw, 880px); flex-basis: 880px; }
+.gc-root .tf-chapter-copy { width: min(39vw, 580px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gcab-live-playhead { animation: none; left: 61%; }
+}
+
+@media (max-width: 900px) {
+  .gc-root .tf-chapter-visual { width: 100%; flex-basis: auto; }
+  .gc-root .tf-chapter-copy { width: 78vw; }
+}
+
+/* ── Readability of the supporting copy ───────────────────────────────
+   The lead and detail lines were small and dim enough to read as text
+   nobody is meant to bother with. Larger and lighter, with the measure
+   held short so the sections do not feel busier. */
+.gc-root .tf-chapter-copy > p {
+  max-width: 30rem;
+  color: #d8d8d2;
+  font-size: 20px;
+  line-height: 1.5;
+}
+.gc-root .gc-detail {
+  max-width: 31rem;
+  color: #aaaaa4;
+  font-size: 17px;
+  line-height: 1.62;
+}
+.gc-root .gc-lede { color: #d8d8d2; font-size: 19px; }
+
+/* On phones the arrangement crop fills the frame, so the playhead spans it. */
+@media (max-width: 700px) {
+  .gcab-live-playhead { top: 8%; bottom: 0; }
+  .gc-root .tf-chapter-copy > p { font-size: 17px; }
+  .gc-root .gc-detail { font-size: 15.5px; }
+  .gc-root .gc-lede { font-size: 16.5px; }
+}
+@media (max-width: 700px) {
+  @keyframes gcab-run { from { left: 1.5%; } to { left: 98.5%; } }
+}
+
+/* ── Platform support ─────────────────────────────────────────────────
+   One quiet label, stated once, rather than a sentence of small print. */
+.gc-root .gc-platform { margin: 22px 0 0; }
+.gc-root .gc-platform span {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  color: var(--paper);
+  font: 500 9.5px/1 "Roboto", sans-serif;
+  letter-spacing: 0.15em;
+  white-space: nowrap;
+}
+.gc-root .gc-platform span::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+/* ── Rotating close ───────────────────────────────────────────────────
+   Four claims cycling under one fixed line, in the page's green. */
+.gc-root .gc-rotate {
+  display: block;
+  height: 0.9em;
+  overflow: hidden;
+}
+.gc-rotate-track {
+  display: block;
+  animation: gc-rotate 5.2s cubic-bezier(.9, 0, .1, 1) infinite;
+}
+.gc-rotate-track i {
+  display: block;
+  height: 0.9em;
+  color: var(--gc-accent);
+  font-style: normal;
+  line-height: 0.9;
+}
+/* Steps are in em, not %, because a percentage here resolves against the
+   whole track rather than a single line. */
+@keyframes gc-rotate {
+  0%, 17%    { transform: translateY(0); }
+  25%, 42%   { transform: translateY(-0.9em); }
+  50%, 67%   { transform: translateY(-1.8em); }
+  75%, 92%   { transform: translateY(-2.7em); }
+  100%       { transform: translateY(-3.6em); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-rotate-track { animation: none; }
+}
