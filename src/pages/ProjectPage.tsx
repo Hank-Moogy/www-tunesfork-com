@@ -950,7 +950,7 @@ export default function ProjectPage() {
 
             {project.owner_id === user?.id && latestSampleCheck && latestSampleIssues > 0 && (
               <div className="tf-lit [--glow:hsl(var(--status-pending))] flex items-center gap-3 rounded-xl px-4 py-3">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                <AlertTriangle className="h-4 w-4 shrink-0 text-status-pending" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold">Action required</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
@@ -962,7 +962,7 @@ export default function ProjectPage() {
                 <OpenInAbletonButton
                   projectId={project.id}
                   versionId={versions[0]?.id}
-                  className="h-8 shrink-0 rounded-lg border-amber-500/40 bg-amber-500/10 px-3 text-xs text-amber-500 hover:bg-amber-500/20 hover:text-amber-400"
+                  className="h-8 shrink-0 rounded-lg border-status-pending/40 bg-status-pending/10 px-3 text-xs text-status-pending hover:bg-status-pending/20"
                 />
               </div>
             )}
@@ -1327,7 +1327,7 @@ export default function ProjectPage() {
                 : `${latestSampleIssues} referenced sample${latestSampleIssues === 1 ? " is" : "s are"} not included in ${project.name}’s project folder.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/8 p-3 text-sm text-muted-foreground">
+          <div className="space-y-2 rounded-xl border border-status-pending/20 bg-status-pending/[0.08] p-3 text-sm text-muted-foreground">
             <p>
               You can still share now, but collaborators may see missing media or hear an incomplete version of the project.
             </p>
@@ -1341,7 +1341,7 @@ export default function ProjectPage() {
               <OpenInAbletonButton
                 projectId={project.id}
                 versionId={versions[0]?.id}
-                className="h-10 rounded-md border border-amber-500/40 bg-amber-500/15 px-4 text-sm font-medium text-amber-500 hover:bg-amber-500/25 hover:text-amber-400"
+                className="h-10 rounded-md border border-status-pending/40 bg-status-pending/15 px-4 text-sm font-medium text-status-pending hover:bg-status-pending/25"
               />
             </div>
             <AlertDialogAction onClick={continueSharing}>

@@ -175,68 +175,6 @@
 }
 
 @layer components {
-  /* --- Surfaces ---------------------------------------------------------
-     The old glass-* classes are kept (28 call sites) but rebuilt for dark.
-     On a near-black ground, "glass" is a hairline plus a one-pixel top
-     highlight — not a blur over white. */
-  .glass-card {
-    @apply rounded-xl border border-border bg-card;
-    box-shadow: inset 0 1px 0 0 hsl(0 0% 100% / 0.04);
-  }
-
-  .glass-panel {
-    @apply border border-border bg-card/80 backdrop-blur-xl;
-    box-shadow: inset 0 1px 0 0 hsl(0 0% 100% / 0.04);
-  }
-
-  .glass-input {
-    @apply border border-input bg-[hsl(var(--surface-3))];
-  }
-
-  .glass-pill {
-    @apply rounded-full border border-border bg-[hsl(var(--surface-2))];
-  }
-
-  /* Hover lift for anything clickable that is a surface (project cards). */
-  .surface-interactive {
-    @apply transition-colors duration-150;
-  }
-  .surface-interactive:hover {
-    background-color: hsl(var(--surface-2));
-    border-color: hsl(var(--border-strong));
-  }
-
-  /* --- Status lamp ------------------------------------------------------
-     The state half of the green rule. A glowing dot, copied from the tray
-     app's pilot lights, so "synced" never looks like a button.
-       <i class="tf-lamp" data-state="synced" /> */
-  .tf-lamp {
-    @apply inline-block h-[7px] w-[7px] shrink-0 rounded-full;
-    background: hsl(var(--status-idle));
-  }
-  .tf-lamp[data-state="synced"] {
-    background: hsl(var(--status-synced));
-    box-shadow: 0 0 8px hsl(var(--status-synced) / 0.85);
-  }
-  .tf-lamp[data-state="syncing"] {
-    background: hsl(var(--status-syncing));
-    box-shadow: 0 0 8px hsl(var(--status-syncing) / 0.8);
-    animation: tf-pulse 1.4s ease-in-out infinite alternate;
-  }
-  .tf-lamp[data-state="pending"] {
-    background: hsl(var(--status-pending));
-    box-shadow: 0 0 8px hsl(var(--status-pending) / 0.8);
-  }
-  .tf-lamp[data-state="error"] {
-    background: hsl(var(--status-error));
-    box-shadow: 0 0 8px hsl(var(--status-error) / 0.8);
-  }
-
-  @keyframes tf-pulse {
-    from { opacity: 0.45; }
-    to   { opacity: 1; }
-  }
-
   /* --- Ambientic surfaces ------------------------------------------------
      A floating surface is a film of light over the ground, lifted by a soft
      top-light rather than by a drop shadow. Shadows read as mud on a near
@@ -262,6 +200,34 @@
   .tf-well {
     border: 1px solid rgb(var(--edge));
     background: hsl(var(--background) / 0.55);
+  }
+
+  /* --- Status lamp ------------------------------------------------------
+     The state half of the green rule. Green FILL means action (a button);
+     this glowing dot means live / synced / done, so a finished project can
+     never be mistaken for something to click. Copied from the tray app's
+     pilot lights, which is where the language comes from.
+       <i class="tf-lamp" data-state="synced" /> */
+  .tf-lamp {
+    @apply inline-block h-[7px] w-[7px] shrink-0 rounded-full;
+    background: hsl(var(--status-idle));
+  }
+  .tf-lamp[data-state="synced"] {
+    background: hsl(var(--status-synced));
+    box-shadow: 0 0 8px hsl(var(--status-synced) / 0.85);
+  }
+  .tf-lamp[data-state="syncing"] {
+    background: hsl(var(--status-syncing));
+    box-shadow: 0 0 8px hsl(var(--status-syncing) / 0.8);
+    animation: tf-breathe 1.8s ease-in-out infinite;
+  }
+  .tf-lamp[data-state="pending"] {
+    background: hsl(var(--status-pending));
+    box-shadow: 0 0 8px hsl(var(--status-pending) / 0.8);
+  }
+  .tf-lamp[data-state="error"] {
+    background: hsl(var(--status-error));
+    box-shadow: 0 0 8px hsl(var(--status-error) / 0.8);
   }
 
   /* --- Light, not colour -------------------------------------------------

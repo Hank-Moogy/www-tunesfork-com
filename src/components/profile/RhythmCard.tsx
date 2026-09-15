@@ -16,7 +16,7 @@ export default function RhythmCard({ stats }: { stats: UserStats }) {
   const maxHour = Math.max(1, ...stats.hour_histogram.map((h) => h.count));
 
   return (
-    <section className="glass-card p-6">
+    <section className="tf-surface rounded-xl p-6">
       <h2 className="mb-4 text-lg font-semibold">Your rhythm</h2>
 
       <div className="grid grid-cols-3 gap-3">

@@ -51,7 +51,7 @@ export function SampleCheckBadge({ check, size = "sm" }: Props) {
         <button
           type="button"
           onClick={(e) => e.stopPropagation()}
-          className={`inline-flex items-center rounded-full bg-amber-500/15 text-amber-500 font-medium hover:bg-amber-500/25 transition-colors ${sizeClasses}`}
+          className={`inline-flex items-center rounded-full bg-status-pending/15 text-status-pending font-medium hover:bg-status-pending/25 transition-colors ${sizeClasses}`}
         >
           <AlertTriangle className={iconClass} />
           {check.verified === false

@@ -4,7 +4,7 @@ export function PaymentTestModeBanner() {
   if (!isStripeSandbox()) return null;
 
   return (
-    <div className="w-full bg-orange-100 border-b border-orange-300 px-4 py-2 text-center text-sm text-orange-800">
+    <div className="w-full border-b border-status-pending/25 bg-status-pending/10 px-4 py-2 text-center text-sm text-status-pending">
       All payments made in the preview are in test mode.{" "}
       <a
         href="https://docs.stripe.com/testing"

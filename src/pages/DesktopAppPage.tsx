@@ -93,9 +93,9 @@ export default function DesktopAppPage() {
           </div>
         </section>
 
-        <section className="mx-auto mt-16 max-w-2xl overflow-hidden rounded-2xl border border-amber-500/30 bg-amber-500/[0.06]">
-          <div className="flex gap-4 border-b border-amber-500/20 p-6">
-            <ShieldAlert className="mt-0.5 h-6 w-6 shrink-0 text-amber-400" />
+        <section className="mx-auto mt-16 max-w-2xl overflow-hidden rounded-xl border border-status-pending/30 bg-status-pending/[0.06]">
+          <div className="flex gap-4 border-b border-status-pending/20 p-6">
+            <ShieldAlert className="mt-0.5 h-6 w-6 shrink-0 text-status-pending" />
             <div>
               <h2 className="text-lg font-semibold">macOS may block the first launch</h2>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
@@ -114,7 +114,7 @@ export default function DesktopAppPage() {
                 <>Scroll down, click <strong className="text-foreground">Open Anyway</strong>, then confirm.</>,
               ].map((step, index) => (
                 <li key={index} className="flex gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500/15 font-mono text-xs text-amber-300">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-status-pending/15 font-mono text-xs text-status-pending">
                     {index + 1}
                   </span>
                   <span className="pt-0.5">{step}</span>

@@ -16,11 +16,15 @@ interface ProjectCardProps {
   collaborators?: ProjectCardCollaborator[];
 }
 
-function statusMeta(p: Project) {
-  if (p.archived) return { label: "ARCHIVED", className: "bg-[hsl(var(--status-archived))]/15 text-[hsl(var(--status-archived))] border border-[hsl(var(--status-archived))]/30" };
-  if (p.handoff_status === "ready")
-    return { label: "READY", className: "bg-[hsl(var(--status-ready))]/15 text-[hsl(var(--status-ready))] border border-[hsl(var(--status-ready))]/30" };
-  return { label: "IN PROGRESS", className: "bg-[hsl(var(--status-progress))]/15 text-[hsl(var(--status-progress))] border border-[hsl(var(--status-progress))]/30" };
+/**
+ * Status reads as a lamp plus a label, never as a coloured fill. A green
+ * FILL is reserved for actions, so a READY project lights a dot instead --
+ * otherwise "done" and "click me" become the same signal.
+ */
+function statusMeta(p: Project): { label: string; state: string } {
+  if (p.archived) return { label: "Archived", state: "idle" };
+  if (p.handoff_status === "ready") return { label: "Ready", state: "synced" };
+  return { label: "In progress", state: "pending" };
 }
 
 /**
@@ -91,12 +95,8 @@ export default function ProjectCard({ project, collaborators = [] }: ProjectCard
           </div>
         )}
         <div className="absolute top-3 right-3">
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full backdrop-blur-md bg-[rgb(var(--film-3))] border border-[rgb(var(--edge))]",
-              status.className
-            )}
-          >
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[rgb(var(--edge))] bg-[hsl(var(--background))]/65 px-2 py-0.5 font-mono text-[10px] font-medium text-foreground/90 backdrop-blur-md">
+            <i className="tf-lamp" data-state={status.state} aria-hidden />
             {status.label}
           </span>
         </div>

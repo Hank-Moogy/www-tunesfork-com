@@ -87,7 +87,7 @@ export default function BillingPage() {
         </div>
 
         {paymentNeedsAttention && (
-          <Alert className="mb-6 border-amber-300 bg-amber-50 text-amber-950">
+          <Alert className="mb-6 border-status-pending/30 bg-status-pending/10 text-status-pending">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Payment needs attention</AlertTitle>
             <AlertDescription>

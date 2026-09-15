@@ -60,7 +60,7 @@ export default function CheckoutReturn() {
 
         {state === "incomplete" && (
           <>
-            <AlertCircle className="mx-auto mb-4 h-16 w-16 text-amber-500" />
+            <AlertCircle className="mx-auto mb-4 h-16 w-16 text-status-pending" />
             <h1 className="mb-2 text-2xl font-bold">Checkout wasn’t completed</h1>
             <p className="mb-6 text-muted-foreground">No subscription was activated.</p>
             <Button asChild>

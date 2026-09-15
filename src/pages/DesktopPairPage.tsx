@@ -98,7 +98,7 @@ export default function DesktopPairPage() {
 
           {state === "done" && (
             <div className="space-y-3 text-center">
-              <CheckCircle2 className="mx-auto h-12 w-12 text-green-500" />
+              <CheckCircle2 className="mx-auto h-12 w-12 text-status-synced" />
               <p className="text-foreground font-medium">Paired!</p>
               <p className="text-sm text-muted-foreground">
                 Return to Tunesfork Sync — it should be signed in within a few seconds.

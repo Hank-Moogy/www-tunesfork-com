@@ -18,7 +18,7 @@ export default function HeroStats({ stats }: { stats: UserStats }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {cards.map((c) => (
-        <div key={c.label} className="glass-card p-5">
+        <div key={c.label} className="tf-surface rounded-xl p-5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{c.label}</span>
             <c.icon className={`h-4 w-4 ${c.tint}`} />

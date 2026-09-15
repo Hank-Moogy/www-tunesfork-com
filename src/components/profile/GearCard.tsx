@@ -7,7 +7,7 @@ export default function GearCard({ stats }: { stats: UserStats }) {
   const favoriteBpm = stats.bpm_histogram[0];
 
   return (
-    <section className="glass-card p-6">
+    <section className="tf-surface rounded-xl p-6">
       <h2 className="mb-4 text-lg font-semibold">Your sound</h2>
 
       <div className="grid grid-cols-3 gap-3">

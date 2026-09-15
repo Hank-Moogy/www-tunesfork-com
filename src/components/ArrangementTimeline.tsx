@@ -20,10 +20,10 @@ const typeIcons: Record<Track["type"], typeof Music> = {
 };
 
 const typeColors: Record<Track["type"], string> = {
-  audio: "text-blue-400",
-  midi: "text-green-400",
-  return: "text-orange-400",
-  group: "text-purple-400",
+  audio: "text-data-2",
+  midi: "text-data-6",
+  return: "text-data-3",
+  group: "text-data-4",
 };
 
 export default function ArrangementTimeline({ tracks }: ArrangementTimelineProps) {

@@ -32,7 +32,7 @@ export default function Milestones({ stats }: { stats: UserStats }) {
   const unlocked = badges.filter((b) => b.unlocked).length;
 
   return (
-    <section className="glass-card p-6">
+    <section className="tf-surface rounded-xl p-6">
       <div className="mb-4 flex items-end justify-between">
         <h2 className="text-lg font-semibold">Milestones</h2>
         <span className="font-mono text-sm text-muted-foreground">
@@ -40,7 +40,10 @@ export default function Milestones({ stats }: { stats: UserStats }) {
         </span>
       </div>
       <TooltipProvider delayDuration={100}>
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-11">
+        {/* Auto-fill with a hard minimum, because this card also renders one
+            third of a page wide -- a fixed 11-column track crushed every cell
+            to ~40px and the labels collided into each other. */}
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(72px,1fr))] gap-2.5">
           {badges.map((b) => (
             <Tooltip key={b.key}>
               <TooltipTrigger asChild>
@@ -52,7 +55,7 @@ export default function Milestones({ stats }: { stats: UserStats }) {
                   }`}
                 >
                   <b.icon className="h-5 w-5" />
-                  <span className="text-center text-[10px] font-medium leading-tight">{b.label}</span>
+                  <span className="w-full truncate text-center text-[10px] font-medium leading-tight">{b.label}</span>
                 </div>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs">

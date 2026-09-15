@@ -167,9 +167,9 @@ export default function ProfilePage() {
       <Navbar />
       <PageContainer>
         {/* Header */}
-        <header className="glass-card flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between">
+        <header className="tf-surface rounded-xl flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 ring-2 ring-white/70">
+            <Avatar className="h-16 w-16 border border-[rgb(var(--edge-strong))]">
               {profile?.avatar_url && <AvatarImage src={profile.avatar_url} alt="" />}
               <AvatarFallback className="bg-brand/20 text-brand text-lg font-semibold">
                 {initials}
@@ -182,7 +182,7 @@ export default function ProfilePage() {
               <p className="text-sm text-muted-foreground">
                 {memberSince ? `Producing since ${memberSince}` : "Your producer activity"}
                 {stats && stats.current_streak > 0 && (
-                  <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-medium text-orange-600">
+                  <span className="tf-lit [--glow:hsl(var(--status-pending))] ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
                     <Flame className="h-3 w-3" /> {stats.current_streak}-day streak
                   </span>
                 )}

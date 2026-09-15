@@ -35,7 +35,7 @@ export default function StorageCard({ stats }: { stats: UserStats }) {
 
   if (items.length === 0) {
     return (
-      <div className="glass-card p-6">
+      <div className="tf-surface rounded-xl p-6">
         <div className="flex items-center gap-2">
           <HardDrive className="h-4 w-4 text-pastel-green" />
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Storage</h2>
@@ -63,7 +63,7 @@ export default function StorageCard({ stats }: { stats: UserStats }) {
   const visible = expanded ? items : top;
 
   return (
-    <div className="glass-card p-6">
+    <div className="tf-surface rounded-xl p-6">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex items-center gap-2">
           <HardDrive className="h-4 w-4 text-pastel-green" />
