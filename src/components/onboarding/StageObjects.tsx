@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from "motion/react";
-import { Folder, Link2, Music4, Radio } from "lucide-react";
+import { ArrowRight, Folder, Link2, Music4, Radio } from "lucide-react";
 
 /**
  * One physical object per step. They share a construction so the sequence
@@ -16,33 +16,67 @@ const FACE =
   "bg-[linear-gradient(150deg,hsl(250_10%_17%),hsl(250_12%_9%))] " +
   "shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_28px_60px_-24px_rgba(0,0,0,0.9)]";
 
-/** Step 1 — a nameplate that lights as it is filled in. */
-export function NameplateObject({ value }: { value: string }) {
+/**
+ * Step 1 — a nameplate you type directly into.
+ *
+ * The input *is* the object. Putting a separate form field under the card
+ * would make this a form with a picture above it; typing into the plate makes
+ * the plate the thing you are configuring, which is the whole premise.
+ */
+export function NameplateObject({
+  value,
+  onChange,
+  onSubmit,
+  busy,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  busy?: boolean;
+}) {
   const filled = value.trim().length > 0;
   return (
-    <div className={`${FACE} h-[190px] w-[330px]`}>
+    <div className={`${FACE} h-[190px] w-[360px]`}>
       <div
         className="absolute inset-x-6 top-5 h-px"
         style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent)" }}
       />
-      <div style={{ transform: "translateZ(40px)" }} className="px-8 text-center">
-        <p className="tf-label mb-3">Producer</p>
-        <p
-          className={`truncate font-semibold tracking-tight transition-all duration-300 ${
-            filled ? "text-[26px] text-brand" : "text-[22px] text-subtle-foreground"
+      <div style={{ transform: "translateZ(40px)" }} className="w-full px-8">
+        <p className="tf-label mb-3 text-center">Producer</p>
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && filled && !busy) onSubmit();
+          }}
+          placeholder="Type your name"
+          aria-label="Your name"
+          autoFocus
+          spellCheck={false}
+          className={`w-full bg-transparent text-center text-[26px] font-semibold tracking-tight outline-none transition-colors placeholder:font-normal placeholder:text-subtle-foreground ${
+            filled ? "text-brand" : "text-foreground"
           }`}
-          style={filled ? { textShadow: "0 0 26px hsl(var(--brand) / 0.55)" } : undefined}
-        >
-          {filled ? value : "—"}
-        </p>
+          style={filled ? { textShadow: "0 0 26px hsl(var(--brand) / 0.5)" } : undefined}
+        />
       </div>
       <span
         aria-hidden
-        className={`absolute bottom-5 h-[3px] rounded-full transition-all duration-500 ${
-          filled ? "w-24 bg-brand" : "w-10 bg-border"
+        className={`absolute bottom-[54px] h-[2px] rounded-full transition-all duration-500 ${
+          filled ? "w-40 bg-brand" : "w-16 bg-border"
         }`}
         style={filled ? { boxShadow: "0 0 14px hsl(var(--brand) / 0.8)" } : undefined}
       />
+      {/* The action lives on the object, so the screen holds one thing. */}
+      <button
+        type="button"
+        onClick={onSubmit}
+        disabled={!filled || busy}
+        style={{ transform: "translateZ(50px)" }}
+        className="absolute bottom-5 flex items-center gap-1.5 rounded-full border border-brand/40 bg-brand/10 px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-brand transition-all hover:bg-brand/20 disabled:pointer-events-none disabled:border-border disabled:bg-transparent disabled:text-subtle-foreground"
+      >
+        {busy ? "Saving" : "Continue"}
+        <ArrowRight className="h-3 w-3" />
+      </button>
     </div>
   );
 }

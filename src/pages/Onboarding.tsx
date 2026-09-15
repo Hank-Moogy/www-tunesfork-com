@@ -26,7 +26,7 @@ import {
 } from "@/components/onboarding/StageObjects";
 
 const STEPS: RailStep[] = [
-  { id: "name", label: "Your name", hint: "What should we call you?" },
+  { id: "name", label: "Your name", hint: "Artist name or real name." },
   { id: "install", label: "Install Sync", hint: "The app that does the saving." },
   { id: "pair", label: "Pair the app", hint: "Connect it to this account." },
   { id: "backup", label: "Back up a project", hint: "Open Ableton and hit save." },
@@ -63,18 +63,18 @@ export default function Onboarding() {
   const [waitlistDone, setWaitlistDone] = useState(false);
   const [firstProject, setFirstProject] = useState<{ id: string; name: string } | null>(null);
 
-  // Dev-only: ?tf_step=share jumps straight to a screen, so the six stages can
-  // be reviewed without first faking six steps of real data. Compiled out of
+  // Dev-only: ?tf_step=share opens on a given screen so the six stages can be
+  // reviewed without first faking six steps of real data. It seeds the view
+  // once and is NOT a lock -- pinning the step made completing it appear to do
+  // nothing, because the screen could never advance off it. Compiled out of
   // production builds.
-  const forcedStep =
-    import.meta.env.DEV && typeof window !== "undefined"
-      ? (new URLSearchParams(window.location.search).get("tf_step") as StepId | null)
-      : null;
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof window === "undefined") return;
+    const forced = new URLSearchParams(window.location.search).get("tf_step") as StepId | null;
+    if (forced && STEP_ORDER.includes(forced)) setViewing(forced);
+  }, []);
 
-  const step =
-    forcedStep && STEP_ORDER.includes(forcedStep)
-      ? forcedStep
-      : (viewing ?? progress.currentStep);
+  const step = viewing ?? progress.currentStep;
   const stepIndex = STEP_ORDER.indexOf(step);
 
   // Seed the name field from the profile so returning here is not a blank slate.
@@ -141,6 +141,7 @@ export default function Onboarding() {
       return;
     }
     await progress.refresh();
+    setViewing(null);
   };
 
   const joinWaitlist = async () => {
@@ -202,13 +203,14 @@ export default function Onboarding() {
         style={{ background: "radial-gradient(75% 55% at 50% 40%, transparent 30%, hsl(var(--background) / 0.85) 100%)" }}
       />
 
-      <div className="relative mx-auto grid min-h-screen max-w-6xl grid-cols-1 gap-10 px-6 py-10 lg:grid-cols-[260px_1fr] lg:gap-16 lg:px-10">
+      <div className="absolute left-6 top-6 z-10 flex items-center gap-2.5 lg:left-10 lg:top-8">
+        <img src="/logo.png" alt="" className="tf-mark h-[18px] w-auto" />
+        <span className="text-[15px] font-semibold tracking-tight">Tunesfork</span>
+      </div>
+
+      <div className="relative mx-auto grid min-h-screen max-w-6xl grid-cols-1 content-center items-center gap-10 px-6 py-10 lg:grid-cols-[260px_1fr] lg:gap-16 lg:px-10">
         {/* Progress rail */}
-        <aside className="lg:py-6">
-          <div className="mb-8 flex items-center gap-2.5">
-            <img src="/logo.png" alt="" className="tf-mark h-[18px] w-auto" />
-            <span className="text-[15px] font-semibold tracking-tight">Tunesfork</span>
-          </div>
+        <aside className="self-center">
           <StepRail steps={STEPS} activeId={step} done={progress.done} onJump={setViewing} />
           {progress.unlocked && (
             <button
@@ -221,7 +223,7 @@ export default function Onboarding() {
         </aside>
 
         {/* Stage */}
-        <main className="relative flex min-h-[560px] flex-col items-center justify-center">
+        <main className="relative flex min-h-[520px] flex-col items-center justify-center self-center">
           <AnimatePresence mode="wait">
             {burst ? (
               <SuccessBurst key="burst" label={burst} onDone={() => setBurst(null)} />
@@ -234,12 +236,16 @@ export default function Onboarding() {
                 transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
                 className="flex w-full max-w-lg flex-col items-center"
               >
-                <p className="tf-label mb-6">
+                <p className="tf-label mb-4">
                   Step {stepIndex + 1} of {STEPS.length}
                 </p>
 
-                <Stage className="mb-10 h-[250px] w-full">
-                  {step === "name" && <NameplateObject value={name} />}
+                <StepHeading step={step} canInstall={progress.canInstall} />
+
+                <Stage className="my-8 h-[250px] w-full">
+                  {step === "name" && (
+                    <NameplateObject value={name} onChange={setName} onSubmit={saveName} busy={saving} />
+                  )}
                   {step === "install" && <AppObject />}
                   {step === "pair" && <PairObject paired={progress.hasDevice} />}
                   {step === "backup" && <ProjectObject name={firstProject?.name} />}
@@ -293,11 +299,46 @@ type BodyProps = {
   goNext: () => void;
 };
 
-function Heading({ title, body }: { title: string; body: string }) {
+const COPY: Record<StepId, { title: string; body?: string }> = {
+  // Step one asks one question and gets out of the way. Any supporting line
+  // here would be read as instructions for a form.
+  name: { title: "How should we call you?" },
+  install: {
+    title: "Install Tunesfork Sync",
+    body: "Sync sits in your menu bar and captures every save as a cloud version. Keep working in Ableton exactly as you do now.",
+  },
+  pair: {
+    title: "Pair Sync with your account",
+    body: "Open the app and follow its setup. Once it connects, this page moves on by itself.",
+  },
+  backup: {
+    title: "Back up your first project",
+    body: "Add a project folder in Sync, then open it in Ableton and hit save.",
+  },
+  share: {
+    title: "Share it with someone",
+    body: "A share link lets anyone preview the project and its versions — no account needed.",
+  },
+  watch: {
+    title: "Back up everything at once",
+    body: "Point Sync at the folder holding all your projects, and every session inside it gets versioned from now on.",
+  },
+};
+
+function StepHeading({ step, canInstall }: { step: StepId; canInstall: boolean }) {
+  const copy =
+    step === "install" && !canInstall
+      ? {
+          title: "Sync is macOS only, for now",
+          body: "Windows is next — leave your email and we'll tell you the day it lands.",
+        }
+      : COPY[step];
   return (
-    <div className="mb-7 text-center">
-      <h1 className="text-[28px] font-bold leading-tight tracking-tight sm:text-[34px]">{title}</h1>
-      <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-muted-foreground">{body}</p>
+    <div className="text-center">
+      <h1 className="text-[28px] font-bold leading-tight tracking-tight sm:text-[34px]">{copy.title}</h1>
+      {copy.body && (
+        <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-muted-foreground">{copy.body}</p>
+      )}
     </div>
   );
 }
@@ -314,26 +355,9 @@ function Waiting({ text }: { text: string }) {
 function StepBody(p: BodyProps) {
   const { step, progress } = p;
 
-  if (step === "name") {
-    return (
-      <>
-        <Heading title="What should we call you?" body="Your artist name, your real name — whatever collaborators will recognise." />
-        <div className="flex w-full max-w-sm gap-2">
-          <Input
-            value={p.name}
-            onChange={(e) => p.setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && p.saveName()}
-            placeholder="e.g. Moogy"
-            className="h-11 text-center text-base"
-            autoFocus
-          />
-          <Button onClick={p.saveName} disabled={!p.name.trim() || p.saving} className="h-11 shrink-0 gap-2">
-            {p.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-          </Button>
-        </div>
-      </>
-    );
-  }
+  // Step one has no body: you type into the nameplate and press Continue on
+  // the object itself.
+  if (step === "name") return null;
 
   if (step === "install") {
     // The Sync app is macOS-only. A Windows user cannot complete this step, so
@@ -342,10 +366,6 @@ function StepBody(p: BodyProps) {
     if (!progress.canInstall) {
       return (
         <>
-          <Heading
-            title="Sync is macOS only, for now"
-            body="The desktop app that backs up your sessions automatically ships for macOS today. Windows is next — leave your email and we'll tell you the day it lands."
-          />
           {p.waitlistDone ? (
             <p className="flex items-center gap-2 text-sm font-medium text-status-synced">
               <Check className="h-4 w-4" /> You're on the list.
@@ -372,10 +392,6 @@ function StepBody(p: BodyProps) {
     }
     return (
       <>
-        <Heading
-          title="Install Tunesfork Sync"
-          body="Sync sits quietly in your menu bar and captures every save as a cloud version. You keep working in Ableton exactly as you do now — no zipping, no uploading, nothing to remember."
-        />
         <Button asChild size="lg" className="h-11 gap-2" onClick={() => progress.markInstallClicked()}>
           <a href={DOWNLOAD_MAC}>
             <Apple className="h-4 w-4" /> Download for macOS
@@ -391,10 +407,6 @@ function StepBody(p: BodyProps) {
   if (step === "pair") {
     return (
       <>
-        <Heading
-          title="Pair Sync with your account"
-          body="Open the app you just installed and follow its setup. It will ask to connect to this account — once it does, this page moves on by itself."
-        />
         <Waiting text="Waiting for the app" />
       </>
     );
@@ -403,10 +415,6 @@ function StepBody(p: BodyProps) {
   if (step === "backup") {
     return (
       <>
-        <Heading
-          title="Back up your first project"
-          body="In Sync, add the folder holding an Ableton project. Then open that project and hit save — Tunesfork captures it as version one."
-        />
         <Waiting text="Watching for a save" />
       </>
     );
@@ -415,10 +423,6 @@ function StepBody(p: BodyProps) {
   if (step === "share") {
     return (
       <>
-        <Heading
-          title="Share it with someone"
-          body="A share link lets anyone preview the project and its versions — no account needed. This is the part your collaborators will actually feel."
-        />
         <Button onClick={p.shareFirstProject} disabled={!p.firstProject} size="lg" className="h-11 gap-2">
           <Copy className="h-4 w-4" />
           Copy a link to {p.firstProject?.name ?? "your project"}
@@ -432,10 +436,6 @@ function StepBody(p: BodyProps) {
 
   return (
     <>
-      <Heading
-        title="Back up everything at once"
-        body="If all your Ableton projects live under one folder, point Sync at that folder instead of at a single project. Every session inside it gets versioned from then on, including the ones you make next year."
-      />
       <Button onClick={p.finish} size="lg" className="h-11 gap-2">
         Go to my projects <ArrowRight className="h-4 w-4" />
       </Button>
