@@ -69,8 +69,8 @@ export default function PluginPage() {
         </Button>
 
         <div className="rounded-xl border border-border bg-card/60 p-8 text-center">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-pastel-purple/10 mb-4">
-            <Music className="h-8 w-8 text-pastel-purple" />
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-data-4/10 mb-4">
+            <Music className="h-8 w-8 text-data-4" />
           </div>
 
           <h1 className="text-2xl font-bold mb-1">{plugin.name}</h1>
@@ -79,13 +79,13 @@ export default function PluginPage() {
           <div className="flex items-center justify-center gap-2 mb-6">
             <Badge variant="outline" className="text-xs">{plugin.type}</Badge>
             {plugin.is_free && (
-              <Badge variant="outline" className="text-xs border-pastel-green/30 text-pastel-green">Free</Badge>
+              <Badge variant="outline" className="text-xs border-status-synced/30 text-status-synced">Free</Badge>
             )}
           </div>
 
           {plugin.website_url && (
             <a href={plugin.website_url} target="_blank" rel="noopener noreferrer">
-              <Button className="gap-2 bg-pastel-blue text-white hover:bg-pastel-blue/90">
+              <Button className="gap-2 ">
                 <ExternalLink className="h-4 w-4" /> Get Plugin
               </Button>
             </a>

@@ -1235,7 +1235,7 @@ export default function ProjectPage() {
                           onClick={() => setCollabEmail(s.email)}
                           className={`flex items-center gap-2 rounded-full border px-2 py-1 text-xs transition-colors ${
                             selected
-                              ? "border-pastel-green/60 bg-pastel-green/15 text-pastel-green"
+                              ? "border-status-synced/60 bg-status-synced/15 text-status-synced"
                               : "border-border bg-secondary hover:bg-secondary/70"
                           }`}
                           title={s.email}
@@ -1270,7 +1270,7 @@ export default function ProjectPage() {
               </Select>
             </div>
             {inviteLink ? (
-              <div className="space-y-2 rounded-xl border border-pastel-purple/30 bg-pastel-purple/5 p-3">
+              <div className="space-y-2 rounded-xl border border-data-4/30 bg-data-4/5 p-3">
                 <p className="text-xs font-medium">No Tunesfork account yet for that email.</p>
                 <p className="text-[11px] text-muted-foreground">
                   Share this personal link with them — it signs them up and drops them straight into this project. It works once and expires in 14 days.
@@ -1282,14 +1282,14 @@ export default function ProjectPage() {
                   </Button>
                 </div>
                 <a
-                  className="inline-flex items-center gap-1.5 text-[11px] text-pastel-purple hover:underline"
+                  className="inline-flex items-center gap-1.5 text-[11px] text-data-4 hover:underline"
                   href={`mailto:${collabEmail.trim()}?subject=${encodeURIComponent(`Collaborate with me on ${project.name} (Tunesfork)`)}&body=${encodeURIComponent(`Hey,\n\nI'd like you to collaborate on my Ableton project "${project.name}" on Tunesfork. Use this link to join:\n\n${inviteLink}\n\nSee you there!`)}`}
                 >
                   <Mail className="h-3 w-3" /> Send it from your email app
                 </a>
               </div>
             ) : (
-              <Button className="w-full bg-pastel-green/20 text-pastel-green border border-pastel-green/30 hover:bg-pastel-green/30" variant="outline" onClick={handleAddCollaborator} disabled={!collabEmail.trim() || addingCollab}>
+              <Button className="w-full bg-status-synced/20 text-status-synced border border-status-synced/30 hover:bg-status-synced/30" variant="outline" onClick={handleAddCollaborator} disabled={!collabEmail.trim() || addingCollab}>
                 {addingCollab ? "Adding…" : "Add Collaborator"}
               </Button>
             )}

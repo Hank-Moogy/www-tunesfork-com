@@ -70,7 +70,7 @@ export default function LandingPage() {
             Built by producers, for producers
           </div>
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1] mb-6">
-            The <span className="text-transparent bg-clip-text bg-gradient-to-r from-[hsl(var(--pastel-blue))] to-[hsl(var(--pastel-purple))]">GitHub</span> of<br />
+            The <span className="text-transparent bg-clip-text bg-gradient-to-r from-data-2 to-data-4">GitHub</span> of<br />
             music production
           </h1>
           <p className="mx-auto max-w-2xl text-lg sm:text-xl text-muted-foreground mb-10 leading-relaxed">
@@ -90,7 +90,7 @@ export default function LandingPage() {
           </div>
         </div>
         {/* Subtle gradient orb */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-gradient-to-br from-[hsl(var(--pastel-blue)/0.08)] to-[hsl(var(--pastel-purple)/0.08)] blur-3xl pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-gradient-to-br from-data-2/[0.08] to-data-4/[0.08] blur-3xl pointer-events-none" />
       </section>
 
 

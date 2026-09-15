@@ -84,7 +84,7 @@ export default function SubmitPluginDialog({ open, onOpenChange, defaultName, on
             <Input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://..." className="bg-secondary border-border text-sm" />
           </div>
           <Button
-            className="w-full bg-pastel-blue/15 text-pastel-blue border border-pastel-blue/25 hover:bg-pastel-blue/25"
+            className="w-full bg-data-2/15 text-data-2 border border-data-2/25 hover:bg-data-2/25"
             variant="outline"
             onClick={handleSubmit}
             disabled={!name.trim() || submitting}

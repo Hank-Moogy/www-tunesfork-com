@@ -135,7 +135,7 @@ export default function SharePage() {
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <h1 className="text-2xl font-bold">Project not found</h1>
         <p className="text-muted-foreground">This share link may have expired or is invalid.</p>
-        <Button onClick={() => goToSignup("share_notfound_signup")} className="mt-4 bg-pastel-purple text-white hover:bg-pastel-purple/90">
+        <Button onClick={() => goToSignup("share_notfound_signup")} className="mt-4 bg-brand text-brand-foreground hover:bg-brand/90">
           Join TunesFork
         </Button>
       </div>
@@ -150,7 +150,7 @@ export default function SharePage() {
           <span className="font-bold text-lg tracking-tight">TunesFork</span>
           <Button
             size="sm"
-            className="bg-pastel-purple text-white hover:bg-pastel-purple/90 gap-1.5"
+            className="bg-brand text-brand-foreground hover:bg-brand/90 gap-1.5"
             onClick={() => goToSignup("share_nav_signup")}
           >
             Join for free <ArrowRight className="h-3.5 w-3.5" />
@@ -163,38 +163,38 @@ export default function SharePage() {
         <div className="text-center mb-10">
           <Badge
             variant="outline"
-            className="mb-5 border-pastel-purple/30 text-pastel-purple bg-pastel-purple/5 gap-1.5 py-1 px-3"
+            className="mb-5 border-data-4/30 text-data-4 bg-data-4/5 gap-1.5 py-1 px-3"
           >
             <Sparkles className="h-3 w-3" />
             You've been invited to collaborate
           </Badge>
 
           <div className="flex items-center justify-center gap-3 mb-5">
-            <Avatar className="h-12 w-12 ring-2 ring-pastel-purple/20">
+            <Avatar className="h-12 w-12 ring-2 ring-data-4/20">
               {owner?.avatar_url && <AvatarImage src={owner.avatar_url} alt={ownerName} />}
-              <AvatarFallback className="bg-pastel-purple/15 text-pastel-purple font-bold text-sm">
+              <AvatarFallback className="bg-data-4/15 text-data-4 font-bold text-sm">
                 {ownerInitials}
               </AvatarFallback>
             </Avatar>
             <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            <Avatar className="h-12 w-12 ring-2 ring-pastel-blue/20">
-              <AvatarFallback className="bg-pastel-blue/15 text-pastel-blue font-bold text-sm">
+            <Avatar className="h-12 w-12 ring-2 ring-data-2/20">
+              <AvatarFallback className="bg-data-2/15 text-data-2 font-bold text-sm">
                 {project.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
           </div>
 
           <h1 className="text-3xl md:text-4xl font-bold mb-3 tracking-tight">
-            <span className="text-pastel-purple">{ownerName}</span> invited you to collaborate on{" "}
-            <span className="text-pastel-blue">{project.name}</span>
+            <span className="text-data-4">{ownerName}</span> invited you to collaborate on{" "}
+            <span className="text-data-2">{project.name}</span>
           </h1>
           <p className="text-base text-muted-foreground max-w-xl mx-auto mb-5">
             Sign up free to leave comments, upload new versions, and keep this Ableton project in sync with the rest of the team.
           </p>
 
           {inAppBrowser && (
-            <Alert className="mb-5 max-w-xl mx-auto text-left border-pastel-orange/40 bg-pastel-orange/5">
-              <AlertTriangle className="h-4 w-4 text-pastel-orange" />
+            <Alert className="mb-5 max-w-xl mx-auto text-left border-status-pending/40 bg-status-pending/5">
+              <AlertTriangle className="h-4 w-4 text-status-pending" />
               <AlertTitle className="text-sm">Open this in your browser to sign up with Google</AlertTitle>
               <AlertDescription className="text-xs space-y-2">
                 <p>
@@ -219,7 +219,7 @@ export default function SharePage() {
           <div className="flex items-center justify-center gap-3 mb-6">
             <Button
               size="lg"
-              className="bg-pastel-purple text-white hover:bg-pastel-purple/90 gap-1.5 px-6"
+              className="bg-brand text-brand-foreground hover:bg-brand/90 gap-1.5 px-6"
               onClick={() => goToSignup("share_hero_signup_cta")}
             >
               Sign up to accept invite <ArrowRight className="h-4 w-4" />
@@ -236,12 +236,12 @@ export default function SharePage() {
 
           <div className="flex items-center justify-center gap-2 flex-wrap">
             {project.bpm && (
-              <Badge variant="outline" className="font-mono text-xs border-pastel-blue/30 text-pastel-blue">
+              <Badge variant="outline" className="font-mono text-xs border-data-2/30 text-data-2">
                 {project.bpm} BPM
               </Badge>
             )}
             {pluginList.length > 0 && (
-              <Badge variant="outline" className="text-xs border-pastel-purple/30 text-pastel-purple">
+              <Badge variant="outline" className="text-xs border-data-4/30 text-data-4">
                 <Layers className="h-3 w-3 mr-1" />
                 {pluginList.length} plugins
               </Badge>
@@ -252,7 +252,7 @@ export default function SharePage() {
               </Badge>
             )}
             {trackList.length > 0 && (
-              <Badge variant="outline" className="text-xs border-pastel-orange/30 text-pastel-orange">
+              <Badge variant="outline" className="text-xs border-status-pending/30 text-status-pending">
                 <Users className="h-3 w-3 mr-1" />
                 {trackList.length} tracks
               </Badge>
@@ -266,7 +266,7 @@ export default function SharePage() {
           {version?.audio_preview_url && (
             <div className="border-b border-border px-4 py-3">
               <div className="mb-2 flex items-center gap-2">
-                <Music className="h-3.5 w-3.5 text-pastel-purple" />
+                <Music className="h-3.5 w-3.5 text-data-4" />
                 <span className="text-xs font-medium text-muted-foreground">Audio preview</span>
               </div>
               <audio controls preload="metadata" className="h-9 w-full" src={version.audio_preview_url} />
@@ -277,7 +277,7 @@ export default function SharePage() {
           {trackList.length > 0 && (
             <div className="border-b border-border">
               <div className="px-4 py-2.5 flex items-center gap-2">
-                <Music className="h-3.5 w-3.5 text-pastel-orange" />
+                <Music className="h-3.5 w-3.5 text-status-pending" />
                 <span className="text-xs font-medium text-muted-foreground">Ableton View</span>
                 <div className="ml-2 flex rounded-lg border border-border bg-secondary/40 p-0.5">
                   <button
@@ -330,14 +330,14 @@ export default function SharePage() {
         </div>
 
         {/* Bottom CTA */}
-        <div className="rounded-xl border border-border bg-gradient-to-br from-pastel-purple/10 via-pastel-blue/5 to-pastel-purple/5 p-8 text-center">
+        <div className="rounded-xl border border-border bg-gradient-to-br from-data-4/10 via-data-2/5 to-data-4/5 p-8 text-center">
           <h2 className="text-xl font-bold mb-2">Ready to jump in?</h2>
           <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
             Create a free TunesFork account to accept {ownerName}'s invite and start collaborating on {project.name}.
           </p>
           <div className="flex items-center justify-center gap-3">
             <Button
-              className="bg-pastel-purple text-white hover:bg-pastel-purple/90 gap-1.5 px-6"
+              className="bg-brand text-brand-foreground hover:bg-brand/90 gap-1.5 px-6"
               onClick={() => goToSignup("share_bottom_signup_cta")}
             >
               Sign up for free <ArrowRight className="h-4 w-4" />

@@ -40,7 +40,7 @@ export default function GearCard({ stats }: { stats: UserStats }) {
                 <span className="w-32 truncate text-sm font-medium">{p.name}</span>
                 <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-muted/50">
                   <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-pastel-purple/80"
+                    className="absolute inset-y-0 left-0 rounded-full bg-data-4/80"
                     style={{ width: `${(p.count / maxPluginCount) * 100}%` }}
                   />
                 </div>

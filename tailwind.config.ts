@@ -87,16 +87,6 @@ export default {
           5: "hsl(var(--data-5))",
           6: "hsl(var(--data-6))",
         },
-        // Legacy decorative names. Repointed onto the categorical ramp in
-        // index.css; migrate call sites to `data-*` / `status-*`, then drop.
-        pastel: {
-          blue: "hsl(var(--pastel-blue))",
-          green: "hsl(var(--pastel-green))",
-          purple: "hsl(var(--pastel-purple))",
-          orange: "hsl(var(--pastel-orange))",
-          pink: "hsl(var(--pastel-pink))",
-          yellow: "hsl(var(--pastel-yellow))",
-        },
       },
       borderRadius: {
         xl: "calc(var(--radius) + 4px)",

@@ -37,7 +37,7 @@ export default function RhythmCard({ stats }: { stats: UserStats }) {
             return (
               <div
                 key={h}
-                className="group relative flex-1 rounded-sm bg-pastel-blue/70 transition hover:bg-pastel-blue"
+                className="group relative flex-1 rounded-sm bg-data-2/70 transition hover:bg-data-2"
                 style={{ height: `${Math.max(pct, 2)}%`, minHeight: 2 }}
                 title={`${fmtHour(h)} · ${c} saves`}
               />

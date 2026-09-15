@@ -12,12 +12,12 @@ function formatBytes(b: number) {
 }
 
 const SEGMENT_COLORS = [
-  "bg-pastel-blue",
-  "bg-pastel-purple",
-  "bg-pastel-green",
-  "bg-pastel-orange",
-  "bg-pastel-pink",
-  "bg-pastel-yellow",
+  "bg-data-2",
+  "bg-data-4",
+  "bg-data-1",
+  "bg-data-3",
+  "bg-data-5",
+  "bg-data-6",
   "bg-brand",
   "bg-primary",
 ];
@@ -37,7 +37,7 @@ export default function StorageCard({ stats }: { stats: UserStats }) {
     return (
       <div className="tf-surface rounded-xl p-6">
         <div className="flex items-center gap-2">
-          <HardDrive className="h-4 w-4 text-pastel-green" />
+          <HardDrive className="h-4 w-4 text-data-1" />
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Storage</h2>
         </div>
         <p className="mt-3 text-sm text-muted-foreground">No projects synced yet.</p>
@@ -66,7 +66,7 @@ export default function StorageCard({ stats }: { stats: UserStats }) {
     <div className="tf-surface rounded-xl p-6">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex items-center gap-2">
-          <HardDrive className="h-4 w-4 text-pastel-green" />
+          <HardDrive className="h-4 w-4 text-data-1" />
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Storage</h2>
         </div>
         <p className="text-sm text-muted-foreground">
@@ -84,7 +84,7 @@ export default function StorageCard({ stats }: { stats: UserStats }) {
       <div className="mt-4 flex h-3 w-full overflow-hidden rounded-full bg-muted/40">
         {percentage != null ? (
           <div
-            className={`h-full ${percentage >= 95 ? "bg-destructive" : percentage >= 80 ? "bg-pastel-orange" : "bg-pastel-green"}`}
+            className={`h-full ${percentage >= 95 ? "bg-destructive" : percentage >= 80 ? "bg-status-pending" : "bg-status-synced"}`}
             style={{ width: `${percentage}%` }}
             title={`${percentage.toFixed(1)}% of storage allowance used or reserved`}
           />

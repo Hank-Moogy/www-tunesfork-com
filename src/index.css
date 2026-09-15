@@ -108,15 +108,13 @@
     --chart-4: var(--data-4);
     --chart-5: var(--data-5);
 
-    /* Legacy pastel-* names, repointed onto the ramp above. 98 usages in
-       src/ still reference these; repointing reskins them all at once.
-       Migrate call sites to semantic names, then delete this block. */
-    --pastel-green: var(--data-1);
+    /* Two survivors of the pastel-* palette. Every other call site now
+       names what it means -- status-* for state, data-* for category -- but
+       src/pages/LandingPage.tsx reads these two as raw CSS variables and is
+       being edited elsewhere, so it is left alone. Delete these once that
+       file's hero gradient moves to data-2/data-4 like its sibling. */
     --pastel-blue: var(--data-2);
-    --pastel-orange: var(--data-3);
     --pastel-purple: var(--data-4);
-    --pastel-pink: var(--data-5);
-    --pastel-yellow: var(--data-3);  /* was undefined entirely; now valid */
 
     /* --- Sidebar --------------------------------------------------------- */
     --sidebar-background: 250 11% 8%;

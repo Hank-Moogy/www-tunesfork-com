@@ -88,7 +88,7 @@ export default function PluginMatchSection({ pluginList, showSubmit = false }: P
         <div className="space-y-1 mb-3">
           {matched.map((p) => (
             <div key={p.input_name} className="flex items-center gap-2 group">
-              <Check className="h-3 w-3 text-pastel-green shrink-0" />
+              <Check className="h-3 w-3 text-status-synced shrink-0" />
               <Link
                 to={`/plugin/${p.catalog_id}`}
                 className="text-xs font-medium hover:underline truncate"
@@ -99,7 +99,7 @@ export default function PluginMatchSection({ pluginList, showSubmit = false }: P
                 {p.developer}
               </span>
               {p.is_free && (
-                <Badge variant="outline" className="text-[9px] py-0 border-pastel-green/30 text-pastel-green ml-auto shrink-0">
+                <Badge variant="outline" className="text-[9px] py-0 border-status-synced/30 text-status-synced ml-auto shrink-0">
                   Free
                 </Badge>
               )}
@@ -136,7 +136,7 @@ export default function PluginMatchSection({ pluginList, showSubmit = false }: P
                 {showSubmit && (
                   <button
                     onClick={() => { setSubmitName(p.input_name); setSubmitOpen(true); }}
-                    className="ml-0.5 hover:text-pastel-blue transition-colors"
+                    className="ml-0.5 hover:text-data-2 transition-colors"
                     title="Submit plugin info"
                   >
                     <Plus className="h-2.5 w-2.5" />

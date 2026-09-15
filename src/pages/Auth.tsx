@@ -169,8 +169,8 @@ export default function Auth() {
           </div>
 
         {inAppBrowser && (
-          <Alert className="border-pastel-orange/40 bg-pastel-orange/5">
-            <AlertTriangle className="h-4 w-4 text-pastel-orange" />
+          <Alert className="border-status-pending/40 bg-status-pending/5">
+            <AlertTriangle className="h-4 w-4 text-status-pending" />
             <AlertTitle className="text-sm">Open in your browser to use Google sign-in</AlertTitle>
             <AlertDescription className="text-xs space-y-2">
               <p>

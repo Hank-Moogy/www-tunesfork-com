@@ -94,15 +94,15 @@ export default function AdminPage() {
       label: "Total Users",
       value: metrics?.total_users ?? "—",
       icon: Users,
-      color: "text-[hsl(var(--pastel-blue))]",
-      bg: "bg-[hsl(var(--pastel-blue)/0.1)]",
+      color: "text-data-2",
+      bg: "bg-data-2/10",
     },
     {
       label: "Projects Hosted",
       value: metrics?.total_projects ?? "—",
       icon: FolderGit2,
-      color: "text-[hsl(var(--pastel-green))]",
-      bg: "bg-[hsl(var(--pastel-green)/0.1)]",
+      color: "text-status-synced",
+      bg: "bg-status-synced/10",
     },
     {
       label: "Users w/ Collaborators",
@@ -110,8 +110,8 @@ export default function AdminPage() {
         ? `${metrics.users_with_collaborators} (${metrics.collaboration_percentage}%)`
         : "—",
       icon: UserCheck,
-      color: "text-[hsl(var(--pastel-purple))]",
-      bg: "bg-[hsl(var(--pastel-purple)/0.1)]",
+      color: "text-data-4",
+      bg: "bg-data-4/10",
     },
   ];
 
@@ -220,7 +220,7 @@ export default function AdminPage() {
                       <TableCell className="capitalize">{w.platform ?? "—"}</TableCell>
                       <TableCell>
                         {w.user_id ? (
-                          <span className="text-xs text-[hsl(var(--pastel-green))]">Yes</span>
+                          <span className="text-xs text-status-synced">Yes</span>
                         ) : (
                           <span className="text-xs text-muted-foreground">No</span>
                         )}

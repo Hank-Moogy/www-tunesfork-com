@@ -10,10 +10,10 @@ function formatBytes(b: number) {
 
 export default function HeroStats({ stats }: { stats: UserStats }) {
   const cards = [
-    { label: "Total saves", value: stats.total_saves.toLocaleString(), icon: Save, tint: "text-pastel-blue" },
-    { label: "Projects", value: stats.total_projects.toLocaleString(), icon: FolderKanban, tint: "text-pastel-purple" },
-    { label: "Synced", value: formatBytes(stats.total_bytes), icon: HardDrive, tint: "text-pastel-green" },
-    { label: "Longest streak", value: `${stats.longest_streak}d`, icon: Flame, tint: "text-pastel-orange" },
+    { label: "Total saves", value: stats.total_saves.toLocaleString(), icon: Save, tint: "text-data-2" },
+    { label: "Projects", value: stats.total_projects.toLocaleString(), icon: FolderKanban, tint: "text-data-4" },
+    { label: "Synced", value: formatBytes(stats.total_bytes), icon: HardDrive, tint: "text-data-1" },
+    { label: "Longest streak", value: `${stats.longest_streak}d`, icon: Flame, tint: "text-data-3" },
   ];
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

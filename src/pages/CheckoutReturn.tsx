@@ -49,7 +49,7 @@ export default function CheckoutReturn() {
 
         {state === "success" && (
           <>
-            <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-[hsl(var(--pastel-green))]" />
+            <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-status-synced" />
             <h1 className="mb-2 text-2xl font-bold">Subscription confirmed</h1>
             <p className="mb-6 text-muted-foreground">
               Your payment is confirmed and your TunesFork subscription is active.
