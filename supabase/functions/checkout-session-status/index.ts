@@ -55,6 +55,17 @@ serve(async (req) => {
     const subscriptionStatus = subscription && "status" in subscription
       ? subscription.status
       : null;
+    const cancelAtPeriodEnd = subscription && "cancel_at_period_end" in subscription
+      ? subscription.cancel_at_period_end
+      : null;
+    const cancelAt = subscription && "cancel_at" in subscription && subscription.cancel_at
+      ? new Date(subscription.cancel_at * 1000).toISOString()
+      : null;
+    const subscriptionItem = subscription && "items" in subscription
+      ? subscription.items?.data?.[0]
+      : null;
+    const periodEnd = subscriptionItem?.current_period_end ??
+      (subscription && "current_period_end" in subscription ? subscription.current_period_end : null);
     const lookupKey = isSubscriptionLookupKey(session.metadata?.lookupKey)
       ? session.metadata.lookupKey
       : null;
@@ -67,6 +78,9 @@ serve(async (req) => {
       status: session.status,
       paymentStatus: session.payment_status,
       subscriptionStatus,
+      cancelAtPeriodEnd,
+      cancelAt,
+      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
       lookupKey,
       ready,
     });
