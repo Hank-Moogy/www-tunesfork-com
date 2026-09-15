@@ -179,11 +179,17 @@ async function processEvent(event: any, env: StripeEnv) {
     }
     case "customer.subscription.created":
     case "customer.subscription.updated": {
-      const result = await upsertSubscription(object, env);
-      if (["active", "trialing"].includes(object.status)) {
+      // Stripe does not guarantee delivery order, and separate webhook deliveries
+      // for the same subscription can run concurrently. Reconcile from Stripe's
+      // current state so a stale event snapshot cannot undo a newer cancellation,
+      // plan change, or payment-state transition in our database.
+      const stripe = createStripeClient(env);
+      const currentSubscription: any = await stripe.subscriptions.retrieve(object.id);
+      const result = await upsertSubscription(currentSubscription, env);
+      if (["active", "trialing"].includes(currentSubscription.status)) {
         await sendAmplitudeEvent("Subscription Activated", result.userId, await userEmail(result.userId), {
-          plan: result.plan, lookup_key: result.lookupKey, status: object.status,
-          cancel_at_period_end: object.cancel_at_period_end || false,
+          plan: result.plan, lookup_key: result.lookupKey, status: currentSubscription.status,
+          cancel_at_period_end: currentSubscription.cancel_at_period_end || false,
         }, `${event.id}:subscription`);
       }
       break;
