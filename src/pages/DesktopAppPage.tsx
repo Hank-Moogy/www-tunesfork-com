@@ -39,10 +39,10 @@ export default function DesktopAppPage() {
       .then(({ data }) => setWelcomeName(data?.display_name ?? null));
   }, [isWelcome, user]);
 
-  const downloadMac = () => {
+  const downloadMac = async () => {
     trackButtonClick("desktop_download", "desktop_app", { platform: "mac" });
     trackSemanticEvent("Desktop Download Started", { platform: "mac", version: DESKTOP_APP_VERSION_LABEL });
-    flushAnalytics();
+    await flushAnalytics();
     if (DOWNLOAD_URLS.mac) window.location.href = DOWNLOAD_URLS.mac;
   };
 

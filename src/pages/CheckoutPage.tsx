@@ -1,6 +1,5 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { StripeEmbeddedCheckout } from "@/components/StripeEmbeddedCheckout";
+import { StripeCheckoutRedirect } from "@/components/StripeCheckoutRedirect";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -26,9 +25,7 @@ export default function CheckoutPage() {
         <Button variant="ghost" className="mb-6" onClick={() => { trackButtonClick("checkout_back_to_pricing", "checkout"); navigate("/pricing"); }}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Back to Pricing
         </Button>
-        <StripeEmbeddedCheckout
-          priceId={priceId}
-        />
+        <StripeCheckoutRedirect priceId={priceId} />
       </div>
     </div>
   );

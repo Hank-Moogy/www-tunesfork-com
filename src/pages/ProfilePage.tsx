@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Flame, RefreshCw } from "lucide-react";
 import { flushAnalytics, trackButtonClick } from "@/lib/analytics";
 import { supabaseDynamic } from "@/lib/supabaseDynamic";
+import { getStripeEnvironment, isTrustedStripeBillingPortalUrl } from "@/lib/stripe";
 
 export type UserStats = {
   user_id: string;
@@ -149,13 +150,15 @@ export default function ProfilePage() {
   const openBillingPortal = async () => {
     setOpeningBilling(true);
     trackButtonClick("manage_billing", "profile", { plan: stats?.storage_usage?.plan });
-    flushAnalytics();
-    const { data, error } = await supabase.functions.invoke("create-portal-session", { body: {} });
+    const { data, error } = await supabase.functions.invoke("create-portal-session", {
+      body: { environment: getStripeEnvironment(), returnPath: "/profile" },
+    });
     setOpeningBilling(false);
-    if (error || !data?.url) {
+    if (error || !isTrustedStripeBillingPortalUrl(data?.url)) {
       console.error("create-portal-session", error || data?.error);
       return;
     }
+    await flushAnalytics();
     window.location.assign(data.url);
   };
 
