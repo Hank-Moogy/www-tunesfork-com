@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import TfParticleField from "@/components/TfParticleField";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -148,20 +149,24 @@ export default function Auth() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm space-y-8">
-        {/* Logo */}
-        <div className="text-center space-y-4">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            {isDesktopPairing ? "Connect Tunesfork Sync" : "TunesFork"}
-          </h1>
-          <img src="/logo.png" alt="TunesFork" className="h-16 w-auto mx-auto" />
-          <p className="text-sm text-muted-foreground">
-            {isDesktopPairing
-              ? "One secure flow for new and existing accounts."
-              : "your ableton collaborative workspace"}
-          </p>
-        </div>
+    <div className="flex min-h-screen bg-background">
+      {/* Form column. Full width below lg, where the visual panel is dropped
+          rather than stacked — a login should never sit below the fold. */}
+      <div className="flex w-full flex-col justify-center px-6 py-12 lg:w-[46%] lg:px-14 xl:px-20">
+        <div className="mx-auto w-full max-w-sm space-y-8">
+          {/* Brand. Left-aligned on the split layout so it sits on the same
+              axis as the form fields; centred when the panel is gone. */}
+          <div className="space-y-3 text-center lg:text-left">
+            <img src="/logo.png" alt="" className="tf-mark mx-auto h-11 w-auto lg:mx-0" />
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              {isDesktopPairing ? "Connect Tunesfork Sync" : "TunesFork"}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {isDesktopPairing
+                ? "One secure flow for new and existing accounts."
+                : "Your Ableton collaborative workspace."}
+            </p>
+          </div>
 
         {inAppBrowser && (
           <Alert className="border-pastel-orange/40 bg-pastel-orange/5">
@@ -305,6 +310,29 @@ export default function Auth() {
             {isResetMode ? "Back to Sign In" : isLogin ? "Sign Up" : "Sign In"}
           </button>
         </p>}
+        </div>
+      </div>
+
+      {/* Visual column — the cloud field. Hidden below lg: it is decoration,
+          and on a phone the form needs the whole viewport. */}
+      <div className="relative hidden flex-1 border-l border-border lg:block">
+        <TfParticleField className="absolute inset-0 h-full w-full" />
+        {/* Vignette, so particles fade out at the panel edges instead of being
+            cut off by them. */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(85% 70% at 50% 42%, transparent 35%, hsl(var(--background) / 0.55) 100%)",
+          }}
+        />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 p-14 xl:p-20">
+          <p className="tf-label mb-3">Version control for Ableton</p>
+          <p className="max-w-md text-lg leading-snug text-foreground/80">
+            Every session, every version, every collaborator &mdash; kept in
+            one place.
+          </p>
+        </div>
       </div>
     </div>
   );

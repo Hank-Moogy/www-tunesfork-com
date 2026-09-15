@@ -61,15 +61,45 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        "border-strong": "hsl(var(--border-strong))",
+        brand: {
+          DEFAULT: "hsl(var(--brand))",
+          foreground: "hsl(var(--brand-foreground))",
+        },
+        "subtle-foreground": "hsl(var(--subtle-foreground))",
+        surface: {
+          1: "hsl(var(--surface-1))",
+          2: "hsl(var(--surface-2))",
+          3: "hsl(var(--surface-3))",
+        },
+        status: {
+          synced: "hsl(var(--status-synced))",
+          syncing: "hsl(var(--status-syncing))",
+          pending: "hsl(var(--status-pending))",
+          error: "hsl(var(--status-error))",
+          idle: "hsl(var(--status-idle))",
+        },
+        data: {
+          1: "hsl(var(--data-1))",
+          2: "hsl(var(--data-2))",
+          3: "hsl(var(--data-3))",
+          4: "hsl(var(--data-4))",
+          5: "hsl(var(--data-5))",
+          6: "hsl(var(--data-6))",
+        },
+        // Legacy decorative names. Repointed onto the categorical ramp in
+        // index.css; migrate call sites to `data-*` / `status-*`, then drop.
         pastel: {
           blue: "hsl(var(--pastel-blue))",
           green: "hsl(var(--pastel-green))",
           purple: "hsl(var(--pastel-purple))",
           orange: "hsl(var(--pastel-orange))",
           pink: "hsl(var(--pastel-pink))",
+          yellow: "hsl(var(--pastel-yellow))",
         },
       },
       borderRadius: {
+        xl: "calc(var(--radius) + 4px)",
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",

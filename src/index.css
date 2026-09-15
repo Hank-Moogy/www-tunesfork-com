@@ -2,106 +2,236 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   Tunesfork design tokens — dark only.
+
+   One source of truth for the web app. The palette descends from the Sync
+   desktop app (electron/src/tray-ui/styles.css), which is the shipping product
+   and therefore the reference for what Tunesfork looks like.
+
+   Green #45ff72 does double duty, so the two uses are kept visually distinct:
+     - ACTION  green fill  -> buttons, primary CTAs          (.bg-accent)
+     - STATE   green dot   -> live / synced / done           (.tf-lamp)
+   Never a green filled surface to mean "done", never a bare dot to mean
+   "click me". The landing page already works this way (.gc-live, .gcab-captured).
+
+   Values are HSL triplets because the 49 shadcn primitives consume them as
+   hsl(var(--token)). Keep that format.
+   ========================================================================= */
+
 @layer base {
   :root {
-    /* Light VisionOS / Glassmorphism base */
-    --background: 220 30% 97%;
-    --foreground: 222 25% 12%;
+    color-scheme: dark;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 25% 12%;
+    /* --- Ground and surfaces -------------------------------------------
+       A four-step elevation ramp. Elevation is carried by surface colour,
+       not by shadow — shadows read as mud on a near-black ground. */
+    --background: 220 12% 5%;       /* #0b0c0e  app ground                */
+    --surface-1: 225 10% 8%;        /* #131417  cards, panels             */
+    --surface-2: 220 10% 11%;       /* #1a1c20  raised, hover             */
+    --surface-3: 220 8% 15%;        /* #232529  inputs, pressed           */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 25% 12%;
+    --card: var(--surface-1);
+    --card-foreground: var(--foreground);
+    --popover: var(--surface-2);
+    --popover-foreground: var(--foreground);
 
-    --primary: 222 25% 14%;
-    --primary-foreground: 0 0% 100%;
+    /* --- Ink ------------------------------------------------------------
+       Paper white is warm (60 14% 93%), matching the landing page's
+       --paper #f0f0eb. Pure #fff is too clinical against this ground. */
+    --foreground: 60 14% 93%;       /* #f0f0eb                            */
+    --muted: 220 10% 11%;
+    --muted-foreground: 220 5% 62%; /* secondary copy, labels             */
+    --subtle-foreground: 220 5% 45%;/* timestamps, disabled               */
 
-    --secondary: 220 25% 94%;
-    --secondary-foreground: 222 25% 14%;
+    /* --- Brand: electric green -----------------------------------------
+       The CTA. Foreground on it is near-black, not white — #45ff72 is far
+       too luminous to carry white text accessibly.
 
-    --muted: 220 25% 94%;
-    --muted-foreground: 222 12% 45%;
+       This is --primary, NOT --accent. In shadcn's vocabulary "accent" is
+       the subtle hover/active surface used by dropdown items, ghost
+       buttons, calendar selection and command rows (33 usages across 10
+       primitives). Pointing --accent at the brand green would flash every
+       one of those solid green on hover. Keep the two roles separate. */
+    --brand: 134.5 100% 63.5%;      /* exactly #45ff72                    */
+    --brand-foreground: 135 60% 6%;
 
-    /* Accent = pastel purple for primary CTAs */
-    --accent: 264 60% 65%;
-    --accent-foreground: 0 0% 100%;
+    --primary: var(--brand);
+    --primary-foreground: var(--brand-foreground);
 
-    --destructive: 0 72% 51%;
+    /* shadcn's hover/active surface. Quiet by design. */
+    --accent: 220 10% 11%;
+    --accent-foreground: 60 14% 93%;
+
+    --secondary: 220 8% 15%;
+    --secondary-foreground: 60 14% 93%;
+
+    /* --- Status ---------------------------------------------------------
+       Lifted verbatim from the tray app so a state means the same thing in
+       the menu bar and in the browser. */
+    --status-synced: var(--brand);  /* #45ff72  done, ready, live         */
+    --status-syncing: 182 82% 59%;  /* #3fe5ec  in flight, uploading      */
+    --status-pending: 39 100% 59%;  /* #ffb52e  waiting, unshipped, warn  */
+    --status-error: 1 100% 64%;     /* #ff4d49  failed                    */
+    --status-idle: 220 5% 45%;      /* archived, inactive                 */
+
+    --destructive: var(--status-error);
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 20% 88%;
-    --input: 220 20% 88%;
-    --ring: 222 25% 60%;
+    /* Back-compat aliases. ProjectCard.tsx still reads these; they now
+       resolve to the status ramp above rather than a separate palette. */
+    --status-ready: var(--status-synced);
+    --status-progress: var(--status-pending);
+    --status-archived: var(--status-idle);
 
-    --chart-1: 252 60% 60%;
-    --chart-2: 260 60% 50%;
-    --chart-3: 263 65% 45%;
-    --chart-4: 264 65% 40%;
-    --chart-5: 266 55% 35%;
+    /* --- Lines ----------------------------------------------------------
+       Hairlines, as on the landing page. Borders separate; they don't
+       decorate. */
+    --border: 220 8% 18%;
+    --border-strong: 220 8% 26%;
+    --input: 220 8% 18%;
+    --ring: var(--brand);
 
-    --sidebar-background: 220 30% 97%;
-    --sidebar-foreground: 222 25% 12%;
-    --sidebar-primary: 222 25% 14%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 25% 94%;
-    --sidebar-accent-foreground: 222 25% 14%;
-    --sidebar-border: 220 20% 88%;
-    --sidebar-ring: 222 25% 60%;
+    /* --- Categorical ramp ------------------------------------------------
+       For data breakdowns only (StorageCard's storage-by-type bar), never
+       for state. Ordered for adjacent-hue separation. */
+    --data-1: var(--brand);
+    --data-2: 182 82% 59%;
+    --data-3: 39 100% 59%;
+    --data-4: 265 70% 70%;
+    --data-5: 330 75% 68%;
+    --data-6: 210 80% 66%;
 
-    --radius: 1rem;
+    --chart-1: var(--data-1);
+    --chart-2: var(--data-2);
+    --chart-3: var(--data-3);
+    --chart-4: var(--data-4);
+    --chart-5: var(--data-5);
 
-    /* Glass tokens */
-    --glass-bg: 0 0% 100%;
-    --glass-border: 220 30% 92%;
+    /* Legacy pastel-* names, repointed onto the ramp above. 98 usages in
+       src/ still reference these; repointing reskins them all at once.
+       Migrate call sites to semantic names, then delete this block. */
+    --pastel-green: var(--data-1);
+    --pastel-blue: var(--data-2);
+    --pastel-orange: var(--data-3);
+    --pastel-purple: var(--data-4);
+    --pastel-pink: var(--data-5);
+    --pastel-yellow: var(--data-3);  /* was undefined entirely; now valid */
 
-    /* Pastel action colors */
-    --pastel-blue: 217 70% 55%;
-    --pastel-green: 142 55% 42%;
-    --pastel-purple: 264 50% 55%;
-    --pastel-orange: 30 70% 52%;
-    --pastel-pink: 340 55% 55%;
+    /* --- Sidebar --------------------------------------------------------- */
+    --sidebar-background: 225 10% 8%;
+    --sidebar-foreground: 60 14% 93%;
+    --sidebar-primary: var(--brand);
+    --sidebar-primary-foreground: var(--brand-foreground);
+    --sidebar-accent: 220 10% 11%;
+    --sidebar-accent-foreground: 60 14% 93%;
+    --sidebar-border: 220 8% 18%;
+    --sidebar-ring: var(--brand);
 
-    /* Status colors */
-    --status-ready: 142 70% 42%;
-    --status-progress: 38 92% 50%;
-    --status-archived: 220 10% 60%;
+    /* --- Geometry -------------------------------------------------------
+       Slightly rounded, Apple-restrained. shadcn derives md/sm from this. */
+    --radius: 0.75rem;
   }
 
   * {
     @apply border-border;
   }
 
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply bg-background text-foreground;
-    background-image:
-      radial-gradient(at 0% 0%, hsl(217 90% 85% / 0.35) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsl(264 80% 85% / 0.3) 0px, transparent 50%),
-      radial-gradient(at 50% 100%, hsl(142 70% 85% / 0.25) 0px, transparent 50%);
+    /* A single cool lift from the top, so the page has a light source
+       instead of sitting flat. Replaces the old pastel triple-gradient. */
+    background-image: radial-gradient(
+      120% 80% at 50% -20%,
+      hsl(220 14% 13% / 0.9) 0%,
+      transparent 60%
+    );
     background-attachment: fixed;
   }
+
+  /* Tabular figures wherever numbers are compared down a column. */
+  .tabular { font-variant-numeric: tabular-nums; }
 }
 
 @layer components {
+  /* --- Surfaces ---------------------------------------------------------
+     The old glass-* classes are kept (28 call sites) but rebuilt for dark.
+     On a near-black ground, "glass" is a hairline plus a one-pixel top
+     highlight — not a blur over white. */
   .glass-card {
-    @apply rounded-2xl border border-white/50 bg-white/60 backdrop-blur-xl;
-    box-shadow:
-      0 8px 32px -8px hsl(222 25% 20% / 0.08),
-      inset 0 1px 0 0 hsl(0 0% 100% / 0.6);
+    @apply rounded-xl border border-border bg-card;
+    box-shadow: inset 0 1px 0 0 hsl(0 0% 100% / 0.04);
   }
 
   .glass-panel {
-    @apply border border-white/40 bg-white/55 backdrop-blur-2xl;
-    box-shadow:
-      0 10px 40px -12px hsl(222 25% 20% / 0.12),
-      inset 0 1px 0 0 hsl(0 0% 100% / 0.6);
+    @apply border border-border bg-card/80 backdrop-blur-xl;
+    box-shadow: inset 0 1px 0 0 hsl(0 0% 100% / 0.04);
   }
 
   .glass-input {
-    @apply bg-white/60 border border-white/60 backdrop-blur-md;
+    @apply border border-input bg-[hsl(var(--surface-3))];
   }
 
   .glass-pill {
-    @apply rounded-full bg-white/60 backdrop-blur-md border border-white/60;
+    @apply rounded-full border border-border bg-[hsl(var(--surface-2))];
+  }
+
+  /* Hover lift for anything clickable that is a surface (project cards). */
+  .surface-interactive {
+    @apply transition-colors duration-150;
+  }
+  .surface-interactive:hover {
+    background-color: hsl(var(--surface-2));
+    border-color: hsl(var(--border-strong));
+  }
+
+  /* --- Status lamp ------------------------------------------------------
+     The state half of the green rule. A glowing dot, copied from the tray
+     app's pilot lights, so "synced" never looks like a button.
+       <i class="tf-lamp" data-state="synced" /> */
+  .tf-lamp {
+    @apply inline-block h-[7px] w-[7px] shrink-0 rounded-full;
+    background: hsl(var(--status-idle));
+  }
+  .tf-lamp[data-state="synced"] {
+    background: hsl(var(--status-synced));
+    box-shadow: 0 0 8px hsl(var(--status-synced) / 0.85);
+  }
+  .tf-lamp[data-state="syncing"] {
+    background: hsl(var(--status-syncing));
+    box-shadow: 0 0 8px hsl(var(--status-syncing) / 0.8);
+    animation: tf-pulse 1.4s ease-in-out infinite alternate;
+  }
+  .tf-lamp[data-state="pending"] {
+    background: hsl(var(--status-pending));
+    box-shadow: 0 0 8px hsl(var(--status-pending) / 0.8);
+  }
+  .tf-lamp[data-state="error"] {
+    background: hsl(var(--status-error));
+    box-shadow: 0 0 8px hsl(var(--status-error) / 0.8);
+  }
+
+  @keyframes tf-pulse {
+    from { opacity: 0.45; }
+    to   { opacity: 1; }
+  }
+
+  /* --- Brand mark ------------------------------------------------------
+     logo.png is a dark 3D render, which disappears on a dark ground. The
+     landing page knocks it out to white with a filter (.gc-mark); this is
+     the same treatment, promoted to a utility so the two surfaces cannot
+     drift apart. Prefer this over re-deriving the filter per page. */
+  .tf-mark {
+    filter: invert(1) grayscale(1) contrast(1.15) brightness(1.06);
+  }
+
+  /* Mono micro-label, as used throughout the tray app and landing page. */
+  .tf-label {
+    @apply font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground;
   }
 }

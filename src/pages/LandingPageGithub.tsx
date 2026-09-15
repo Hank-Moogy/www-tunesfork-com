@@ -45,7 +45,7 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
           <Link to="/" className="flex items-center gap-2">
-            <img src="/logo.png" alt="TunesFork" className="h-5 w-auto" />
+            <img src="/logo.png" alt="TunesFork" className="tf-mark h-5 w-auto" />
             <span className="text-lg font-bold tracking-tight">TunesFork</span>
           </Link>
           <div className="flex items-center gap-3">
@@ -156,7 +156,7 @@ export default function LandingPage() {
       <footer className="border-t border-border bg-muted/30">
         <div className="mx-auto max-w-6xl px-4 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="TunesFork" className="h-5 w-auto" />
+            <img src="/logo.png" alt="TunesFork" className="tf-mark h-5 w-auto" />
             <span>© {new Date().getFullYear()} TunesFork</span>
           </div>
           <div className="flex gap-6">
