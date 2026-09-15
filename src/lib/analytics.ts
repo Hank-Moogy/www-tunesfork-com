@@ -210,6 +210,17 @@ export function resetAnalyticsIdentity() {
   runWhenReady(() => amplitude.reset());
 }
 
-export function flushAnalytics() {
-  runWhenReady(() => { void amplitude.flush(); });
+export async function flushAnalytics(timeoutMs = 1000): Promise<void> {
+  if (!API_KEY) return;
+  try {
+    await Promise.race([
+      (async () => {
+        await initializeAnalytics();
+        await amplitude.flush();
+      })(),
+      new Promise<void>((resolve) => window.setTimeout(resolve, timeoutMs)),
+    ]);
+  } catch (error) {
+    console.warn("[analytics] flush failed", error);
+  }
 }

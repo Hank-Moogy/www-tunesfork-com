@@ -40,7 +40,7 @@ export function StripeCheckoutRedirect({ priceId }: StripeCheckoutRedirectProps)
           if (data?.code === "subscription_exists") setExistingSubscription(true);
           throw new Error(data?.error || invokeError?.message || "Unable to start checkout");
         }
-        flushAnalytics();
+        await flushAnalytics();
         window.location.assign(data.url);
       } catch (checkoutError) {
         setError(checkoutError instanceof Error ? checkoutError.message : "Unable to start checkout");
