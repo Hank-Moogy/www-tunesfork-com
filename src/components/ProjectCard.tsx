@@ -23,14 +23,33 @@ function statusMeta(p: Project) {
   return { label: "IN PROGRESS", className: "bg-[hsl(var(--status-progress))]/15 text-[hsl(var(--status-progress))] border border-[hsl(var(--status-progress))]/30" };
 }
 
+/**
+ * A project's artwork stands in for a cover the user has not supplied, so it
+ * has to be distinctive per project without turning the grid into a paint
+ * chart. Hue is therefore drawn from Ambientic's cool arc -- green through
+ * cyan, blue and violet -- rather than the full wheel, and kept dark and
+ * desaturated enough to sit inside the page as deep coloured glass instead
+ * of shouting over it.
+ */
+const COVER_HUES = [135, 165, 186, 205, 224, 248, 266, 286];
+
 function gradientFor(name: string, archived: boolean) {
-  const hash = name.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  const h1 = hash % 360;
-  const h2 = (hash * 7) % 360;
   if (archived) {
-    return `linear-gradient(135deg, hsl(220 8% 65%), hsl(220 8% 45%))`;
+    return `linear-gradient(140deg, hsl(250 8% 26%), hsl(250 8% 16%))`;
   }
-  return `linear-gradient(135deg, hsl(${h1} 75% 62%), hsl(${h2} 70% 48%))`;
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  const h1 = COVER_HUES[hash % COVER_HUES.length];
+  // The second stop steps one place along the arc, so every cover reads as
+  // one light passing through a material rather than two colours colliding.
+  const h2 = COVER_HUES[(hash % COVER_HUES.length + 2) % COVER_HUES.length];
+  return [
+    // Top-light, matching how every other surface catches the light.
+    `radial-gradient(120% 90% at 50% 0%, hsl(0 0% 100% / 0.10), transparent 62%)`,
+    `linear-gradient(140deg, hsl(${h1} 48% 34%), hsl(${h2} 52% 19%))`,
+  ].join(", ");
 }
 
 function initials(name: string | null, fallback: string) {
@@ -56,8 +75,10 @@ export default function ProjectCard({ project, collaborators = [] }: ProjectCard
         trackButtonClick("dashboard_open_project", "dashboard_card", { project_id: project.id })
       }
       className={cn(
-        "group glass-card flex flex-col aspect-square transition-all duration-200",
-        "hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-12px_hsl(222_25%_20%_/_0.18)]"
+        "group tf-surface flex aspect-square flex-col rounded-xl transition-all duration-200",
+        // On a near-black page a drop shadow reads as mud, so the lift is
+        // carried by the edge catching more light instead.
+        "hover:-translate-y-0.5 hover:border-[rgb(var(--edge-strong))]"
       )}
     >
       <div
@@ -82,7 +103,7 @@ export default function ProjectCard({ project, collaborators = [] }: ProjectCard
       </div>
 
       <div className="p-4 flex flex-col gap-3 flex-1">
-        <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+        <h3 className="font-semibold text-foreground truncate transition-colors group-hover:text-brand">
           {project.name}
         </h3>
 
@@ -106,7 +127,7 @@ export default function ProjectCard({ project, collaborators = [] }: ProjectCard
               return (
                 <div
                   key={c.user_id}
-                  className="h-7 w-7 rounded-full ring-2 ring-white overflow-hidden bg-primary/20 text-primary text-xs font-semibold flex items-center justify-center"
+                  className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-[rgb(var(--film-3))] text-xs font-semibold text-foreground ring-2 ring-[hsl(var(--surface-1))]"
                   title={c.display_name ?? "Collaborator"}
                 >
                   {c.avatar_url ? (

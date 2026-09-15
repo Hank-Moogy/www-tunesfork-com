@@ -38,7 +38,7 @@ function NavLink({
       onClick={onSelect}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex h-14 items-center gap-1.5 px-3 text-sm transition-colors",
+        "relative flex h-14 shrink-0 items-center gap-1.5 px-3 text-sm transition-colors",
         active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
       )}
     >
@@ -73,19 +73,22 @@ export default function Navbar() {
 
   return (
     <nav className="tf-glass sticky top-0 z-50 border-b">
-      <div className="mx-auto flex h-14 max-w-7xl items-center gap-8 px-6 lg:px-10">
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-6 sm:gap-8 lg:px-10">
         <Link
           to="/dashboard"
           className="flex shrink-0 items-center gap-2.5 transition-opacity hover:opacity-80"
         >
           <img src="/logo.png" alt="" className="tf-mark h-[18px] w-auto" />
-          <span className="text-[15px] font-semibold tracking-tight">Tunesfork</span>
+          <span className="hidden text-[15px] font-semibold tracking-tight sm:inline">Tunesfork</span>
         </Link>
 
         {/* Primary navigation reads as text on a hairline rail, not as a row
             of competing buttons. The active route is marked by a lit
-            underline rather than a filled pill. */}
-        <div className="hidden items-center gap-1 md:flex">
+            underline rather than a filled pill.
+
+            Below sm the labels scroll horizontally rather than disappearing:
+            a phone still needs to reach Pricing and the desktop app. */}
+        <div className="-mx-2 flex min-w-0 items-center gap-1 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <NavLink to="/dashboard" label="Projects" onSelect={() => trackButtonClick("nav_dashboard", "navbar")} />
           <NavLink to="/desktop-app" label="Desktop" badge="NEW" onSelect={() => trackButtonClick("nav_desktop_app", "navbar")} />
           <NavLink to="/pricing" label="Pricing" onSelect={() => trackButtonClick("nav_pricing", "navbar")} />

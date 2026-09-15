@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
@@ -6,6 +6,7 @@ import PageContainer from "@/components/PageContainer";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Upload, Download, ChevronDown, FolderOpen } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
@@ -299,67 +300,66 @@ export default function Dashboard() {
           <FirstTimeEmpty onUpload={openUpload} />
         ) : (
           <>
-            {/* Greeting */}
-            <h1 className="text-3xl font-bold tracking-tight">{greeting}</h1>
-
-            {/* Activity */}
-            {stats?.heatmap && (
-              <div className="w-fit max-w-full">
-                <ContributionHeatmap heatmap={stats.heatmap} title={heatmapTitle} weeks={26} />
+            {/* Masthead. One welcome, not two competing headings -- the
+                greeting carries the page and the activity field sits beside
+                it as ambience rather than as a second card demanding a title. */}
+            <header className="flex flex-col gap-8 pb-2 xl:flex-row xl:items-center xl:justify-between">
+              <div className="min-w-0 space-y-3">
+                <p className="tf-label">Your workspace</p>
+                <h1 className="text-[2.5rem] font-bold leading-[1.05] tracking-tight sm:text-5xl">
+                  {greeting}
+                </h1>
+                <p className="max-w-md text-[15px] leading-relaxed text-muted-foreground">
+                  {heatmapTitle}
+                </p>
               </div>
-            )}
 
-            {/* Projects header */}
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pt-4">
-              <h2 className="text-2xl font-bold tracking-tight">Projects</h2>
-              <Button
-                onClick={() => {
-                  trackButtonClick("dashboard_new_project", "dashboard");
-                  openUpload();
-                }}
-                size="lg"
-                className="bg-brand hover:bg-brand/90 text-brand-foreground gap-2 rounded-full shadow-md"
-              >
-                <Upload className="h-4 w-4" />
-                Upload Project
-              </Button>
-            </div>
+              {stats?.heatmap && (
+                <div className="w-full min-w-0 xl:max-w-xl">
+                  <ContributionHeatmap heatmap={stats.heatmap} title="Activity" weeks={26} />
+                </div>
+              )}
+            </header>
 
-            {/* Toolbar */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            {/* One toolbar. Filter, search and scope read as a single row of
+                controls rather than a heading stacked above a second bar. */}
+            <div className="flex flex-col gap-4 border-t border-border pt-6 lg:flex-row lg:items-center lg:justify-between">
               <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-                <TabsList className="glass-pill h-11 p-1">
-                  <TabsTrigger value="all" className="rounded-full px-4 data-[state=active]:bg-[rgb(var(--film-3))]">
-                    All
-                  </TabsTrigger>
-                  <TabsTrigger value="my" className="rounded-full px-4 data-[state=active]:bg-[rgb(var(--film-3))]">
-                    My Projects
-                  </TabsTrigger>
-                  <TabsTrigger value="shared" className="rounded-full px-4 data-[state=active]:bg-[rgb(var(--film-3))]">
-                    Shared With Me
-                  </TabsTrigger>
+                <TabsList className="h-10">
+                  <TabsTrigger value="all" className="px-4">All</TabsTrigger>
+                  <TabsTrigger value="my" className="px-4">Mine</TabsTrigger>
+                  <TabsTrigger value="shared" className="px-4">Shared</TabsTrigger>
                 </TabsList>
               </Tabs>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search projects…"
-                    className="glass-input pl-9 w-64 h-11 rounded-full"
+                    className="h-10 w-full pl-9 sm:w-64"
                   />
                 </div>
-                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
-                  <input
-                    type="checkbox"
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+                  <Switch
                     checked={showArchived}
-                    onChange={(e) => setShowArchived(e.target.checked)}
-                    className="rounded"
+                    onCheckedChange={setShowArchived}
+                    aria-label="Show archived projects"
                   />
-                  Show archived
+                  Archived
                 </label>
+                <Button
+                  onClick={() => {
+                    trackButtonClick("dashboard_new_project", "dashboard");
+                    openUpload();
+                  }}
+                  className="h-10 gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  Upload
+                </Button>
               </div>
             </div>
 
@@ -384,7 +384,7 @@ export default function Dashboard() {
                   variant="outline"
                   onClick={handleShowMore}
                   disabled={appending}
-                  className="glass-pill gap-2 rounded-full px-6"
+                  className="gap-2 px-6"
                 >
                   {appending ? "Loading…" : "Show more projects"}
                   <ChevronDown className="h-4 w-4" />
@@ -404,8 +404,8 @@ export default function Dashboard() {
 
 function FirstTimeEmpty({ onUpload }: { onUpload: () => void }) {
   return (
-    <div className="glass-card p-12 flex flex-col items-center justify-center text-center">
-      <div className="mb-6 rounded-2xl bg-brand/15 p-6">
+    <div className="tf-surface flex flex-col items-center justify-center rounded-xl p-12 text-center">
+      <div className="tf-lit tf-breathe mb-6 rounded-2xl p-6">
         <Download className="h-12 w-12 text-brand" />
       </div>
       <h1 className="text-2xl font-bold mb-2">Welcome to Tunesfork 👋</h1>
@@ -413,11 +413,7 @@ function FirstTimeEmpty({ onUpload }: { onUpload: () => void }) {
         The best way to start: install <strong>Tunesfork Sync</strong>, point it at your Ableton
         project folders, and every save backs up here automatically — no zipping, no uploading.
       </p>
-      <Button
-        asChild
-        size="lg"
-        className="bg-brand hover:bg-brand/90 text-brand-foreground gap-2 rounded-full"
-      >
+      <Button asChild size="lg" className="gap-2">
         <Link
           to="/desktop-app"
           onClick={() => trackButtonClick("dashboard_first_download_app", "dashboard_empty")}
@@ -460,7 +456,11 @@ function ProjectGrid({
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} className="h-[260px] rounded-2xl" />
+          <div
+            key={i}
+            className="tf-pending aspect-square rounded-xl border border-border"
+            style={{ "--tf-delay": `${i * 90}ms` } as CSSProperties}
+          />
         ))}
       </div>
     );
@@ -468,7 +468,7 @@ function ProjectGrid({
 
   if (projects.length === 0 && search) {
     return (
-      <div className="glass-card flex flex-col items-center justify-center py-16 text-center">
+      <div className="tf-surface flex flex-col items-center justify-center rounded-xl py-16 text-center">
         <FolderOpen className="h-10 w-10 text-muted-foreground mb-3" />
         <p className="text-muted-foreground">No projects match "{search}".</p>
       </div>

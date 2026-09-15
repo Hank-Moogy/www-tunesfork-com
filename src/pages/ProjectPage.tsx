@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 // Badge import removed (no longer used in new layout)
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -696,7 +697,7 @@ export default function ProjectPage() {
           {/* ============ LEFT SIDEBAR ============ */}
           <aside className="w-72 shrink-0 space-y-4">
             {/* Versions panel */}
-            <div className="glass-card rounded-2xl overflow-hidden">
+            <div className="tf-surface rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-4 pt-4 pb-3">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   Versions
@@ -797,7 +798,7 @@ export default function ProjectPage() {
             </div>
 
             {/* Collaborators panel */}
-            <div className="glass-card rounded-2xl overflow-hidden">
+            <div className="tf-surface rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-4 pt-4 pb-3">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   Collaborators
@@ -865,22 +866,22 @@ export default function ProjectPage() {
                   </div>
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
                     {project.bpm && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border px-2.5 py-1 text-[11px] font-mono">
+                      <span className="inline-flex items-center gap-1.5 tf-well rounded-full px-2.5 py-1 text-[11px] font-mono">
                         <Clock className="h-3 w-3 text-muted-foreground" /> {project.bpm} BPM
                       </span>
                     )}
                     {selectedVersion && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border px-2.5 py-1 text-[11px] font-mono">
+                      <span className="inline-flex items-center gap-1.5 tf-well rounded-full px-2.5 py-1 text-[11px] font-mono">
                         <Music className="h-3 w-3 text-muted-foreground" /> {formatBytes(selectedVersion.file_size_bytes)}
                       </span>
                     )}
                     {pluginList.length > 0 && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border px-2.5 py-1 text-[11px] font-mono">
+                      <span className="inline-flex items-center gap-1.5 tf-well rounded-full px-2.5 py-1 text-[11px] font-mono">
                         {pluginList.length} plugins
                       </span>
                     )}
                     {selectedVersion?.ableton_version && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border px-2.5 py-1 text-[11px] font-mono">
+                      <span className="inline-flex items-center gap-1.5 tf-well rounded-full px-2.5 py-1 text-[11px] font-mono">
                         <Music className="h-3 w-3 text-muted-foreground" /> {selectedVersion.ableton_version}
                       </span>
                     )}
@@ -948,7 +949,7 @@ export default function ProjectPage() {
             </div>
 
             {project.owner_id === user?.id && latestSampleCheck && latestSampleIssues > 0 && (
-              <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3 flex items-center gap-3">
+              <div className="tf-lit [--glow:hsl(var(--status-pending))] flex items-center gap-3 rounded-xl px-4 py-3">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold">Action required</p>
@@ -968,7 +969,7 @@ export default function ProjectPage() {
 
             {/* Audio preview */}
             {(previewVersion || (selectedVersion && canAddPreview)) && (
-              <div className="glass-card rounded-2xl px-4 py-3">
+              <div className="tf-surface rounded-xl px-4 py-3">
                 <div className="flex items-center gap-2 mb-2">
                   <Music className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs font-medium text-muted-foreground">
@@ -1007,7 +1008,7 @@ export default function ProjectPage() {
 
             {/* Ableton project views */}
             {trackList.length > 0 && (
-              <div className="glass-card rounded-2xl overflow-hidden">
+              <div className="tf-surface rounded-xl overflow-hidden">
                 <div className="px-4 py-2.5 flex items-center gap-2 border-b border-border/60">
                   <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs font-medium text-muted-foreground">Ableton View</span>
@@ -1042,50 +1043,70 @@ export default function ProjectPage() {
             )}
 
             {/* Plugins */}
-            <div className="glass-card rounded-2xl overflow-hidden">
+            <div className="tf-surface rounded-xl overflow-hidden">
               <PluginMatchSection pluginList={pluginList} showSubmit />
             </div>
 
             {/* Discussion */}
-            <div className="glass-card rounded-2xl px-5 py-4">
+            <div className="tf-surface rounded-xl px-5 py-4">
               <div className="flex items-center gap-2 mb-4">
                 <h2 className="text-base font-semibold">Discussion</h2>
-                <span className="inline-flex items-center justify-center rounded-full bg-secondary text-[10px] font-mono text-muted-foreground h-5 min-w-[20px] px-1.5">
+                <span className="inline-flex items-center justify-center rounded-full bg-[rgb(var(--film-3))] text-[10px] font-mono text-muted-foreground h-5 min-w-[20px] px-1.5">
                   {comments.length}
                 </span>
               </div>
 
               {comments.length === 0 && (
-                <p className="text-sm text-muted-foreground/70 mb-4">No comments yet. Be the first to leave feedback.</p>
+                <p className="mb-4 text-sm text-muted-foreground">No comments yet — be the first to leave feedback.</p>
               )}
 
-              <div className="space-y-4 mb-4 max-h-[420px] overflow-y-auto pr-1">
-                {comments.map((c) => (
-                  <div key={c.id} className="flex gap-3">
-                    <Avatar className="h-9 w-9 shrink-0">
-                      <AvatarFallback className="text-[11px] font-semibold bg-secondary text-muted-foreground">
-                        {(c.profile?.display_name ?? "?").slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold">{c.profile?.display_name ?? "User"}</span>
-                        <span className="text-[11px] text-muted-foreground ml-auto font-mono">
-                          {formatRelative(c.created_at)}
-                        </span>
-                      </div>
-                      <p className="text-sm text-foreground/85 mt-1 leading-relaxed">{c.body}</p>
-                      <div className="flex items-center gap-4 mt-2">
-                        <button className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors">
+              <div className="-mx-2 mb-4 max-h-[420px] space-y-1 overflow-y-auto px-2">
+                {comments.map((c) => {
+                  const name = c.profile?.display_name ?? "User";
+                  const mine = c.user_id === user?.id;
+                  return (
+                    <div
+                      key={c.id}
+                      className="group flex gap-3 rounded-lg p-2 transition-colors hover:bg-[rgb(var(--film-1))]"
+                    >
+                      <Avatar className="h-9 w-9 shrink-0">
+                        <AvatarFallback
+                          className={cn(
+                            "text-[11px] font-semibold",
+                            mine
+                              ? "bg-brand/15 text-brand"
+                              : "bg-[rgb(var(--film-3))] text-foreground",
+                          )}
+                        >
+                          {name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="truncate text-sm font-semibold">{name}</span>
+                          {mine && <span className="tf-label text-[9px]">You</span>}
+                          <span className="ml-auto shrink-0 font-mono text-[11px] text-subtle-foreground">
+                            {formatRelative(c.created_at)}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm leading-relaxed text-foreground/85">{c.body}</p>
+                        {/* Reply reveals on hover rather than sitting under every
+                            comment -- a wall of identical actions makes a thread
+                            read as a form. */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewComment((v) => (v.startsWith(`@${name} `) ? v : `@${name} ${v}`));
+                            commentInputRef.current?.focus();
+                          }}
+                          className="mt-1.5 text-[11px] font-semibold uppercase tracking-wider text-subtle-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                        >
                           Reply
-                        </button>
-                        <button className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors">
-                          Like
                         </button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="flex gap-2">
@@ -1094,14 +1115,14 @@ export default function ProjectPage() {
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder="Add a comment…"
-                  className="glass-input h-10 text-sm"
+                  className="h-10 text-sm"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendComment(); }
                   }}
                 />
                 <Button
                   size="icon"
-                  className="h-10 w-10 shrink-0 rounded-xl bg-brand hover:bg-brand/90 text-brand-foreground"
+                  className="h-10 w-10 shrink-0"
                   onClick={handleSendComment}
                   disabled={!newComment.trim() || sendingComment}
                 >
