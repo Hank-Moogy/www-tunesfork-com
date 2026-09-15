@@ -1,0 +1,894 @@
+/* Galaxy art direction (LandingPage.css) carrying the Classic Flow copy and structure. */
+
+.gc-root .tf-hero {
+  display: block;
+  padding-top: 104px;
+}
+
+.gc-hero-inner {
+  display: grid;
+  max-width: 1720px;
+  margin: 0 auto;
+  min-height: calc(100svh - 150px);
+  grid-template-columns: minmax(0, 1.12fr) minmax(470px, 0.88fr);
+  align-items: center;
+  gap: clamp(2rem, 4.5vw, 5.5rem);
+}
+
+.gc-root .gc-hero-copy { width: 100%; transform: none; }
+
+
+.gc-root .tf-hero h1 {
+  max-width: 20ch;
+  font-size: clamp(42px, 4.9vw, 104px);
+  line-height: 0.85;
+  letter-spacing: -0.062em;
+}
+.gc-root .tf-hero h1 span { transition-delay: 0ms; }
+.gc-root .tf-hero h1 span:nth-child(2) { margin-left: 2.2vw; transition-delay: 80ms; }
+.gc-root .tf-hero h1 span:nth-child(3) { margin-left: 4.4vw; transition-delay: 160ms; }
+.gc-root .tf-hero h1 span:nth-child(4) { margin-left: 6.6vw; transition-delay: 240ms; }
+
+.gc-root .gc-lede {
+  max-width: 420px;
+  margin: 76px 0 0;
+  color: #c2c2bc;
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.gc-actions {
+  display: flex;
+  margin-top: 38px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+.gc-download-hero { width: min(100%, 284px); min-height: 68px; font-size: 11px; }
+
+.gc-secondary {
+  display: inline-flex;
+  min-height: 68px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font: 500 10px/1 "Roboto", sans-serif;
+  letter-spacing: 0.12em;
+  color: #c2c2bc;
+  transition: color 220ms ease, border-color 220ms ease;
+}
+.gc-secondary:hover { border-color: rgba(255, 255, 255, 0.6); color: var(--paper); }
+.gc-secondary i { font-style: normal; animation: gc-bob 1.9s ease-in-out infinite; }
+
+.gc-availability {
+  display: block;
+  margin-top: 20px;
+  font: 500 8px/1 "Roboto", sans-serif;
+  letter-spacing: 0.12em;
+  color: #777;
+}
+
+/* Hero stage: the Sync tray plus the upload / share / comment / version notifications. */
+.gc-stage { position: relative; min-height: min(660px, calc(100svh - 240px)); perspective: 1600px; }
+.gc-root .gc-stage .gcd {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(57%, 412px);
+  transform: rotateY(-6deg) rotateX(1.5deg);
+}
+
+
+.gc-alert {
+  position: absolute;
+  z-index: 12;
+  display: grid;
+  width: min(45%, 356px);
+  padding: 11px 13px;
+  grid-template-columns: 40px 1fr;
+  align-items: start;
+  gap: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 15px;
+  background: rgba(38, 38, 41, 0.62);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  opacity: 0;
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  backdrop-filter: blur(26px) saturate(180%);
+  animation: gc-notify 12s cubic-bezier(.2, .8, .2, 1) infinite;
+}
+
+.gc-alert-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  overflow: hidden;
+}
+.gc-alert-icon.is-app { border-radius: 9px; background: #fff; }
+.gc-alert-icon.is-app img { width: 30px; height: 30px; object-fit: contain; }
+.gc-alert-icon.is-person {
+  border-radius: 50%;
+  background: linear-gradient(150deg, #7b7d86, #34353a);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.gc-alert-body { display: grid; gap: 2px; min-width: 0; }
+.gc-alert-body > div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.gc-alert-body strong {
+  overflow: hidden;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gc-alert-body small { flex: 0 0 auto; color: rgba(235, 235, 245, 0.6); font-size: 10.5px; letter-spacing: 0; }
+.gc-alert-body p { margin: 0; color: rgba(235, 235, 245, 0.82); font-size: 12px; line-height: 1.35; letter-spacing: 0; }
+
+.gc-alert-upload { top: 26%; left: 0; animation-delay: 0s; }
+.gc-alert-share { top: 40%; left: 1.5%; animation-delay: -9s; }
+.gc-alert-comment { top: 54%; left: 0.5%; animation-delay: -6s; }
+.gc-alert-version { top: 68%; left: 2.5%; animation-delay: -3s; }
+
+@keyframes gc-notify {
+  0%, 12% { opacity: 0; transform: translateY(16px); }
+  17%, 35% { opacity: 1; transform: translateY(0); }
+  40%, 100% { opacity: 0; transform: translateY(-10px); }
+}
+@keyframes gc-bob { 50% { transform: translateY(4px); } }
+
+/* Chapters keep the Classic Flow copy ladder: statement, detail, technical meta. */
+.gc-root .tf-chapter-copy > p { margin-bottom: 14px; }
+.gc-detail { max-width: 440px; margin: 0 0 22px; color: #8f8f8a; font-size: 14px; line-height: 1.6; }
+
+/* Instrument panels — the Classic Flow previews redrawn as hairline monochrome units. */
+.gc-panel {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(8, 8, 8, 0.52);
+  backdrop-filter: blur(10px);
+}
+
+.gc-panel-head {
+  display: flex;
+  padding: 18px 20px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+.gc-panel-head > div { display: grid; gap: 7px; }
+.gc-panel-head small { color: var(--muted); font: 500 7px/1 "Roboto", sans-serif; letter-spacing: 0.14em; }
+.gc-panel-head strong { font-size: 15px; font-weight: 500; letter-spacing: -0.015em; }
+
+.gc-live { display: flex; align-items: center; gap: 8px; color: var(--muted); font: 500 7px/1 "Roboto", sans-serif; letter-spacing: 0.13em; }
+.gc-live i { width: 5px; height: 5px; border-radius: 50%; background: var(--paper); box-shadow: 0 0 9px #fff; }
+
+.gc-ghost-button {
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #c2c2bc;
+  font: 500 7px/1 "Roboto", sans-serif;
+  letter-spacing: 0.13em;
+  white-space: nowrap;
+}
+
+.gc-rows { display: grid; gap: 1px; padding: 20px; }
+.gc-row {
+  display: flex;
+  padding: 14px 15px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.gc-row.is-current { border-color: rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.05); }
+.gc-row span { display: flex; align-items: center; gap: 10px; font: 500 10px/1 "Roboto", sans-serif; letter-spacing: 0.09em; }
+.gc-row i { font-style: normal; color: var(--muted); font-size: 9px; }
+.gc-row.is-current i { color: var(--paper); }
+.gc-row small { color: var(--muted); font: 500 7px/1 "Roboto", sans-serif; letter-spacing: 0.11em; }
+
+.gc-panel-foot {
+  display: flex;
+  padding: 16px 20px;
+  align-items: center;
+  gap: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+}
+.gc-panel-foot > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+}
+.gc-panel-foot > div { display: grid; gap: 5px; }
+.gc-panel-foot strong { font: 500 9px/1 "Roboto", sans-serif; letter-spacing: 0.11em; }
+.gc-panel-foot small { color: var(--muted); font: 500 7px/1 "Roboto", sans-serif; letter-spacing: 0.11em; }
+.gc-panel-foot.is-input { justify-content: space-between; background: none; }
+.gc-panel-foot.is-input small { font-size: 9px; letter-spacing: 0.06em; }
+
+.gc-collab { display: grid; grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr); }
+.gc-collab .gc-rows { padding: 20px 0 20px 20px; align-content: start; }
+.gc-collab-main { display: grid; padding: 20px; align-content: start; gap: 12px; }
+
+.gc-wave {
+  display: flex;
+  height: 78px;
+  padding: 0 12px;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.45);
+}
+.gc-wave i { width: 2px; flex: 1 1 auto; background: rgba(240, 240, 235, 0.55); }
+
+.gc-comment {
+  display: flex;
+  padding: 12px 13px;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.gc-comment.is-flat { justify-content: space-between; }
+.gc-comment b {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  font-size: 9px;
+  font-weight: 500;
+}
+.gc-comment > div { display: grid; gap: 5px; }
+.gc-comment small { color: var(--muted); font: 500 6.5px/1 "Roboto", sans-serif; letter-spacing: 0.13em; }
+.gc-comment p { margin: 0; font-size: 12px; line-height: 1.4; color: #c2c2bc; }
+
+.gc-chat { display: grid; padding: 22px 20px; gap: 14px; }
+.gc-bubble {
+  max-width: 86%;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.gc-bubble p { margin: 0; }
+.gc-bubble.is-user { margin-left: auto; border: 1px solid rgba(255, 255, 255, 0.55); background: rgba(255, 255, 255, 0.08); }
+.gc-bubble.is-agent { border: 1px solid rgba(255, 255, 255, 0.14); color: #c2c2bc; }
+.gc-bubble ul { display: grid; margin: 14px 0 0; padding: 13px 0 0; gap: 8px; border-top: 1px solid rgba(255, 255, 255, 0.14); list-style: none; }
+.gc-bubble li { display: flex; align-items: center; gap: 9px; color: var(--muted); font: 500 7px/1 "Roboto", sans-serif; letter-spacing: 0.12em; }
+.gc-bubble li i { font-style: normal; color: var(--paper); }
+
+.gc-root .tf-chapters, .gc-root .gc-final { max-width: 1720px; margin-right: auto; margin-left: auto; }
+/* The close is the hero's bookend, so it takes the hero's exact treatment:
+   same weight, tracking and scale rather than a lighter, larger outlier. */
+.gc-root .gc-final h2 {
+  font-size: clamp(42px, 4.9vw, 104px);
+  font-weight: 700;
+  line-height: 0.85;
+  letter-spacing: -0.062em;
+  text-transform: uppercase;
+}
+.gc-root .gc-final h2 span { display: block; }
+.gc-root .gc-final h2 span:nth-child(2) { margin-left: 4.4vw; }
+.gc-root .gc-final > div { width: min(84vw, 720px); gap: 20px; }
+.gc-root .gc-final .gc-detail { margin: 0; max-width: 480px; }
+
+@media (max-width: 1180px) {
+  .gc-hero-inner { grid-template-columns: minmax(0, 1fr) minmax(400px, 1fr); }
+  .gc-root .gc-stage .gcd { width: min(53%, 340px); }
+  .gc-alert { width: 54%; }
+}
+
+@media (max-width: 900px) {
+  .gc-root .tf-hero { padding-top: 118px; }
+  .gc-hero-inner { min-height: auto; grid-template-columns: 1fr; gap: 8vh; }
+  .gc-root .tf-hero h1 { font-size: clamp(44px, 11.5vw, 82px); }
+  .gc-root .tf-hero h1 span:nth-child(2) { margin-left: 3vw; }
+  .gc-root .tf-hero h1 span:nth-child(3) { margin-left: 6vw; }
+  .gc-root .tf-hero h1 span:nth-child(4) { margin-left: 9vw; }
+  .gc-stage { min-height: 720px; }
+  .gc-root .gc-stage .gcd { right: 2%; width: min(52%, 330px); }
+  .gc-collab { grid-template-columns: 1fr; }
+  .gc-collab .gc-rows { padding: 20px 20px 0; }
+  .gc-root .tf-scroll-cue { display: none; }
+}
+
+@media (max-width: 560px) {
+  .gc-actions { flex-direction: column; align-items: stretch; }
+  .gc-download-hero, .gc-secondary { width: 100%; }
+  .gc-secondary { justify-content: space-between; }
+  .gc-stage { min-height: 840px; }
+  .gc-root .gc-stage .gcd { right: 0; bottom: 0; width: 86%; transform: none; }
+  .gc-alert { width: 88%; }
+  .gc-alert-upload { top: 15% }
+  .gc-alert-share { top: 26% }
+  .gc-alert-comment { top: 37% }
+  .gc-alert-version { top: 48% }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-secondary i { animation: none; }
+  .gc-alert { animation: none; opacity: 1; }
+  .gc-alert-share, .gc-alert-comment, .gc-alert-version { display: none; }
+}
+
+/* ── Tunesfork Sync device ─────────────────────────────────────────────
+   Colours, type and the pulsing meter are lifted from electron/src/tray-ui
+   so the landing page shows the app as it actually ships. */
+.gcd {
+  --case: #1a1b1d;
+  --ink: #d9d4c7;
+  --dim: #777a78;
+  --orange: #ff6534;
+  --orange-glow: rgba(255, 83, 36, 0.45);
+  --amber: #ffb52e;
+  --green: #45ff72;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 9px;
+  overflow: hidden;
+  border: 1px solid #37393c;
+  border-radius: 18px;
+  color: var(--ink);
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .022) 0 1px, transparent 1px 3px),
+    linear-gradient(145deg, #2a2c2f 0%, #17181a 35%, #222426 65%, #101113 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .13),
+    inset 0 -2px 8px rgba(0, 0, 0, .8),
+    0 30px 80px rgba(0, 0, 0, .7);
+  font-family: "SFMono-Regular", "Roboto Mono", ui-monospace, Menlo, monospace;
+  font-size: 12px;
+}
+
+.gcd-screw {
+  position: absolute;
+  z-index: 5;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #92979b 0 9%, #474b4e 28%, #121315 64%, #050506 100%);
+  box-shadow: 0 1px 2px #000, inset 0 1px 1px rgba(255, 255, 255, .35);
+}
+.gcd-screw::after { content: ""; position: absolute; top: 5px; right: 2px; left: 2px; height: 1px; background: #090a0b; transform: rotate(-28deg); }
+.gcd-screw-tr { top: 12px; right: 12px; }
+.gcd-screw-bl { bottom: 12px; left: 12px; }
+.gcd-screw-br { right: 12px; bottom: 12px; }
+
+.gcd-traffic { position: absolute; top: 12px; left: 14px; display: flex; gap: 7px; }
+.gcd-traffic i { width: 11px; height: 11px; border-radius: 50%; box-shadow: inset 0 1px 1px rgba(255, 255, 255, .35); }
+.gcd-traffic i:nth-child(1) { background: #ff5f57; }
+.gcd-traffic i:nth-child(2) { background: #febc2e; }
+.gcd-traffic i:nth-child(3) { background: #28c840; }
+
+.gcd-head { position: relative; z-index: 2; display: flex; min-height: 48px; padding: 28px 14px 9px; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.gcd-brand { display: flex; align-items: center; gap: 10px; }
+.gcd-badge {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  place-items: center;
+  border: 1px solid #080909;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #45494c, #181a1c 55%, #080909);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, .13), 0 2px 4px rgba(0, 0, 0, .6);
+}
+.gcd-badge img { width: 100%; height: 100%; object-fit: contain; filter: contrast(1.08) brightness(1.25); }
+.gcd-id { display: flex; flex-direction: column; gap: 5px; }
+.gcd-id small { color: #8c8e8c; font-size: 6.5px; letter-spacing: .14em; white-space: nowrap; }
+.gcd-id strong { color: #e8e3d7; font-size: 10.5px; font-weight: 500; letter-spacing: .03em; white-space: nowrap; }
+.gcd-id b { color: var(--orange); font-weight: 700; }
+.gcd-link { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; color: #8c8e8c; font-size: 6.5px; letter-spacing: .12em; white-space: nowrap; }
+.gcd-led { display: inline-block; width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #343638; }
+.gcd-led.is-green { background: var(--green); box-shadow: 0 0 9px rgba(69, 255, 114, .85); }
+.gcd-led.is-amber { background: var(--amber); box-shadow: 0 0 8px rgba(255, 181, 46, .8); }
+
+.gcd-bezel {
+  position: relative;
+  z-index: 2;
+  margin: 0 9px;
+  padding: 8px;
+  border: 1px solid #070707;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #050506, #2b2c2d 48%, #080909);
+  box-shadow: inset 0 0 0 2px #111, 0 8px 20px rgba(0, 0, 0, .45);
+}
+.gcd-glass {
+  position: relative;
+  display: flex;
+  min-height: 196px;
+  padding: 12px 14px 11px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #282c2d;
+  border-radius: 6px;
+  background: radial-gradient(ellipse at center, rgba(34, 49, 48, .26), transparent 68%), linear-gradient(#050706, #010202);
+  box-shadow: inset 0 0 35px #000, inset 0 0 3px rgba(255, 255, 255, .12);
+}
+.gcd-scan { position: absolute; inset: 0; opacity: .26; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, .035) 3px 4px); }
+.gcd-topline { position: relative; z-index: 1; display: flex; justify-content: space-between; color: #5e6965; font-size: 9px; }
+.gcd-center { position: relative; z-index: 1; display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.gcd-kicker { margin-bottom: 10px; color: #68726e; font-size: 7px; letter-spacing: .2em; white-space: nowrap; }
+.gcd-center strong {
+  color: var(--orange);
+  font-size: clamp(12px, 1.15vw, 17px);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: .1em;
+  white-space: nowrap;
+  text-shadow: 0 0 10px var(--orange-glow);
+}
+.gcd-detail { margin-top: 10px; color: #8f9994; font-size: 6.5px; line-height: 1.55; letter-spacing: .1em; white-space: nowrap; }
+
+/* The level meter, keyframes and stagger match the shipping app exactly. */
+.gcd-meter { position: relative; z-index: 1; display: flex; height: 13px; margin: 0 auto 9px; align-items: flex-end; justify-content: center; gap: 3px; }
+.gcd-meter span { width: 3px; height: 3px; background: #28302d; }
+.gcd-meter span.is-active { background: var(--orange); box-shadow: 0 0 4px var(--orange-glow); animation: gcd-meter 1.2s ease-in-out infinite alternate; }
+.gcd-meter span:nth-child(3n) { animation-delay: -.35s; }
+.gcd-meter span:nth-child(4n) { animation-delay: -.7s; }
+@keyframes gcd-meter { from { height: 3px; opacity: .35; } to { height: 12px; opacity: 1; } }
+
+.gcd-watch { position: relative; z-index: 1; display: flex; align-items: center; gap: 7px; color: #70817a; font-size: 7.5px; white-space: nowrap; }
+
+.gcd-telemetry {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  margin: 9px 9px 0;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid #070707;
+  border-radius: 8px;
+  background: linear-gradient(#151617, #090a0a);
+  box-shadow: inset 0 1px 2px #000, 0 1px 0 rgba(255, 255, 255, .05);
+}
+.gcd-telemetry div { min-width: 0; padding: 10px 6px 9px; text-align: center; }
+.gcd-telemetry div + div { border-left: 1px solid #292a2b; }
+.gcd-telemetry span { display: block; color: #616664; font-size: 6.5px; letter-spacing: .11em; white-space: nowrap; }
+.gcd-telemetry strong { display: block; margin-top: 4px; color: var(--amber); font-size: 11px; font-weight: 700; white-space: nowrap; text-shadow: 0 0 7px rgba(255, 181, 46, .28); }
+
+.gcd-deck {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  margin: 10px 9px 0;
+  padding: 12px;
+  grid-template-columns: 82px 1fr;
+  gap: 8px;
+  border: 1px solid #101112;
+  border-radius: 11px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, .035), rgba(0, 0, 0, .18));
+}
+.gcd-switch { display: grid; padding: 8px 0 9px; place-items: center; border: 1px solid #080808; border-radius: 9px; background: linear-gradient(145deg, #27292b, #101112); box-shadow: inset 0 1px 1px rgba(255, 255, 255, .08), 0 3px 0 #070707; }
+.gcd-cap {
+  display: block;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 9px;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, #c4c4c4 0 1px, #6f6f6f 1px 2px, #cdcdcd 2px 3px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, .65), inset 0 0 6px rgba(0, 0, 0, .4);
+}
+.gcd-switch-label { color: var(--green); font-size: 8px; letter-spacing: .1em; text-shadow: 0 0 8px rgba(69, 255, 114, .5); }
+.gcd-bank { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; align-content: start; }
+.gcd-btn {
+  display: grid;
+  min-height: 34px;
+  padding: 6px;
+  place-items: center;
+  border: 1px solid #070808;
+  border-radius: 6px;
+  color: #aaa69c;
+  font-size: 7px;
+  letter-spacing: .08em;
+  white-space: nowrap;
+  background: linear-gradient(#303235, #1b1c1e);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), inset 0 -2px 2px rgba(0, 0, 0, .5), 0 3px 0 #090a0a;
+}
+.gcd-btn.is-wide { grid-column: 1 / 3; }
+
+.gcd-diag { position: relative; z-index: 2; margin: 10px 9px 0; overflow: hidden; border: 1px solid #101112; border-radius: 10px; background: rgba(0, 0, 0, .38); }
+.gcd-diag-head { display: flex; padding: 9px 11px; justify-content: space-between; color: #7c817e; font-size: 6.5px; letter-spacing: .13em; white-space: nowrap; }
+.gcd-min { color: var(--green); }
+.gcd-diag-body { display: grid; padding: 0 12px 10px; gap: 5px; }
+.gcd-diag-body p { margin: 0; overflow: hidden; color: #6f7471; font-size: 7px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.gcd-diag-body i { margin-right: 7px; color: #4c514f; font-style: normal; }
+.gcd-diag-body p.is-busy { color: var(--orange); }
+.gcd-diag-body p.is-ok { color: var(--green); }
+
+.gcd-foot { position: relative; z-index: 2; display: flex; padding: 9px 30px 4px; align-items: center; justify-content: space-between; gap: 6px; color: #6e716f; font-size: 6px; letter-spacing: .1em; white-space: nowrap; }
+
+/* ── Ableton Live arrangement view ─────────────────────────────────── */
+.gcab {
+  overflow: hidden;
+  border: 1px solid #3a3b38;
+  border-radius: 8px;
+  color: #d9d9d3;
+  background: #2f3130;
+  box-shadow: 0 34px 90px rgba(0, 0, 0, .72);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.gcab-bar { display: flex; height: 34px; padding: 0 12px; align-items: center; gap: 12px; border-bottom: 1px solid #232423; background: linear-gradient(#3a3c3b, #2c2e2d); }
+.gcab-traffic { display: flex; gap: 6px; }
+.gcab-traffic i { width: 10px; height: 10px; border-radius: 50%; }
+.gcab-traffic i:nth-child(1) { background: #ff5f57; }
+.gcab-traffic i:nth-child(2) { background: #febc2e; }
+.gcab-traffic i:nth-child(3) { background: #28c840; }
+.gcab-bar strong { font-size: 11px; font-weight: 500; }
+.gcab-app { margin-left: auto; color: #93958f; font-size: 10px; }
+
+.gcab-transport { display: flex; height: 30px; padding: 0 12px; align-items: center; gap: 16px; border-bottom: 1px solid #232423; background: #262827; color: #a9aba5; font-size: 10px; }
+.gcab-tempo { color: #e8e9e3; font-weight: 600; }
+.gcab-play { color: var(--gc-accent, #45ff72); }
+.gcab-pos { color: #e8e9e3; letter-spacing: .04em; }
+.gcab-view { margin-left: auto; padding: 3px 9px; border-radius: 4px; background: #3c3e3d; font-size: 9px; }
+
+.gcab-body { display: grid; grid-template-columns: 23% 1fr; min-height: 350px; }
+.gcab-browser { display: flex; padding: 14px 12px; flex-direction: column; gap: 10px; border-right: 1px solid #232423; background: #2a2c2b; color: #9a9c96; font-size: 10px; }
+.gcab-browser b { color: #dcded7; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+.gcab-browser .is-open { padding: 5px 7px; border-radius: 3px; color: #14150f; background: #c6c9bf; }
+
+.gcab-arrange { position: relative; overflow: hidden; background: #38393a; }
+.gcab-arrange > header { display: flex; height: 24px; align-items: center; justify-content: space-around; border-bottom: 1px solid #4a4b4a; background: #313332; color: #8d8f8a; font-size: 9px; }
+.gcab-tracks { background: repeating-linear-gradient(90deg, transparent 0 13.9%, rgba(255, 255, 255, .05) 13.9% 14%); }
+.gcab-track { display: grid; height: 54px; grid-template-columns: 88px 1fr; align-items: center; border-bottom: 1px solid #2c2d2e; }
+.gcab-track > strong { padding-left: 10px; color: #9a9c96; font-size: 9px; font-weight: 500; }
+.gcab-lane { position: relative; height: 100%; }
+.gcab-clip { position: relative; top: 7px; height: 40px; overflow: hidden; border: 1px solid rgba(0, 0, 0, .45); border-radius: 2px; }
+.gcab-clip > span { display: block; padding: 2px 5px; color: rgba(0, 0, 0, .72); font-size: 8.5px; font-weight: 600; }
+.gcab-audio { display: flex; height: 22px; padding: 0 4px; align-items: center; gap: 1px; }
+.gcab-audio i { flex: 1 1 auto; background: rgba(0, 0, 0, .42); }
+.gcab-clip.is-amber { background: #e8b83f; }
+.gcab-clip.is-peach { background: #e2895c; }
+.gcab-clip.is-green { background: #9fd15f; }
+.gcab-clip.is-blue { background: #6fb7d6; }
+.gcab-clip.is-violet { background: #a68ed0; }
+.gcab-clip.is-grey { background: #a9aca4; }
+.gcab-playhead { position: absolute; top: 24px; bottom: 0; width: 1px; background: #f1f2ec; animation: gcab-play 14s linear infinite; }
+@keyframes gcab-play { 0% { left: 20%; } 85%, 100% { left: 78%; } }
+
+.gcab-status { display: flex; height: 34px; padding: 0 12px; align-items: center; justify-content: space-between; border-top: 1px solid #232423; background: #262827; color: #93958f; font-size: 10px; }
+.gcab-captured { display: flex; align-items: center; gap: 8px; color: var(--gc-accent, #45ff72); }
+.gcab-captured i { width: 7px; height: 7px; border-radius: 50%; background: currentcolor; box-shadow: 0 0 9px currentcolor; animation: gcd-blink 1.4s ease-in-out infinite alternate; }
+@keyframes gcd-blink { from { opacity: .35; } to { opacity: 1; } }
+
+/* ── Electric green, introduced progressively ──────────────────────────
+   #45ff72 is the app's own "sync online / transfer complete" colour
+   (electron/src/tray-ui --green). It enters as a single indicator in the
+   hero, takes over status and state through the chapters, and carries the
+   final call to action. */
+.gc-root { --gc-accent: #45ff72; --gc-accent-soft: rgba(69, 255, 114, 0.16); }
+
+/* Hero — one live indicator only. */
+.gc-root .gc-alert-icon.is-person::after {
+  content: "";
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid #1f1f22;
+  border-radius: 50%;
+  background: var(--gc-accent);
+}
+.gc-root .gc-alert-icon { position: relative; overflow: visible; }
+.gc-root .gc-alert-icon.is-person { overflow: visible; }
+
+/* Chapter 1 — the capture confirmation. */
+.gc-root .gcab-captured { color: var(--gc-accent); }
+
+/* Chapter 2 — the live version and the action on it. */
+.gc-root .gc-row.is-current { border-color: rgba(69, 255, 114, 0.45); background: var(--gc-accent-soft); }
+.gc-root .gc-row.is-current i { color: var(--gc-accent); }
+.gc-root .gc-comment.is-flat .gc-ghost-button { border-color: rgba(69, 255, 114, 0.5); color: var(--gc-accent); }
+.gc-root .gc-live i { background: var(--gc-accent); box-shadow: 0 0 9px rgba(69, 255, 114, 0.8); }
+
+/* Chapter 3 — the agent's completed work. */
+.gc-root .gc-bubble li i { color: var(--gc-accent); }
+.gc-root .gc-panel-foot > span { border-color: rgba(69, 255, 114, 0.4); color: var(--gc-accent); }
+
+/* The call to action is green wherever it appears. */
+.gc-root .tf-download {
+  border-color: var(--gc-accent);
+  color: var(--gc-accent);
+}
+.gc-root .tf-download::before { background: var(--gc-accent); }
+.gc-root .tf-download:hover { color: #04120a; }
+.gc-root .gc-download-hero { box-shadow: 0 0 34px rgba(69, 255, 114, 0.13); }
+.gc-root .gc-final .tf-download { box-shadow: 0 0 42px rgba(69, 255, 114, 0.16); }
+
+/* Real session screenshot, when public/ableton-session.png is present. */
+.gcab-shot { display: block; width: 100%; height: auto; border-top: 1px solid #232423; border-bottom: 1px solid #232423; }
+
+/* ── Auto Save scene: the saved session plus its cloud notification ──── */
+.gc-save-scene { position: relative; }
+.gc-save-alert {
+  position: absolute;
+  right: -5%;
+  bottom: -13%;
+  width: min(74%, 344px);
+  animation: gc-save-notify 9s cubic-bezier(.2, .8, .2, 1) infinite;
+}
+@keyframes gc-save-notify {
+  0%, 6% { opacity: 0; transform: translateY(14px) scale(.98); }
+  13%, 82% { opacity: 1; transform: translateY(0) scale(1); }
+  92%, 100% { opacity: 0; transform: translateY(-8px) scale(.99); }
+}
+
+/* ── Coming soon ──────────────────────────────────────────────────────
+   Amber, not green: green reads as "live" everywhere else on this page,
+   so an unshipped feature must not borrow it. */
+.gc-root .gc-soon {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 24px;
+  padding: 9px 16px;
+  border: 1px solid rgba(255, 181, 46, 0.55);
+  border-radius: 999px;
+  background: rgba(255, 181, 46, 0.08);
+  color: #ffb52e;
+  font: 500 9px/1 "Roboto", sans-serif;
+  letter-spacing: 0.18em;
+}
+.gc-root .gc-soon::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffb52e;
+  box-shadow: 0 0 9px rgba(255, 181, 46, 0.8);
+  animation: gc-soon-pulse 1.6s ease-in-out infinite alternate;
+}
+@keyframes gc-soon-pulse { from { opacity: .35; } to { opacity: 1; } }
+
+.gc-soon-tag {
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 181, 46, 0.55);
+  border-radius: 999px;
+  background: rgba(255, 181, 46, 0.08);
+  color: #ffb52e;
+  font: 500 7px/1 "Roboto", sans-serif;
+  letter-spacing: 0.15em;
+  white-space: nowrap;
+}
+
+/* ── Agent conversation, revealed message after message ──────────────── */
+.gc-agent .gc-chat { gap: 12px; }
+.gc-agent .gc-bubble, .gc-typing {
+  opacity: 0;
+  transform: translateY(12px);
+}
+.tf-chapter.is-visible .gc-agent .gc-bubble,
+.tf-chapter.is-visible .gc-typing {
+  animation: gc-msg 620ms cubic-bezier(.2, .8, .2, 1) forwards;
+  animation-delay: calc(var(--step) * 900ms + 350ms);
+}
+@keyframes gc-msg { to { opacity: 1; transform: translateY(0); } }
+
+.gc-typing {
+  display: flex;
+  width: 54px;
+  padding: 13px 15px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 2px;
+}
+.gc-typing i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: gc-typing-dot 1.1s ease-in-out infinite;
+}
+.gc-typing i:nth-child(2) { animation-delay: .16s; }
+.gc-typing i:nth-child(3) { animation-delay: .32s; }
+@keyframes gc-typing-dot { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-save-alert { animation: none; opacity: 1; }
+  .gc-agent .gc-bubble, .gc-typing { opacity: 1; transform: none; animation: none; }
+  .gc-typing i, .gc-root .gc-soon::before { animation: none; }
+}
+
+/* ── Collaborate: a thread that arrives one comment at a time ─────────── */
+.gc-collab-main .gc-wave { position: relative; overflow: visible; }
+
+.gc-wave-pin {
+  position: absolute;
+  top: -11px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid rgba(69, 255, 114, 0.75);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(69, 255, 114, 0.35);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+  opacity: 0;
+  transform: translate(-50%, 6px) scale(.8);
+}
+.gc-wave-pin::after {
+  content: "";
+  position: absolute;
+  top: 21px;
+  left: 50%;
+  width: 1px;
+  height: 78px;
+  background: linear-gradient(rgba(69, 255, 114, 0.7), rgba(69, 255, 114, 0));
+}
+
+.gc-thread { display: grid; gap: 12px; }
+.gc-thread .gc-comment { opacity: 0; transform: translateY(12px); }
+
+.tf-chapter.is-visible .gc-wave-pin,
+.tf-chapter.is-visible .gc-thread .gc-comment {
+  animation: gc-comment-in 620ms cubic-bezier(.2, .8, .2, 1) forwards;
+  animation-delay: calc(var(--step) * 850ms + 400ms);
+}
+@keyframes gc-comment-in { to { opacity: 1; transform: translate(var(--pin-x, 0), 0) scale(1); } }
+.tf-chapter.is-visible .gc-wave-pin { --pin-x: -50%; }
+
+.gc-wave-pin.gc-avatar { width: 22px; height: 22px; }
+.gc-avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+}
+.gc-avatar[data-person="Maya"] { background: linear-gradient(150deg, #8f86c4, #37334c); }
+.gc-avatar[data-person="Jonas"] { background: linear-gradient(150deg, #74a8bf, #273c47); }
+.gc-avatar[data-person="Ana"] { background: linear-gradient(150deg, #c39a78, #463527); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-wave-pin, .gc-thread .gc-comment { opacity: 1; transform: none; animation: none; }
+  .gc-wave-pin { transform: translateX(-50%); }
+}
+
+/* The four verbs carry the close, so they sit brighter than body copy —
+   "fork" in the accent, since it is where the name comes from. */
+.gc-root .gc-verbs {
+  max-width: 520px;
+  margin: 0;
+  color: #e8e8e2;
+  font-size: clamp(18px, 1.5vw, 23px);
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+.gc-root .gc-verbs span { color: var(--gc-accent); }
+
+/* ── Wordmark ─────────────────────────────────────────────────────────
+   logo.png is a dark render, so it is inverted to read as a light mark
+   on the black ground rather than sitting in a heavy light badge. */
+.gc-root .gc-wordmark { display: flex; align-items: center; gap: 11px; }
+.gc-mark {
+  width: 27px;
+  height: 27px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  filter: invert(1) grayscale(1) contrast(1.15) brightness(1.06);
+}
+/* The base rule sizes the registered mark at 5px via `.tf-wordmark span`,
+   which also caught this wrapper — so it is reset explicitly. */
+.gc-root .gc-wordmark-text {
+  position: static;
+  top: auto;
+  margin-left: 0;
+  color: var(--paper);
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  line-height: 1;
+}
+.gc-root .gc-wordmark-text span {
+  position: relative;
+  top: -0.85em;
+  margin-left: 4px;
+  font-size: 9px;
+}
+
+/* Short laptop viewports: keep the whole tray above the fold. */
+@media (max-height: 840px) {
+  .gc-root .gc-stage .gcd { transform: rotateY(-6deg) rotateX(1.5deg) scale(0.92); transform-origin: 100% 100%; }
+}
+@media (max-height: 760px) {
+  .gc-root .gc-stage .gcd { transform: rotateY(-6deg) rotateX(1.5deg) scale(0.84); transform-origin: 100% 100%; }
+}
+
+/* Static stand-in for the particle field when WebGL is unavailable. */
+.gc-static-field {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 58% 34% at 50% 46%, rgba(255, 255, 255, 0.11), transparent 70%),
+    radial-gradient(ellipse 30% 18% at 50% 46%, rgba(5, 5, 5, 0.95), transparent 72%);
+}
+
+/* ── Mobile ───────────────────────────────────────────────────────────
+   The nav wordmark and hero display are sized for desktop, so both are
+   brought down to phone proportions here. */
+@media (max-width: 700px) {
+  .gc-mark { width: 20px; height: 20px; }
+  .gc-root .gc-wordmark { gap: 8px; }
+  .gc-root .gc-wordmark-text { font-size: 15px; letter-spacing: 0.05em; }
+  .gc-root .gc-wordmark-text span { top: -0.75em; margin-left: 3px; font-size: 6px; }
+  .gc-root .tf-nav > div { gap: 16px; }
+  .gc-root .tf-nav-download { min-height: 34px; padding: 0 12px; gap: 10px; font-size: 8px; }
+  .gc-root .tf-nav-download span:last-child { display: none; }
+
+  .gc-root .tf-hero h1 { font-size: clamp(30px, 8.7vw, 46px); line-height: 0.94; }
+  .gc-root .tf-hero h1 span:nth-child(2) { margin-left: 2vw; }
+  .gc-root .tf-hero h1 span:nth-child(3) { margin-left: 4vw; }
+  .gc-root .tf-hero h1 span:nth-child(4) { margin-left: 6vw; }
+  .gc-root .gc-lede { margin-top: 40px; font-size: 15px; }
+  .gc-download-hero, .gc-secondary { min-height: 58px; }
+  .gc-root .tf-chapter h2 { font-size: clamp(34px, 10.5vw, 58px); }
+  .gc-root .gc-final h2 { font-size: clamp(32px, 9.6vw, 52px); }
+  .gc-root .gc-verbs { font-size: 17px; }
+  .gc-root .gc-soon { margin-bottom: 18px; padding: 7px 13px; font-size: 8px; }
+
+  /* Panels: drop to a single column so nothing is squeezed. */
+  .gc-collab { grid-template-columns: 1fr; }
+  .gc-collab .gc-rows { padding: 16px 16px 0; }
+  .gc-collab-main { padding: 16px; }
+  .gc-panel-head { padding: 14px 15px; }
+  .gc-panel-head strong { font-size: 14px; }
+  .gc-bubble { max-width: 94%; font-size: 12.5px; }
+  .gc-comment p { font-size: 12px; }
+
+  /* The Ableton window is far too dense at phone width: show the
+     arrangement only, and let it scroll sideways inside its own frame. */
+  .gcab-body { grid-template-columns: 1fr; min-height: 250px; }
+  .gcab-browser { display: none; }
+  .gcab-transport { gap: 10px; font-size: 9px; }
+  .gcab-app { display: none; }
+  .gcab-track { grid-template-columns: 64px 1fr; height: 42px; }
+  .gcab-clip { height: 30px; top: 6px; }
+  .gcab-audio { height: 16px; }
+  .gcab-status { height: 30px; padding: 0 10px; font-size: 9px; }
+  .gc-save-alert { right: 0; bottom: -9%; width: min(96%, 320px); }
+}
+
+@media (max-width: 460px) {
+  .gc-root .tf-hero h1 { font-size: clamp(28px, 8.4vw, 40px); }
+  .gc-root .gc-wordmark-text { font-size: 14px; }
+  .gc-root .tf-nav > div > a:not(.tf-download) { font-size: 8px; }
+  .gcab-track > strong { font-size: 8px; }
+  .gc-save-alert { bottom: -12%; }
+  .gc-alert { padding: 10px 11px; grid-template-columns: 34px 1fr; gap: 9px; }
+  .gc-alert-icon { width: 34px; height: 34px; }
+  .gc-alert-body strong { font-size: 11.5px; }
+  .gc-alert-body p { font-size: 11px; }
+}
+
+/* The base Galaxy nav hides secondary links on phones — fine when the only
+   one was an anchor, but Sign In must stay reachable. */
+@media (max-width: 560px) {
+  .gc-root .tf-nav > div > a:not(.tf-download) { display: inline-flex; }
+}
+
+/* Keep the nav links on one line on narrow screens. */
+.gc-root .tf-nav > div > a { white-space: nowrap; }
