@@ -96,17 +96,18 @@ function parseManifest(value: unknown): { schema_version: 1; files: ManifestFile
 // A fork request the owner never hears about is a fork request that never gets
 // reviewed. Notifying is best-effort: the save already succeeded, so a mail
 // failure must never turn into an upload failure for the contributor.
-async function notifyOwnerOfForkRequest(
-  admin: ReturnType<typeof createClient>,
-  params: {
-    projectId: string;
-    versionId: string;
-    uploaderId: string;
-    changeNote: string | null;
-    supersededCount: number;
-  },
-) {
+async function notifyOwnerOfForkRequest(params: {
+  projectId: string;
+  versionId: string;
+  uploaderId: string;
+  changeNote: string | null;
+  supersededCount: number;
+}) {
   try {
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
     const { data: project } = await admin
       .from("projects").select("id,name,owner_id").eq("id", params.projectId).maybeSingle();
     if (!project || project.owner_id === params.uploaderId) return;
@@ -359,7 +360,7 @@ Deno.serve(async (req) => {
       await admin.from("device_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tokenRow.id);
 
       if (result.status === "pending") {
-        await notifyOwnerOfForkRequest(admin, {
+        await notifyOwnerOfForkRequest({
           projectId: result.project_id,
           versionId: result.version_id,
           uploaderId: userId,
