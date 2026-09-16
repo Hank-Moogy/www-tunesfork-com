@@ -13,6 +13,7 @@ const { buildSampleCheck } = require("./sample-check.cjs");
 const { buildProjectManifest, manifestForApi } = require("./incremental-sync.cjs");
 const { MAX_FILE_BYTES, safeRestoreDestination, validateLegacyZipEntries } = require("./restore-validation.cjs");
 const { isResourceAlreadyExistsError, isResourceAlreadyExistsResponse } = require("./storage-upload-errors.cjs");
+const { DEFAULT_SAVE_DEBOUNCE_MS, getSaveEventDelayMs } = require("./save-event-policy.cjs");
 const {
   assertFolderReadable,
   folderAccessMessage,
@@ -532,22 +533,24 @@ async function startSync() {
     if (path.extname(alsPath).toLowerCase() !== ".als") return;
     if (importRunning) return;
     const projectFolder = findProjectFolder(alsPath);
-    const openedAt = recentlyOpenedProjects.get(normalizeFolder(projectFolder));
-    if (openedAt && Date.now() - openedAt < 30_000) {
-      log("info", `Ignored Ableton's open event for ${path.basename(alsPath)}`);
-      return;
+    const normalizedProjectFolder = normalizeFolder(projectFolder);
+    const openedAt = recentlyOpenedProjects.get(normalizedProjectFolder);
+    const saveDelayMs = getSaveEventDelayMs({ openedAt });
+    if (saveDelayMs > DEFAULT_SAVE_DEBOUNCE_MS) {
+      log("info", `Queued ${path.basename(alsPath)} until Ableton's open-event guard ends`);
     }
     const existing = debouncers.get(projectFolder);
     if (existing) clearTimeout(existing);
     debouncers.set(projectFolder, setTimeout(() => {
       debouncers.delete(projectFolder);
+      recentlyOpenedProjects.delete(normalizedProjectFolder);
       const latestAls = findLatestAls(projectFolder) || alsPath;
       enqueueProjectSave(latestAls).catch((e) => {
         if (isFolderPermissionError(e)) recordFolderAccessIssue(projectFolder, e);
         else if (e?.code === "SAMPLES_INCOMPLETE") log("warn", e.message);
         else log("err", e.message);
       });
-    }, 5000));
+    }, saveDelayMs));
   };
   watcher.on("change", handleSave);
   watcher.on("add", handleSave);
