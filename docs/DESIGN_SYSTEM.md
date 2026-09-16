@@ -205,7 +205,17 @@ this, both compiled out of production by `import.meta.env.DEV`:
 |---|---|
 | `/onboarding?tf_step=share` | Jump to any step (`name`, `install`, `pair`, `backup`, `share`, `watch`) |
 | `/onboarding?tf_platform=windows` | Force the non-macOS branch |
-| Dev step skipper | A Prev/Next control, top right of the onboarding screen |
+| Dev step skipper | A Prev/Next control, top right of the onboarding screen. Past the last setup step it becomes "Preview rest →" and lands on the dashboard below |
+| `/dashboard?tf_preview=1` | The post-setup dashboard with fixture projects and both reminders showing |
+| `/project/tf-preview-project?onboard=share&tf_preview=1` | A fixture project with the share spotlight up |
+
+Preview mode injects fixtures (`lib/devPreview.ts`) into the **real** pages
+rather than rendering a mock screen, so what you review is the shipping
+component and cannot drift from it. Every fixture is wrapped in an
+`import.meta.env.DEV` ternary so Vite folds it away at build time — runtime
+gating alone was not enough, and the first attempt shipped the fixture data
+into the production bundle. If you add fixtures, grep `dist/assets/*.js` for
+their strings before trusting them.
 
 The platform one exists because the Windows path is otherwise unreachable from
 a Mac: `navigator.platform` stays `"MacIntel"` even under a DevTools

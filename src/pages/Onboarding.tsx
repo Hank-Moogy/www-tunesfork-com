@@ -9,6 +9,7 @@ import { useOnboardingProgress, STEP_ORDER, type StepId } from "@/hooks/useOnboa
 import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick } from "@/lib/analytics";
 import { DOWNLOAD_URLS } from "@/lib/desktopDownload";
+import { previewDashboardPath } from "@/lib/devPreview";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -302,10 +303,20 @@ export default function Onboarding() {
             ← Prev
           </button>
           <button
-            onClick={() => setViewing(SETUP_ORDER[Math.min(stepIndex + 1, SETUP_ORDER.length - 1)])}
+            onClick={() => {
+              // Past the last setup step the flow hands off to the product, so
+              // the skipper follows it there — into a dashboard carrying
+              // fixtures, where the remaining reminders and the share
+              // spotlight can be reviewed without a real account.
+              if (stepIndex >= SETUP_ORDER.length - 1) {
+                navigate(previewDashboardPath);
+                return;
+              }
+              setViewing(SETUP_ORDER[stepIndex + 1]);
+            }}
             className="rounded border border-brand/40 px-2 py-1 text-[10px] text-brand hover:bg-brand/10"
           >
-            Next step →
+            {stepIndex >= SETUP_ORDER.length - 1 ? "Preview rest →" : "Next step →"}
           </button>
         </div>
       )}

@@ -9,9 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Upload, Download, ChevronDown, FolderOpen } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import ContributionHeatmap from "@/components/profile/ContributionHeatmap";
 import SetupReminders, { type ReminderId } from "@/components/onboarding/SetupReminders";
+import { isDevPreview, previewHeatmap, previewProjects, previewSharePath } from "@/lib/devPreview";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import type { Tables } from "@/integrations/supabase/types";
 import ProjectCard, { type ProjectCardCollaborator } from "@/components/ProjectCard";
@@ -48,6 +49,9 @@ export default function Dashboard() {
   const [tab, setTab] = useState<Tab>("all");
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const onboarding = useOnboardingProgress();
+  // Dev preview: show the post-setup dashboard with fixtures, so the reminders
+  // can be reviewed without a real account that has already done all this.
+  const preview = isDevPreview(useLocation().search);
   const [dismissedReminders, setDismissedReminders] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("tf_dismissed_reminders") ?? "[]");
@@ -303,6 +307,10 @@ export default function Dashboard() {
     trackButtonClick("dashboard_reminder_act", "dashboard", { reminder: id });
     if (id === "share") {
       // Teach sharing on the real control rather than describing it here.
+      if (preview) {
+        navigate(previewSharePath);
+        return;
+      }
       const target = projects.find((p) => !p.archived) ?? projects[0];
       if (target) navigate(`/project/${target.id}?onboard=share`);
       return;
@@ -310,7 +318,10 @@ export default function Dashboard() {
     navigate("/desktop-app#watch-a-folder");
   };
 
-  const hasMore = projects.length < totalCount;
+  const shownProjects = preview ? (previewProjects as typeof projects) : projects;
+  const shownHeatmap = preview ? previewHeatmap : stats?.heatmap;
+
+  const hasMore = !preview && projects.length < totalCount;
 
   const handleShowMore = () => {
     trackButtonClick("dashboard_show_more", "dashboard", { current_count: projects.length });
@@ -330,7 +341,8 @@ export default function Dashboard() {
     !debouncedSearch &&
     !loading &&
     projects.length === 0 &&
-    totalCount === 0;
+    totalCount === 0 &&
+    !preview;
 
   return (
     <div className="min-h-screen">
@@ -356,10 +368,10 @@ export default function Dashboard() {
                 {/* What is left after setup. Sits beside the activity field —
                     seen without being shouted, and removable, because these
                     are improvements on a working setup rather than setup. */}
-                {reminders.length > 0 && (
+                {(preview || reminders.length > 0) && (
                   <div className="max-w-md pt-2">
                     <SetupReminders
-                      items={reminders}
+                      items={preview ? [{ id: "share", done: false }, { id: "watch", done: false }] : reminders}
                       onAct={handleReminderAct}
                       onDismiss={dismissReminder}
                     />
@@ -367,9 +379,9 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {stats?.heatmap && (
+              {shownHeatmap && (
                 <div className="w-full min-w-0 xl:max-w-xl">
-                  <ContributionHeatmap heatmap={stats.heatmap} title="Activity" weeks={26} />
+                  <ContributionHeatmap heatmap={shownHeatmap} title="Activity" weeks={26} />
                 </div>
               )}
             </header>
@@ -418,8 +430,8 @@ export default function Dashboard() {
 
             {/* Grid */}
             <ProjectGrid
-              projects={projects}
-              loading={loading}
+              projects={shownProjects}
+              loading={preview ? false : loading}
               collabsByProject={collabsByProject}
               search={debouncedSearch}
               onNewProject={openUpload}

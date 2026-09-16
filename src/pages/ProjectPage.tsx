@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import Coachmark from "@/components/onboarding/Coachmark";
+import { isDevPreview, previewProjects, previewVersion, PREVIEW_PROJECT_ID } from "@/lib/devPreview";
 import {
   Dialog,
   DialogContent,
@@ -185,6 +186,9 @@ export default function ProjectPage() {
   // Onboarding hands off to this page for the share step, so the lesson lands
   // on the real control instead of a picture of one.
   const [searchParams, setSearchParams] = useSearchParams();
+  // Dev preview: stand in for a real project so the share spotlight can be
+  // reviewed without one. Short-circuits the fetch entirely.
+  const preview = isDevPreview(window.location.search) && id === PREVIEW_PROJECT_ID;
   const [coachShare, setCoachShare] = useState(searchParams.get("onboard") === "share");
   const dismissCoach = useCallback(() => {
     setCoachShare(false);
@@ -263,6 +267,14 @@ export default function ProjectPage() {
   }, [addCollabOpen]);
 
   useEffect(() => {
+    if (preview) {
+      setProject(previewProjects[0] as unknown as Project);
+      const fixture = previewVersion as unknown as Version;
+      setVersions([fixture]);
+      setSelectedVersion(fixture);
+      setLoading(false);
+      return;
+    }
     if (!id || !user) return;
     const fetchAll = async () => {
       setLoading(true);
@@ -299,10 +311,11 @@ export default function ProjectPage() {
       setLoading(false);
     };
     fetchAll();
-  }, [id, user, navigate]);
+  }, [id, user, navigate, preview, previewVersion]);
+
 
   useEffect(() => {
-    if (!selectedVersion) return;
+    if (!selectedVersion || preview) return;
     const fetchComments = async () => {
       const { data } = await supabase.from("comments").select("*").eq("version_id", selectedVersion.id).order("created_at", { ascending: true });
       if (data) {
@@ -313,7 +326,7 @@ export default function ProjectPage() {
       }
     };
     fetchComments();
-  }, [selectedVersion]);
+  }, [selectedVersion, preview]);
 
   const handleSendComment = async () => {
     if (!newComment.trim() || !selectedVersion || !user) return;
