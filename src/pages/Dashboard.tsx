@@ -315,7 +315,7 @@ export default function Dashboard() {
       if (target) navigate(`/project/${target.id}?onboard=share`);
       return;
     }
-    navigate("/desktop-app#watch-a-folder");
+    // "watch" explains itself in place; nothing to navigate to.
   };
 
   const shownProjects = preview ? (previewProjects as typeof projects) : projects;

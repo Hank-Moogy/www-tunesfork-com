@@ -13,7 +13,12 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import Coachmark from "@/components/onboarding/Coachmark";
-import { isDevPreview, previewProjects, previewVersion, PREVIEW_PROJECT_ID } from "@/lib/devPreview";
+import {
+  isDevPreview,
+  previewProjects as devFixtureProjects,
+  previewVersion as devFixtureVersion,
+  PREVIEW_PROJECT_ID,
+} from "@/lib/devPreview";
 import {
   Dialog,
   DialogContent,
@@ -188,7 +193,7 @@ export default function ProjectPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   // Dev preview: stand in for a real project so the share spotlight can be
   // reviewed without one. Short-circuits the fetch entirely.
-  const preview = isDevPreview(window.location.search) && id === PREVIEW_PROJECT_ID;
+  const devPreview = isDevPreview(window.location.search) && id === PREVIEW_PROJECT_ID;
   const [coachShare, setCoachShare] = useState(searchParams.get("onboard") === "share");
   const dismissCoach = useCallback(() => {
     setCoachShare(false);
@@ -267,9 +272,9 @@ export default function ProjectPage() {
   }, [addCollabOpen]);
 
   useEffect(() => {
-    if (preview) {
-      setProject(previewProjects[0] as unknown as Project);
-      const fixture = previewVersion as unknown as Version;
+    if (devPreview) {
+      setProject(devFixtureProjects[0] as unknown as Project);
+      const fixture = devFixtureVersion as unknown as Version;
       setVersions([fixture]);
       setSelectedVersion(fixture);
       setLoading(false);
@@ -311,11 +316,11 @@ export default function ProjectPage() {
       setLoading(false);
     };
     fetchAll();
-  }, [id, user, navigate, preview, previewVersion]);
+  }, [id, user, navigate, devPreview]);
 
 
   useEffect(() => {
-    if (!selectedVersion || preview) return;
+    if (!selectedVersion || devPreview) return;
     const fetchComments = async () => {
       const { data } = await supabase.from("comments").select("*").eq("version_id", selectedVersion.id).order("created_at", { ascending: true });
       if (data) {
@@ -326,7 +331,7 @@ export default function ProjectPage() {
       }
     };
     fetchComments();
-  }, [selectedVersion, preview]);
+  }, [selectedVersion, devPreview]);
 
   const handleSendComment = async () => {
     if (!newComment.trim() || !selectedVersion || !user) return;

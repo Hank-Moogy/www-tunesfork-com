@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowRight, Check, FolderTree, Share2, X } from "lucide-react";
 
@@ -9,6 +10,9 @@ type Reminder = {
   body: string;
   cta: string;
   icon: typeof Share2;
+  /** Steps shown in place. Used where the answer is an instruction rather
+   *  than a destination — there is no page that teaches folder watching. */
+  detail?: string[];
 };
 
 const REMINDERS: Reminder[] = [
@@ -25,6 +29,11 @@ const REMINDERS: Reminder[] = [
     body: "Point Sync at the folder holding all your sessions instead of adding them one by one.",
     cta: "How",
     icon: FolderTree,
+    detail: [
+      "Open Tunesfork Sync from your menu bar.",
+      "Choose Add folder, and pick the folder that contains all your Ableton projects — not one project, the folder holding them.",
+      "Every session inside it is versioned from now on, including ones you create later.",
+    ],
   },
 ];
 
@@ -49,6 +58,7 @@ export default function SetupReminders({
   onDismiss: (id: ReminderId) => void;
 }) {
   const reduceMotion = useReducedMotion();
+  const [expanded, setExpanded] = useState<ReminderId | null>(null);
   const visible = REMINDERS.filter((r) => items.some((i) => i.id === r.id));
   if (visible.length === 0) return null;
 
@@ -102,11 +112,27 @@ export default function SetupReminders({
                       {r.body}
                     </span>
                   )}
+                  {r.detail && expanded === r.id && (
+                    <motion.ol
+                      initial={reduceMotion ? false : { opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      className="mt-2 space-y-1.5 overflow-hidden border-l border-border pl-3"
+                    >
+                      {r.detail.map((line, i) => (
+                        <li key={i} className="text-xs leading-relaxed text-muted-foreground">
+                          <span className="mr-1.5 font-mono text-[10px] text-brand">{i + 1}</span>
+                          {line}
+                        </li>
+                      ))}
+                    </motion.ol>
+                  )}
                 </span>
 
                 {!done && (
                   <button
-                    onClick={() => onAct(r.id)}
+                    onClick={() =>
+                      r.detail ? setExpanded((v) => (v === r.id ? null : r.id)) : onAct(r.id)
+                    }
                     className="mt-0.5 flex shrink-0 items-center gap-1 rounded-md border border-brand/35 px-2.5 py-1 text-[11px] font-semibold text-brand transition-colors hover:bg-brand/10"
                   >
                     {r.cta}
