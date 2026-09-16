@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
+import { isDevPreview } from "@/lib/devPreview";
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, onboardingCompleted } = useAuth();
@@ -20,7 +21,11 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     return <Navigate to={`/auth?redirect=${encodeURIComponent(returnTo)}`} replace />;
   }
 
-  const canSkipOnboarding = location.pathname === "/onboarding"
+  // Dev preview reviews the post-setup app, so the gate must let it through —
+  // otherwise the reviewer is bounced back to onboarding, which is the one
+  // screen they are trying to get past. DEV-only and folded out of production.
+  const canSkipOnboarding = isDevPreview(location.search)
+    || location.pathname === "/onboarding"
     || location.pathname === "/desktop-pair"
     || location.pathname === "/desktop-app"
     || location.pathname.startsWith("/checkout");
