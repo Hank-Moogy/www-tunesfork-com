@@ -249,6 +249,19 @@ appear to do nothing.
 parallel constantly. The app opens once a device is paired *and* one project is
 backed up. Steps 5 and 6 are in-app nudges and never block.
 
+**Everything fails open.** An unreadable progress query, a request that never
+settles, an unknown platform — each lets the user through. Being wrongly let
+into the app is a minor annoyance; being wrongly locked out of your own projects
+cannot be recovered from inside the product. The escape link on the onboarding
+screen is always present for the same reason. See the "Must not trap" checks in
+`LAUNCH_READINESS.md`.
+
+**Projects only enter through the tray app.** There is no browser upload: the
+web ZIP path was closed at the database, and the frontend entry points that
+implied otherwise (a drag-and-drop tile, an "Upload" button, an "or upload a
+project manually" link that actually opened the download page) have been
+removed. Do not reintroduce upload-shaped UI for a path that does not exist.
+
 > **Sync ships for macOS only.** Gating every user on "install and pair" would
 > permanently trap Windows users: they cannot install, and the web ZIP upload
 > path was closed at the database, so they cannot back up either. `unlocked`

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
@@ -7,6 +8,13 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
   const { user, loading, onboardingCompleted } = useAuth();
   const progress = useOnboardingProgress();
   const location = useLocation();
+
+  // Bounded wait for the progress read. See below.
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setWaited(true), 5000);
+    return () => clearTimeout(t);
+  }, []);
 
   if (loading) {
     return (
@@ -31,8 +39,10 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     || location.pathname.startsWith("/checkout");
 
   // Wait for the derived signals before deciding, or a returning user is
-  // bounced into onboarding for a frame on every page load.
-  if (progress.loading && !canSkipOnboarding) {
+  // bounced into onboarding for a frame on every page load. The wait is
+  // bounded: a request that never settles must not become a locked door, so
+  // after a few seconds the page renders and the gate is skipped.
+  if (progress.loading && !canSkipOnboarding && !waited) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -45,7 +55,11 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
   // for platforms where Sync does not ship, so a Windows user is never held
   // behind a door that has no key. `onboarding_completed` still lets someone
   // who finished (or deliberately skipped out) past it.
-  const mustOnboard = !progress.unlocked && !onboardingCompleted;
+  // Fail open on every uncertainty: unreadable progress, or a read that never
+  // came back. Being wrongly let in is a minor annoyance; being wrongly locked
+  // out of your own projects is not recoverable from inside the product.
+  const mustOnboard =
+    !progress.unlocked && !onboardingCompleted && !progress.failed && !(progress.loading && waited);
 
   if (mustOnboard && !canSkipOnboarding) {
     return <Navigate to="/onboarding" replace />;

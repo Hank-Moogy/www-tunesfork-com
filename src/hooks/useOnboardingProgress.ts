@@ -6,6 +6,8 @@ export type StepId = "name" | "install" | "pair" | "backup" | "share" | "watch";
 
 export type OnboardingProgress = {
   loading: boolean;
+  /** True when progress could not be read. Callers must fail open. */
+  failed: boolean;
   /** Real-world signals, each derived rather than self-reported. */
   hasName: boolean;
   clickedInstall: boolean;
@@ -75,7 +77,7 @@ export function useOnboardingProgress(): OnboardingProgress {
 
   const canInstall = isMac();
 
-  const refresh = useCallback(async () => {
+  const load = useCallback(async () => {
     if (!user) return;
     const [profile, devices, projects, collabs] = await Promise.all([
       supabase.from("profiles").select("display_name").eq("user_id", user.id).maybeSingle(),
@@ -99,6 +101,22 @@ export function useOnboardingProgress(): OnboardingProgress {
     );
     setLoading(false);
   }, [user]);
+
+  const [failed, setFailed] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!user) return;
+    try {
+      await load();
+    } catch (e) {
+      // Never leave the caller waiting. A user whose progress cannot be read
+      // is let through rather than held on a screen that will not resolve.
+      console.warn("[onboarding] could not read progress", e);
+      setFailed(true);
+      setLoading(false);
+    }
+  }, [user, load]);
+
 
   useEffect(() => {
     if (!user) {
@@ -132,10 +150,11 @@ export function useOnboardingProgress(): OnboardingProgress {
   // The app opens once a real backup exists. Sharing and watching a folder are
   // strongly encouraged but never trap someone. Non-macOS users cannot install
   // the Sync app at all and must not be held behind a door they cannot open.
-  const unlocked = !canInstall || (hasDevice && projectCount > 0);
+  const unlocked = failed || !canInstall || (hasDevice && projectCount > 0);
 
   return {
     loading,
+    failed,
     hasName,
     clickedInstall,
     hasDevice,

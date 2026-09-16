@@ -20,6 +20,15 @@ There is no light theme. `bg-white/*`, `text-black`, `bg-amber-50` and
 similar are residue from the old glassmorphism theme and will render as
 bright bars on a black page.
 
+## Before launching
+
+`docs/LAUNCH_READINESS.md` ends with **"Onboarding: what must be tested before
+launch"** — twelve checks, none of which the test suite can cover. The first-run
+flow derives its progress from signals produced by the tray app and by Ableton,
+so it has never been exercised end to end; it needs a fresh account and a real
+macOS install. Half the list is about the flow not trapping anyone, which is the
+half most likely to be skipped.
+
 ## Before planning launch-scoped work
 
 Read `docs/LAUNCH_READINESS.md` and the launch plan. Storage, quotas,

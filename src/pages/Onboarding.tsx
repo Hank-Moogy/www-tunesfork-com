@@ -494,8 +494,10 @@ function ActionDock(p: DockProps) {
 
   const secondary = (() => {
     if (step === "install" && progress.canInstall) return { label: "Already installed it", act: p.goNext };
-    if (progress.unlocked) return { label: "Skip the rest for now", act: p.finish };
-    return null;
+    // Always offer a way out. A setup flow that can only be left by completing
+    // it becomes a trap the moment anything goes wrong, and the things that can
+    // go wrong here are mostly outside the browser.
+    return { label: "Skip for now, take me to my projects", act: p.finish };
   })();
 
   return (

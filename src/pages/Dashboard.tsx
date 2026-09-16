@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Upload, Download, ChevronDown, FolderOpen } from "lucide-react";
+import { Search, MonitorDown, Download, ChevronDown, FolderOpen } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import ContributionHeatmap from "@/components/profile/ContributionHeatmap";
 import SetupReminders, { type ReminderId } from "@/components/onboarding/SetupReminders";
@@ -341,7 +341,9 @@ export default function Dashboard() {
     void fetchPage({ append: true, pageIndex: next });
   };
 
-  const openUpload = () => navigate("/desktop-app");
+  // Everything enters through the desktop app: there is no browser upload
+  // path, and the web ZIP route was closed at the database.
+  const goToSync = () => navigate("/desktop-app");
 
   // Only show the first-time empty state when we're certain the user has zero projects.
   // Guard against races where the standalone count query resolves with 0 even though
@@ -360,7 +362,7 @@ export default function Dashboard() {
       <Navbar />
       <PageContainer>
         {isFirstTime ? (
-          <FirstTimeEmpty onUpload={openUpload} />
+          <FirstTimeEmpty />
         ) : (
           <>
             {/* Masthead. One welcome, not two competing headings -- the
@@ -429,13 +431,13 @@ export default function Dashboard() {
                 </label>
                 <Button
                   onClick={() => {
-                    trackButtonClick("dashboard_new_project", "dashboard");
-                    openUpload();
+                    trackButtonClick("dashboard_add_project", "dashboard");
+                    goToSync();
                   }}
                   className="h-10 gap-2"
                 >
-                  <Upload className="h-4 w-4" />
-                  Upload
+                  <MonitorDown className="h-4 w-4" />
+                  Add a project
                 </Button>
               </div>
             </div>
@@ -446,11 +448,7 @@ export default function Dashboard() {
               loading={preview ? false : loading}
               collabsByProject={collabsByProject}
               search={debouncedSearch}
-              onNewProject={openUpload}
-              onFilesDropped={(files) => {
-                trackButtonClick("dashboard_drop_redirect_to_sync", "dashboard", { file_count: files.length });
-                openUpload();
-              }}
+              onNewProject={goToSync}
               showNewTile={tab !== "shared"}
             />
 
@@ -479,7 +477,7 @@ export default function Dashboard() {
 
 /* ---------------- Subcomponents ---------------- */
 
-function FirstTimeEmpty({ onUpload }: { onUpload: () => void }) {
+function FirstTimeEmpty() {
   return (
     <div className="tf-surface flex flex-col items-center justify-center rounded-xl p-12 text-center">
       <div className="tf-lit tf-breathe mb-6 rounded-2xl p-6">
@@ -499,15 +497,6 @@ function FirstTimeEmpty({ onUpload }: { onUpload: () => void }) {
           Download Tunesfork Sync
         </Link>
       </Button>
-      <button
-        onClick={() => {
-          trackButtonClick("dashboard_first_upload", "dashboard_empty");
-          onUpload();
-        }}
-        className="mt-4 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-      >
-        or upload a project manually
-      </button>
     </div>
   );
 }
@@ -518,7 +507,6 @@ function ProjectGrid({
   collabsByProject,
   search,
   onNewProject,
-  onFilesDropped,
   showNewTile,
 }: {
   projects: Project[];
@@ -526,7 +514,6 @@ function ProjectGrid({
   collabsByProject: Record<string, ProjectCardCollaborator[]>;
   search: string;
   onNewProject: () => void;
-  onFilesDropped: (files: FileList) => void;
   showNewTile: boolean;
 }) {
   if (loading) {
@@ -563,7 +550,7 @@ function ProjectGrid({
         />
       ))}
       {showNewTile && (
-        <NewProjectCard onClick={onNewProject} onFilesDropped={onFilesDropped} />
+        <NewProjectCard onClick={onNewProject} />
       )}
     </div>
   );
