@@ -21,6 +21,7 @@ export type SemanticEventName = typeof SEMANTIC_EVENT_NAMES[number];
 export const UPLOAD_EVENT_PROPERTIES = [
   "logical_bytes", "uploaded_bytes", "reused_bytes", "deduplication_percentage",
   "duration_ms", "file_count", "result", "error_code", "app_version", "plan",
+  "contribution_status",
 ] as const;
 
 const SECRET_QUERY_KEYS = new Set([

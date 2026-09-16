@@ -393,10 +393,14 @@ export type Database = {
           manifest: Json | null
           plugin_list: Json | null
           project_id: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           sample_check: Json | null
+          status: string
           track_list: Json | null
           uploader_id: string
-          version_number: number
+          version_number: number | null
           zip_url: string | null
         }
         Insert: {
@@ -411,10 +415,14 @@ export type Database = {
           manifest?: Json | null
           plugin_list?: Json | null
           project_id: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           sample_check?: Json | null
+          status?: string
           track_list?: Json | null
           uploader_id: string
-          version_number: number
+          version_number?: number | null
           zip_url?: string | null
         }
         Update: {
@@ -429,10 +437,14 @@ export type Database = {
           manifest?: Json | null
           plugin_list?: Json | null
           project_id?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           sample_check?: Json | null
+          status?: string
           track_list?: Json | null
           uploader_id?: string
-          version_number?: number
+          version_number?: number | null
           zip_url?: string | null
         }
         Relationships: [

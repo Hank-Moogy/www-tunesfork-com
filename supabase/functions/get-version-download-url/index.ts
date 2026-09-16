@@ -68,14 +68,28 @@ Deno.serve(async (req) => {
     // Pick version
     let q = admin
       .from("project_versions")
-      .select("id, version_number, zip_url, manifest, sample_check, file_size_bytes")
+      .select("id, version_number, zip_url, manifest, sample_check, file_size_bytes, status, uploader_id")
       .eq("project_id", projectId);
     if (versionId) q = q.eq("id", versionId);
-    else q = q.order("version_number", { ascending: false }).order("created_at", { ascending: false }).limit(1);
+    else {
+      // A pending fork request is not this project's latest state, and its
+      // version_number is NULL — which Postgres sorts FIRST under DESC, so the
+      // implicit "latest version" must exclude anything unapproved.
+      q = q.eq("status", "approved")
+        .order("version_number", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1);
+    }
 
     const { data: versions } = await q;
     const version = versions?.[0];
     if (!version) return json({ error: "no version found" }, 404);
+
+    // An unapproved contribution is only reachable by the owner reviewing it and
+    // by the contributor who sent it — not by every collaborator on the project.
+    if ((version.status ?? "approved") !== "approved" && !isOwner && version.uploader_id !== userId) {
+      return json({ error: "no version found" }, 404);
+    }
 
     if (version.manifest?.schema_version === 1 && Array.isArray(version.manifest.files)) {
       const uniqueHashes = [...new Set<string>(version.manifest.files.map((file: { sha256: string }) => file.sha256))];

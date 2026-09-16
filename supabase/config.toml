@@ -49,6 +49,8 @@ project_id = "urrxrntdkmmmqqwaihfj"
     verify_jwt = true
   [functions.notify-project-comment]
     verify_jwt = true
+  [functions.notify-contribution-reviewed]
+    verify_jwt = true
   [functions.cleanup-orphaned-zips]
     verify_jwt = false
   [functions.set-version-audio-preview]

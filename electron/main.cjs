@@ -307,9 +307,12 @@ function setProjectLink(projectFolder, link) {
   writeState(s);
 }
 
-function addRecentUpload(projectName, versionNumber) {
+function addRecentUpload(projectName, versionNumber, status = "approved") {
   const s = readState();
-  s.recent = [{ name: projectName, version: versionNumber, at: Date.now() }, ...s.recent].slice(0, 10);
+  s.recent = [
+    { name: projectName, version: versionNumber, status, at: Date.now() },
+    ...s.recent,
+  ].slice(0, 10);
   writeState(s);
 }
 
@@ -646,20 +649,32 @@ async function processAlsSave(alsPath) {
     return;
   }
 
-  log("ok", `✓ Uploaded ${projectName} v${result.version_number}`);
+  // A save on a project someone else owns becomes a fork request, not a new
+  // version — so the desktop must not claim a version number that the owner has
+  // not accepted yet.
+  const pending = result.status === "pending";
+  const headline = pending
+    ? `Sent ${projectName} to the project owner for review`
+    : `✓ Uploaded ${projectName} v${result.version_number}`;
+  log("ok", pending ? `↗ ${headline}` : headline);
+  if (pending && result.superseded_count > 0) {
+    log("info", "Replaced your previous fork request — the owner reviews your latest save.");
+  }
 
   // Native macOS / Windows toast — uses the system notification center.
   if (Notification.isSupported()) {
     const n = new Notification({
-      title: "Project saved to the cloud",
-      body: `${projectName} · v${result.version_number}`,
+      title: pending ? "Fork request sent" : "Project saved to the cloud",
+      body: pending
+        ? `${projectName} · waiting for the owner to approve`
+        : `${projectName} · v${result.version_number}`,
       silent: false,
     });
     n.on("click", () => shell.openExternal(`${TUNESFORK_URL}/project/${result.project_id}`));
     n.show();
   }
 
-  trayWindow?.webContents.send("log", { ts: Date.now(), level: "ok", msg: `Uploaded ${projectName} v${result.version_number}` });
+  trayWindow?.webContents.send("log", { ts: Date.now(), level: "ok", msg: headline });
 }
 
 function enqueueProjectSave(alsPath) {
@@ -941,7 +956,7 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
       lastContentHash: contentHash,
     });
     writeProjectMarker(projectFolder, { projectId: result.project_id, projectName });
-    addRecentUpload(projectName, result.version_number);
+    addRecentUpload(projectName, result.version_number, result.status);
     log(
       "info",
       `Incremental sync uploaded ${(bytesUploaded / 1e6).toFixed(1)} of ${(plan.logicalSize / 1e6).toFixed(1)} MB (${missing.length}/${uniqueFiles.size} blobs)`,
@@ -953,6 +968,7 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
     emitAnalytics("Project Upload Completed", {
       project_id: result.project_id,
       version_number: result.version_number,
+      contribution_status: result.status ?? "approved",
       logical_bytes: plan.logicalSize,
       uploaded_bytes: bytesUploaded,
       reused_bytes: Number(negotiationResult.reused_bytes || 0),
