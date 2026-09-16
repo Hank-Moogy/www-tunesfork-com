@@ -214,19 +214,25 @@ user-agent override.
 To exercise the flow for real rather than preview it, sign up a fresh account —
 that is the only way to see the gate actually hold and release.
 
-**Only the first four steps live on the onboarding screen.** Sharing and
-watching a folder are taught on the real controls, because teaching them on a
-dedicated screen means demonstrating a button that is somewhere else:
+**The stepper covers setup only** — the four things that must happen before
+Tunesfork does anything for you. Sharing a project and watching a whole folder
+are improvements on a working setup, so they are not steps and must not gate
+anything:
 
-| Step | Where it happens |
+| | Where it lives |
 |---|---|
-| 1-4 name, install, pair, backup | `pages/Onboarding.tsx` |
-| 5 share | `components/onboarding/Coachmark.tsx` spotlights the real Share control on the project page (`/project/:id?onboard=share`) |
-| 6 watch a folder | `components/onboarding/WatchFolderCard.tsx` on the dashboard |
+| Setup: name, install, pair, backup | `pages/Onboarding.tsx`, a four-step rail |
+| Share a project | `components/onboarding/SetupReminders.tsx` on the dashboard, plus a one-time `Coachmark.tsx` spotlight on the real Share control when onboarding hands off (`/project/:id?onboard=share`) |
+| Back up everything | the same dashboard reminders panel |
 
-Completing step 4 hands the user to their new project with the share spotlight
-armed. The download button fires the asset URL directly and stays put — an
-`<a href>` to the marketing page abandoned the flow mid-way.
+Completing the backup hands the user to their new project with the share
+spotlight armed; the two remaining tasks then live as dismissible rows beside
+the activity field, each removable with an X and stored in
+`tf_dismissed_reminders`.
+
+The download button fires the asset URL directly and stays put — an `<a href>`
+to the marketing page abandoned the flow mid-way, which is why step two used to
+appear to do nothing.
 
 **The gate lives in `ProtectedRoute`,** not in `App.tsx`, which is edited in
 parallel constantly. The app opens once a device is paired *and* one project is

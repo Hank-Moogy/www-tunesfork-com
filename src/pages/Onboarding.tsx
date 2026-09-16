@@ -27,22 +27,22 @@ import {
 } from "@/components/onboarding/StageObjects";
 
 /**
- * The rail shows all six steps, but only the first four happen here. Sharing
- * and watching a folder are taught on the real controls in the product —
- * teaching them on this screen would mean demonstrating a button that lives
- * somewhere else.
+ * The stepper covers setup only — the four things that must happen before
+ * Tunesfork does anything for you. Sharing a project and watching a whole
+ * folder are improvements on a working setup, not setup, so they leave this
+ * screen entirely and become reminders on the dashboard.
+ *
+ * Listing them here would also overstate the flow's length: a six-step rail
+ * where two steps happen somewhere else reads as four unfinished tasks.
  */
 const STEPS: RailStep[] = [
   { id: "name", label: "Your name", hint: "Artist name or real name." },
   { id: "install", label: "Install Sync", hint: "The app that does the saving." },
   { id: "pair", label: "Pair the app", hint: "Connect it to this account." },
   { id: "backup", label: "Back up a project", hint: "Open Ableton and hit save." },
-  { id: "share", label: "Share a project", hint: "You'll do this on the project." },
-  { id: "watch", label: "Watch everything", hint: "You'll do this from your projects." },
 ];
 
-/** Steps handled on this screen. The rest hand off to the app itself. */
-const OWNED: StepId[] = ["name", "install", "pair", "backup"];
+const SETUP_ORDER: StepId[] = ["name", "install", "pair", "backup"];
 
 
 
@@ -82,11 +82,13 @@ export default function Onboarding() {
   useEffect(() => {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
     const forced = new URLSearchParams(window.location.search).get("tf_step") as StepId | null;
-    if (forced && STEP_ORDER.includes(forced)) setViewing(forced);
+    if (forced && SETUP_ORDER.includes(forced)) setViewing(forced);
   }, []);
 
-  const step = viewing ?? progress.currentStep;
-  const stepIndex = STEP_ORDER.indexOf(step);
+  const rawStep = viewing ?? progress.currentStep;
+  // Once setup is done there is nothing left for this screen to show.
+  const step = SETUP_ORDER.includes(rawStep) ? rawStep : "backup";
+  const stepIndex = SETUP_ORDER.indexOf(step);
 
   // Seed the name field from the profile so returning here is not a blank slate.
   useEffect(() => {
@@ -294,13 +296,13 @@ export default function Onboarding() {
         <div className="fixed right-4 top-4 z-30 flex items-center gap-2 rounded-lg border border-border bg-[hsl(var(--background))]/90 px-2 py-1.5 backdrop-blur">
           <span className="tf-label text-[8px]">dev</span>
           <button
-            onClick={() => setViewing(STEP_ORDER[Math.max(stepIndex - 1, 0)])}
+            onClick={() => setViewing(SETUP_ORDER[Math.max(stepIndex - 1, 0)])}
             className="rounded border border-border px-2 py-1 text-[10px] hover:bg-[rgb(var(--film-2))]"
           >
             ← Prev
           </button>
           <button
-            onClick={() => setViewing(STEP_ORDER[Math.min(stepIndex + 1, STEP_ORDER.length - 1)])}
+            onClick={() => setViewing(SETUP_ORDER[Math.min(stepIndex + 1, SETUP_ORDER.length - 1)])}
             className="rounded border border-brand/40 px-2 py-1 text-[10px] text-brand hover:bg-brand/10"
           >
             Next step →
@@ -327,11 +329,8 @@ export default function Onboarding() {
           firstProject={firstProject}
           shareFirstProject={shareFirstProject}
           finish={finish}
-              goNext={() => setViewing(STEP_ORDER[Math.min(stepIndex + 1, STEP_ORDER.length - 1)])}
+              goNext={() => setViewing(SETUP_ORDER[Math.min(stepIndex + 1, SETUP_ORDER.length - 1)])}
               startDownload={startDownload}
-              navigateToShare={() =>
-                navigate(firstProject ? `/project/${firstProject.id}?onboard=share` : "/dashboard")
-              }
             />
           </div>
         </main>
@@ -358,10 +357,10 @@ type DockProps = {
   finish: () => void;
   goNext: () => void;
   startDownload: () => void;
-  navigateToShare: () => void;
 };
 
-const COPY: Record<StepId, { title: string; body?: string }> = {
+/** Setup steps only — share and watch live on the dashboard now. */
+const COPY: Partial<Record<StepId, { title: string; body?: string }>> = {
   // Step one asks one question and gets out of the way. Any supporting line
   // here would be read as instructions for a form.
   name: { title: "How should we call you?" },
@@ -377,14 +376,6 @@ const COPY: Record<StepId, { title: string; body?: string }> = {
     title: "Back up your first project",
     body: "Add a project folder in Sync, then open it in Ableton and hit save.",
   },
-  share: {
-    title: "Share it with someone",
-    body: "A share link lets anyone preview the project and its versions — no account needed.",
-  },
-  watch: {
-    title: "Back up everything at once",
-    body: "Point Sync at the folder holding all your projects, and every session inside it gets versioned from now on.",
-  },
 };
 
 function StepHeading({ step, canInstall }: { step: StepId; canInstall: boolean }) {
@@ -395,6 +386,7 @@ function StepHeading({ step, canInstall }: { step: StepId; canInstall: boolean }
           body: "Windows is next — leave your email and we'll tell you the day it lands.",
         }
       : COPY[step];
+  if (!copy) return null;
   return (
     <div className="text-center">
       <h1 className="text-[28px] font-bold leading-tight tracking-tight sm:text-[34px]">{copy.title}</h1>
@@ -482,21 +474,6 @@ function ActionDock(p: DockProps) {
       );
     }
 
-    // Reached only by the dev skipper or the rail: the real share step is
-    // spotlighted on the project page itself.
-    if (step === "share") {
-      return (
-        <Button
-          onClick={p.navigateToShare}
-          disabled={!p.firstProject}
-          size="lg"
-          className="w-full gap-2"
-        >
-          <Copy className="h-4 w-4" /> Open the project
-        </Button>
-      );
-    }
-
     return (
       <Button onClick={p.finish} size="lg" className="w-full gap-2">
         Go to my projects <ArrowRight className="h-4 w-4" />
@@ -506,7 +483,6 @@ function ActionDock(p: DockProps) {
 
   const secondary = (() => {
     if (step === "install" && progress.canInstall) return { label: "Already installed it", act: p.goNext };
-    if (step === "share") return { label: "Maybe later", act: p.goNext };
     if (progress.unlocked) return { label: "Skip the rest for now", act: p.finish };
     return null;
   })();

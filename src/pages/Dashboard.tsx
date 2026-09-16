@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Upload, Download, ChevronDown, FolderOpen } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import ContributionHeatmap from "@/components/profile/ContributionHeatmap";
-import WatchFolderCard from "@/components/onboarding/WatchFolderCard";
+import SetupReminders, { type ReminderId } from "@/components/onboarding/SetupReminders";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import type { Tables } from "@/integrations/supabase/types";
 import ProjectCard, { type ProjectCardCollaborator } from "@/components/ProjectCard";
@@ -48,11 +48,11 @@ export default function Dashboard() {
   const [tab, setTab] = useState<Tab>("all");
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const onboarding = useOnboardingProgress();
-  const [watchDismissed, setWatchDismissed] = useState(() => {
+  const [dismissedReminders, setDismissedReminders] = useState<string[]>(() => {
     try {
-      return localStorage.getItem("tf_watch_card_dismissed") === "1";
+      return JSON.parse(localStorage.getItem("tf_dismissed_reminders") ?? "[]");
     } catch {
-      return false;
+      return [];
     }
   });
   const [firstName, setFirstName] = useState<string | null>(null);
@@ -280,6 +280,36 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, tab, debouncedSearch, showArchived]);
 
+  // Only surface a reminder that is still outstanding and has not been waved
+  // away. A dismissed row never comes back; a completed one ticks and then
+  // retires with the panel.
+  const reminders = ([
+    { id: "share" as ReminderId, done: onboarding.hasShared },
+    { id: "watch" as ReminderId, done: onboarding.done.watch },
+  ]).filter((r) => !dismissedReminders.includes(r.id) && !(r.done && dismissedReminders.includes(r.id)));
+
+  const dismissReminder = (id: ReminderId) => {
+    trackButtonClick("dashboard_dismiss_reminder", "dashboard", { reminder: id });
+    const next = [...dismissedReminders, id];
+    setDismissedReminders(next);
+    try {
+      localStorage.setItem("tf_dismissed_reminders", JSON.stringify(next));
+    } catch {
+      /* private mode — the row simply returns next visit */
+    }
+  };
+
+  const handleReminderAct = (id: ReminderId) => {
+    trackButtonClick("dashboard_reminder_act", "dashboard", { reminder: id });
+    if (id === "share") {
+      // Teach sharing on the real control rather than describing it here.
+      const target = projects.find((p) => !p.archived) ?? projects[0];
+      if (target) navigate(`/project/${target.id}?onboard=share`);
+      return;
+    }
+    navigate("/desktop-app#watch-a-folder");
+  };
+
   const hasMore = projects.length < totalCount;
 
   const handleShowMore = () => {
@@ -322,6 +352,19 @@ export default function Dashboard() {
                 <p className="max-w-md text-[15px] leading-relaxed text-muted-foreground">
                   {heatmapTitle}
                 </p>
+
+                {/* What is left after setup. Sits beside the activity field —
+                    seen without being shouted, and removable, because these
+                    are improvements on a working setup rather than setup. */}
+                {reminders.length > 0 && (
+                  <div className="max-w-md pt-2">
+                    <SetupReminders
+                      items={reminders}
+                      onAct={handleReminderAct}
+                      onDismiss={dismissReminder}
+                    />
+                  </div>
+                )}
               </div>
 
               {stats?.heatmap && (
@@ -330,25 +373,6 @@ export default function Dashboard() {
                 </div>
               )}
             </header>
-
-            {/* The last onboarding step lives here rather than in the flow: by
-                now the user has a working setup, and holding them on a
-                dedicated screen for an optional improvement would be a toll
-                gate. It retires itself once enough projects are watched. */}
-            {!onboarding.done.watch && onboarding.projectCount > 0 && !watchDismissed && (
-              <WatchFolderCard
-                projectCount={onboarding.projectCount}
-                onDismiss={() => {
-                  trackButtonClick("dashboard_dismiss_watch_card", "dashboard");
-                  setWatchDismissed(true);
-                  try {
-                    localStorage.setItem("tf_watch_card_dismissed", "1");
-                  } catch {
-                    /* private mode — the card simply returns next visit */
-                  }
-                }}
-              />
-            )}
 
             {/* One toolbar. Filter, search and scope read as a single row of
                 controls rather than a heading stacked above a second bar. */}
