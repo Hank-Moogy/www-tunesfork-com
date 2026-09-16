@@ -14,6 +14,13 @@ const { buildProjectManifest, manifestForApi } = require("./incremental-sync.cjs
 const { MAX_FILE_BYTES, safeRestoreDestination, validateLegacyZipEntries } = require("./restore-validation.cjs");
 const { isResourceAlreadyExistsError, isResourceAlreadyExistsResponse } = require("./storage-upload-errors.cjs");
 const { DEFAULT_SAVE_DEBOUNCE_MS, getSaveEventDelayMs } = require("./save-event-policy.cjs");
+const { appendLogLine, logFilePath } = require("./diagnostic-log.cjs");
+const {
+  classifySaveTarget,
+  readProjectMarker,
+  resolveProjectLink,
+  writeProjectMarker,
+} = require("./save-routing.cjs");
 const {
   assertFolderReadable,
   folderAccessMessage,
@@ -70,7 +77,14 @@ function readState() {
   catch { return { ...defaultState }; }
 }
 function writeState(s) {
-  fs.writeFileSync(stateFile, JSON.stringify(s, null, 2), { mode: 0o600 });
+  // Write through a temp file and rename. A direct writeFileSync truncates the
+  // live file first, so a quit, crash or power loss during the write leaves a
+  // half-written state.json — and readState's catch turns that into
+  // defaultState, silently discarding every project link and watched folder.
+  // The user then sees an app that says it is watching but is linked to nothing.
+  const tmp = `${stateFile}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(s, null, 2), { mode: 0o600 });
+  fs.renameSync(tmp, stateFile);
   fs.chmodSync(stateFile, 0o600);
 }
 
@@ -104,6 +118,9 @@ function clearToken() { try { fs.unlinkSync(tokenFile); } catch {} }
 function log(level, msg, key = null) {
   const line = { ts: Date.now(), level, msg, key };
   console.log(`[${level}] ${msg}`);
+  // Progress spam ("Upload 47%") is keyed so the panel can replace it in place;
+  // it would drown the file without adding anything after the fact.
+  if (!(key && level === "busy")) appendLogLine(stateDir, line);
   if (trayWindow && !trayWindow.isDestroyed() && !trayWindow.webContents.isDestroyed()) {
     trayWindow.webContents.send("log", line);
   }
@@ -573,6 +590,13 @@ function stopSync() {
   log("info", "Sync paused");
 }
 
+// Where "Open in Ableton" puts a project it restored from the cloud. Anything
+// under here is known to belong to a cloud project, so losing its mapping is a
+// bug, not a reason to create a new project.
+function restoreProjectsRoot() {
+  return path.join(os.homedir(), "TunesFork", "Projects");
+}
+
 // Find the Ableton Project folder containing this .als
 function findProjectFolder(alsPath) {
   let dir = path.dirname(alsPath);
@@ -663,7 +687,26 @@ async function uploadProjectFolder({ projectFolder, alsPath, changeNote }) {
   // Skip the upload entirely when nothing actually changed since the last
   // successful upload of this folder — saves storage and bandwidth when the
   // user hits save without edits.
-  const priorLink = getProjectLink(projectFolder);
+  const priorLink = resolveProjectLink({
+    projectFolder,
+    projectLinks: readState().projectLinks || {},
+    marker: readProjectMarker(projectFolder),
+    normalize: normalizeFolder,
+  });
+  const target = classifySaveTarget({
+    resolved: priorLink,
+    projectFolder,
+    restoreRoot: restoreProjectsRoot(),
+    normalize: normalizeFolder,
+  });
+  if (target.action === "blocked") {
+    const error = new Error(target.message);
+    error.code = target.code;
+    throw error;
+  }
+  if (priorLink?.source === "marker" || priorLink?.source === "marker-override") {
+    log("info", `Recovered the cloud project for ${path.basename(projectFolder)} from its project marker`);
+  }
   let contentHash = null;
   let incrementalPlan = null;
   try {
@@ -897,6 +940,7 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
       lastVersionId: result.version_id,
       lastContentHash: contentHash,
     });
+    writeProjectMarker(projectFolder, { projectId: result.project_id, projectName });
     addRecentUpload(projectName, result.version_number);
     log(
       "info",
@@ -1249,9 +1293,7 @@ async function openProjectInAbleton(projectId, versionId) {
   const adm = require("adm-zip");
   const safeName = (projectName || "Project").replace(/[\\/:*?"<>|]/g, "_");
   const destRoot = path.join(
-    os.homedir(),
-    "TunesFork",
-    "Projects",
+    restoreProjectsRoot(),
     `${safeName} [${projectId.slice(0, 8)}] V${versionNumber || 1} ${String(downloadedVersionId || "restore").slice(0, 8)}-${Date.now()}`
   );
   fs.mkdirSync(destRoot, { recursive: true });
@@ -1290,6 +1332,7 @@ async function openProjectInAbleton(projectId, versionId) {
     lastVersionId: downloadedVersionId,
     lastContentHash: null,
   });
+  writeProjectMarker(downloadedProjectFolder, { projectId, projectName });
   const state = readState();
   if (!state.folders.includes(downloadedProjectFolder)) {
     state.folders.push(downloadedProjectFolder);
@@ -1492,6 +1535,15 @@ ipcMain.handle("get-state", () => {
     recent: s.recent,
     importedProjectCount: Object.keys(s.projectLinks || {}).length,
     folderAccessIssues: checkWatchedFolderAccess(),
+    logFile: logFilePath(stateDir),
+    // Support cannot debug a save that never reached the upload code without
+    // knowing which folder is bound to which cloud project.
+    projectLinks: Object.values(s.projectLinks || {}).map((link) => ({
+      folder: link.folder,
+      projectId: link.projectId ?? null,
+      projectName: link.projectName ?? null,
+      lastVersion: link.lastVersion ?? null,
+    })),
     sampleIssues: Object.values(s.sampleIssues || {}).sort((a, b) => b.updatedAt - a.updatedAt),
   };
 });
