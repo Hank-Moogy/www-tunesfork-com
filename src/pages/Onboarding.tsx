@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOnboardingProgress, STEP_ORDER, type StepId } from "@/hooks/useOnboardingProgress";
 import { usePageView } from "@/hooks/usePageView";
 import { trackButtonClick } from "@/lib/analytics";
+import { DOWNLOAD_URLS } from "@/lib/desktopDownload";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -25,16 +26,25 @@ import {
   ShareObject,
 } from "@/components/onboarding/StageObjects";
 
+/**
+ * The rail shows all six steps, but only the first four happen here. Sharing
+ * and watching a folder are taught on the real controls in the product —
+ * teaching them on this screen would mean demonstrating a button that lives
+ * somewhere else.
+ */
 const STEPS: RailStep[] = [
   { id: "name", label: "Your name", hint: "Artist name or real name." },
   { id: "install", label: "Install Sync", hint: "The app that does the saving." },
   { id: "pair", label: "Pair the app", hint: "Connect it to this account." },
   { id: "backup", label: "Back up a project", hint: "Open Ableton and hit save." },
-  { id: "share", label: "Share a project", hint: "Send it to someone." },
-  { id: "watch", label: "Watch everything", hint: "Point Sync at your whole folder." },
+  { id: "share", label: "Share a project", hint: "You'll do this on the project." },
+  { id: "watch", label: "Watch everything", hint: "You'll do this from your projects." },
 ];
 
-const DOWNLOAD_MAC = "/desktop-app";
+/** Steps handled on this screen. The rest hand off to the app itself. */
+const OWNED: StepId[] = ["name", "install", "pair", "backup"];
+
+
 
 /**
  * First run, shaped like a character-setup screen rather than a form: one
@@ -62,6 +72,7 @@ export default function Onboarding() {
   const [waitlistEmail, setWaitlistEmail] = useState("");
   const [waitlistDone, setWaitlistDone] = useState(false);
   const [firstProject, setFirstProject] = useState<{ id: string; name: string } | null>(null);
+  const [handoff, setHandoff] = useState(false);
 
   // Dev-only: ?tf_step=share opens on a given screen so the six stages can be
   // reviewed without first faking six steps of real data. It seeds the view
@@ -125,7 +136,21 @@ export default function Onboarding() {
     };
     setBurst(labels[justDone]);
     setViewing(null);
+
+    // Step four is the handoff point: the remaining steps happen on real
+    // controls, so leave this screen and spotlight them where they live.
+    if (justDone === "backup") {
+      setHandoff(true);
+    }
   }, [progress.done]);
+
+  // Wait for the success moment to finish before leaving, so the completion
+  // reads as landing rather than as being yanked away.
+  useEffect(() => {
+    if (!handoff || burst) return;
+    const target = firstProject?.id;
+    navigate(target ? `/project/${target}?onboard=share` : "/dashboard", { replace: true });
+  }, [handoff, burst, firstProject, navigate]);
 
   const saveName = async () => {
     if (!user || !name.trim()) return;
@@ -141,6 +166,17 @@ export default function Onboarding() {
       return;
     }
     await progress.refresh();
+    setViewing(null);
+  };
+
+  const startDownload = () => {
+    trackButtonClick("onboarding_download", "onboarding", { platform: "mac" });
+    progress.markInstallClicked();
+    // An <a href> to the marketing page abandoned onboarding. Pointing the
+    // browser straight at the asset starts the download and leaves the flow
+    // exactly where it is, so the next screen can explain pairing while the
+    // .dmg is still coming down.
+    if (DOWNLOAD_URLS.mac) window.location.href = DOWNLOAD_URLS.mac;
     setViewing(null);
   };
 
@@ -252,7 +288,27 @@ export default function Onboarding() {
           </AnimatePresence>
           </div>
 
-          {/* The action dock. Centred under the stage and outside the animated
+          {/* Dev-only step skipper, so the whole sequence can be walked without
+          performing four real actions first. Compiled out of production. */}
+      {import.meta.env.DEV && (
+        <div className="fixed right-4 top-4 z-30 flex items-center gap-2 rounded-lg border border-border bg-[hsl(var(--background))]/90 px-2 py-1.5 backdrop-blur">
+          <span className="tf-label text-[8px]">dev</span>
+          <button
+            onClick={() => setViewing(STEP_ORDER[Math.max(stepIndex - 1, 0)])}
+            className="rounded border border-border px-2 py-1 text-[10px] hover:bg-[rgb(var(--film-2))]"
+          >
+            ← Prev
+          </button>
+          <button
+            onClick={() => setViewing(STEP_ORDER[Math.min(stepIndex + 1, STEP_ORDER.length - 1)])}
+            className="rounded border border-brand/40 px-2 py-1 text-[10px] text-brand hover:bg-brand/10"
+          >
+            Next step →
+          </button>
+        </div>
+      )}
+
+      {/* The action dock. Centred under the stage and outside the animated
               block, so it holds one position for the whole flow instead of
               being re-found on every step — and stays clear of the object
               rather than crammed onto it. */}
@@ -272,6 +328,10 @@ export default function Onboarding() {
           shareFirstProject={shareFirstProject}
           finish={finish}
               goNext={() => setViewing(STEP_ORDER[Math.min(stepIndex + 1, STEP_ORDER.length - 1)])}
+              startDownload={startDownload}
+              navigateToShare={() =>
+                navigate(firstProject ? `/project/${firstProject.id}?onboard=share` : "/dashboard")
+              }
             />
           </div>
         </main>
@@ -297,6 +357,8 @@ type DockProps = {
   shareFirstProject: () => void;
   finish: () => void;
   goNext: () => void;
+  startDownload: () => void;
+  navigateToShare: () => void;
 };
 
 const COPY: Record<StepId, { title: string; body?: string }> = {
@@ -403,10 +465,8 @@ function ActionDock(p: DockProps) {
         );
       }
       return (
-        <Button asChild size="lg" className="w-full gap-2" onClick={() => progress.markInstallClicked()}>
-          <a href={DOWNLOAD_MAC}>
-            <Apple className="h-4 w-4" /> Download for macOS
-          </a>
+        <Button size="lg" className="w-full gap-2" onClick={p.startDownload}>
+          <Apple className="h-4 w-4" /> Download for macOS
         </Button>
       );
     }
@@ -422,10 +482,17 @@ function ActionDock(p: DockProps) {
       );
     }
 
+    // Reached only by the dev skipper or the rail: the real share step is
+    // spotlighted on the project page itself.
     if (step === "share") {
       return (
-        <Button onClick={p.shareFirstProject} disabled={!p.firstProject} size="lg" className="w-full gap-2">
-          <Copy className="h-4 w-4" /> Copy share link
+        <Button
+          onClick={p.navigateToShare}
+          disabled={!p.firstProject}
+          size="lg"
+          className="w-full gap-2"
+        >
+          <Copy className="h-4 w-4" /> Open the project
         </Button>
       );
     }

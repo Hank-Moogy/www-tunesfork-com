@@ -205,6 +205,7 @@ this, both compiled out of production by `import.meta.env.DEV`:
 |---|---|
 | `/onboarding?tf_step=share` | Jump to any step (`name`, `install`, `pair`, `backup`, `share`, `watch`) |
 | `/onboarding?tf_platform=windows` | Force the non-macOS branch |
+| Dev step skipper | A Prev/Next control, top right of the onboarding screen |
 
 The platform one exists because the Windows path is otherwise unreachable from
 a Mac: `navigator.platform` stays `"MacIntel"` even under a DevTools
@@ -213,9 +214,23 @@ user-agent override.
 To exercise the flow for real rather than preview it, sign up a fresh account —
 that is the only way to see the gate actually hold and release.
 
+**Only the first four steps live on the onboarding screen.** Sharing and
+watching a folder are taught on the real controls, because teaching them on a
+dedicated screen means demonstrating a button that is somewhere else:
+
+| Step | Where it happens |
+|---|---|
+| 1-4 name, install, pair, backup | `pages/Onboarding.tsx` |
+| 5 share | `components/onboarding/Coachmark.tsx` spotlights the real Share control on the project page (`/project/:id?onboard=share`) |
+| 6 watch a folder | `components/onboarding/WatchFolderCard.tsx` on the dashboard |
+
+Completing step 4 hands the user to their new project with the share spotlight
+armed. The download button fires the asset URL directly and stays put — an
+`<a href>` to the marketing page abandoned the flow mid-way.
+
 **The gate lives in `ProtectedRoute`,** not in `App.tsx`, which is edited in
 parallel constantly. The app opens once a device is paired *and* one project is
-backed up.
+backed up. Steps 5 and 6 are in-app nudges and never block.
 
 > **Sync ships for macOS only.** Gating every user on "install and pair" would
 > permanently trap Windows users: they cannot install, and the web ZIP upload

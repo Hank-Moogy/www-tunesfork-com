@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState, useRef } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseDynamic } from "@/lib/supabaseDynamic";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 // Badge import removed (no longer used in new layout)
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import Coachmark from "@/components/onboarding/Coachmark";
 import {
   Dialog,
   DialogContent,
@@ -180,6 +181,22 @@ export default function ProjectPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Onboarding hands off to this page for the share step, so the lesson lands
+  // on the real control instead of a picture of one.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [coachShare, setCoachShare] = useState(searchParams.get("onboard") === "share");
+  const dismissCoach = useCallback(() => {
+    setCoachShare(false);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("onboard");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
 
   const [project, setProject] = useState<Project | null>(null);
   const [versions, setVersions] = useState<Version[]>([]);
@@ -905,6 +922,7 @@ export default function ProjectPage() {
                   disabled={!selectedVersion}
                 />
                 <Button
+                  data-onboard="share"
                   variant="outline"
                   className="h-9 gap-2 rounded-xl bg-card/50 backdrop-blur-sm"
                   onClick={handleShare}
@@ -1133,6 +1151,20 @@ export default function ProjectPage() {
           </div>
         </div>
       </main>
+
+      {coachShare && project && (
+        <Coachmark
+          targetSelector='[data-onboard="share"]'
+          title="Share this project"
+          body="Send a link and anyone can hear it and see every version — no account needed. This is the part your collaborators actually feel."
+          actionLabel="Share it"
+          onAction={() => {
+            handleShare();
+            dismissCoach();
+          }}
+          onDismiss={dismissCoach}
+        />
+      )}
 
       <Dialog
         open={previewOpen}

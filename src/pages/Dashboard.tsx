@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Upload, Download, ChevronDown, FolderOpen } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import ContributionHeatmap from "@/components/profile/ContributionHeatmap";
+import WatchFolderCard from "@/components/onboarding/WatchFolderCard";
+import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import type { Tables } from "@/integrations/supabase/types";
 import ProjectCard, { type ProjectCardCollaborator } from "@/components/ProjectCard";
 import NewProjectCard from "@/components/NewProjectCard";
@@ -45,6 +47,14 @@ export default function Dashboard() {
 
   const [tab, setTab] = useState<Tab>("all");
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const onboarding = useOnboardingProgress();
+  const [watchDismissed, setWatchDismissed] = useState(() => {
+    try {
+      return localStorage.getItem("tf_watch_card_dismissed") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [firstName, setFirstName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -320,6 +330,25 @@ export default function Dashboard() {
                 </div>
               )}
             </header>
+
+            {/* The last onboarding step lives here rather than in the flow: by
+                now the user has a working setup, and holding them on a
+                dedicated screen for an optional improvement would be a toll
+                gate. It retires itself once enough projects are watched. */}
+            {!onboarding.done.watch && onboarding.projectCount > 0 && !watchDismissed && (
+              <WatchFolderCard
+                projectCount={onboarding.projectCount}
+                onDismiss={() => {
+                  trackButtonClick("dashboard_dismiss_watch_card", "dashboard");
+                  setWatchDismissed(true);
+                  try {
+                    localStorage.setItem("tf_watch_card_dismissed", "1");
+                  } catch {
+                    /* private mode — the card simply returns next visit */
+                  }
+                }}
+              />
+            )}
 
             {/* One toolbar. Filter, search and scope read as a single row of
                 controls rather than a heading stacked above a second bar. */}
