@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Apple, ArrowRight, Download, ShieldAlert } from "lucide-react";
+import { Apple, ArrowRight, Download } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -61,13 +61,13 @@ export default function DesktopAppPage() {
             {isWelcome ? (
               <>Welcome{welcomeName ? `, ${welcomeName}` : ""}. Install Tunesfork Sync.</>
             ) : (
-              <>Save in Ableton.<br /><span className="text-primary">Tunesfork keeps the versions.</span></>
+              <>Auto back-up.<br /><span className="text-primary">Every session, every save.</span></>
             )}
           </h1>
 
           <p className="mx-auto mt-5 max-w-xl text-base text-muted-foreground md:text-lg">
-            A lightweight menu-bar app that watches the Ableton folders you choose
-            and uploads a new snapshot whenever you save.
+            Tunesfork automatically backs up all your sessions to the cloud, in the
+            background, while you keep working.
           </p>
 
           <div className="mx-auto mt-9 max-w-xl">
@@ -90,46 +90,6 @@ export default function DesktopAppPage() {
             <span>1. Install</span>
             <span>2. Pair your account</span>
             <span>3. Choose your Ableton folder</span>
-          </div>
-        </section>
-
-        <section className="mx-auto mt-16 max-w-2xl overflow-hidden rounded-xl border border-status-pending/30 bg-status-pending/[0.06]">
-          <div className="flex gap-4 border-b border-status-pending/20 p-6">
-            <ShieldAlert className="mt-0.5 h-6 w-6 shrink-0 text-status-pending" />
-            <div>
-              <h2 className="text-lg font-semibold">macOS may block the first launch</h2>
-              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                This alpha is not Apple-notarized yet. The warning is expected and
-                only needs to be bypassed once.
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-6 p-6">
-            <ol className="space-y-4 text-sm text-muted-foreground">
-              {[
-                <>Move <strong className="text-foreground">Tunesfork Sync</strong> into Applications and try to open it.</>,
-                <>When Apple shows the warning, click <strong className="text-foreground">Done</strong>.</>,
-                <>Open <strong className="text-foreground">System Settings → Privacy & Security</strong>.</>,
-                <>Scroll down, click <strong className="text-foreground">Open Anyway</strong>, then confirm.</>,
-              ].map((step, index) => (
-                <li key={index} className="flex gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-status-pending/15 font-mono text-xs text-status-pending">
-                    {index + 1}
-                  </span>
-                  <span className="pt-0.5">{step}</span>
-                </li>
-              ))}
-            </ol>
-
-            <div className="rounded-xl border border-border bg-background/70 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Still blocked? Run once in Terminal
-              </p>
-              <code className="mt-3 block overflow-x-auto rounded-lg bg-black/40 p-3 text-sm text-foreground">
-                xattr -cr /Applications/Tunesfork\ Sync.app
-              </code>
-            </div>
           </div>
         </section>
 
