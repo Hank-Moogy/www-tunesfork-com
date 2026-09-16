@@ -1,6 +1,6 @@
 {
   "name": "tunesfork-sync",
-  "version": "0.1.0-alpha.17",
+  "version": "0.1.0-alpha.18",
   "description": "Tunesfork Sync — auto-upload Ableton projects on save",
   "author": "Tunesfork",
   "main": "main.cjs",
