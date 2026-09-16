@@ -303,6 +303,17 @@ export default function Dashboard() {
     }
   };
 
+  const dismissAllReminders = () => {
+    trackButtonClick("dashboard_dismiss_all_reminders", "dashboard");
+    const next = ["share", "watch"];
+    setDismissedReminders(next);
+    try {
+      localStorage.setItem("tf_dismissed_reminders", JSON.stringify(next));
+    } catch {
+      /* private mode — the panel simply returns next visit */
+    }
+  };
+
   const handleReminderAct = (id: ReminderId) => {
     trackButtonClick("dashboard_reminder_act", "dashboard", { reminder: id });
     if (id === "share") {
@@ -374,6 +385,7 @@ export default function Dashboard() {
                       items={preview ? [{ id: "share", done: false }, { id: "watch", done: false }] : reminders}
                       onAct={handleReminderAct}
                       onDismiss={dismissReminder}
+                      onDismissAll={dismissAllReminders}
                     />
                   </div>
                 )}

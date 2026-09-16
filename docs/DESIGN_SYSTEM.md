@@ -236,9 +236,10 @@ anything:
 | Back up everything | the same dashboard reminders panel |
 
 Completing the backup hands the user to their new project with the share
-spotlight armed; the two remaining tasks then live as dismissible rows beside
-the activity field, each removable with an X and stored in
-`tf_dismissed_reminders`.
+spotlight armed. The two remaining tasks then continue as a vertical stepper at
+the top of the dashboard, numbered 5 and 6 so it reads as the same journey
+rather than a new widget. Every step exits: an X per row, and an X on the panel
+for all of them. Dismissals persist in `tf_dismissed_reminders`.
 
 The download button fires the asset URL directly and stays put — an `<a href>`
 to the marketing page abandoned the flow mid-way, which is why step two used to
