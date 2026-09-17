@@ -212,6 +212,24 @@ export default function ProjectPage() {
   const [versions, setVersions] = useState<Version[]>([]);
   const [forkRequests, setForkRequests] = useState<Version[]>([]);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  // Approving a fork means accepting music into your project. Track which ones
+  // have actually been opened so the approve action can tell the difference
+  // between a considered yes and a blind one. Per-viewer, per-browser: this is
+  // a nudge, not an authorisation boundary.
+  const [openedForks, setOpenedForks] = useState<Set<string>>(() => {
+    try {
+      return new Set<string>(JSON.parse(localStorage.getItem("tf.openedForks") ?? "[]"));
+    } catch {
+      return new Set<string>();
+    }
+  });
+  const markForkOpened = (versionId: string) => {
+    setOpenedForks((current) => {
+      const next = new Set(current).add(versionId);
+      try { localStorage.setItem("tf.openedForks", JSON.stringify([...next])); } catch { /* private mode */ }
+      return next;
+    });
+  };
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -812,14 +830,25 @@ export default function ProjectPage() {
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {author} · {formatRelative(request.created_at)}
                         </p>
-                        <div className="flex gap-2 mt-3">
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {/* The whole review model assumes you have heard the
+                              changes. Until this existed, approving was blind. */}
+                          <OpenInAbletonButton
+                            projectId={project.id}
+                            versionId={request.id}
+                            label="Open in Ableton"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onLaunched={() => markForkOpened(request.id)}
+                          />
                           <Button
                             size="sm"
                             className="h-7 text-xs"
                             disabled={busy}
                             onClick={() => reviewForkRequest(request.id, "approve")}
                           >
-                            {busy ? "Working…" : "Approve"}
+                            {busy ? "Working…" : openedForks.has(request.id) ? "Approve" : "Approve without listening"}
                           </Button>
                           <Button
                             size="sm"
