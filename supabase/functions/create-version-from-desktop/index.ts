@@ -222,16 +222,20 @@ Deno.serve(async (req) => {
       if (reservedError) throw reservedError;
 
       const expected = new Map((reservedBlobs ?? []).map((blob) => [blob.sha256, blob]));
-      const found = new Map<string, number>();
-      for (let offset = 0; expected.size && offset < 100_000; offset += 1000) {
-        const { data: objects, error: listError } = await admin.storage.from("project-blobs")
-          .list(reservation.storage_owner_id, { limit: 1000, offset, sortBy: { column: "name", order: "asc" } });
-        if (listError) throw listError;
-        for (const object of objects ?? []) {
-          if (expected.has(object.name)) found.set(object.name, Number(object.metadata?.size ?? 0));
-        }
-        if (!objects || objects.length < 1000 || found.size === expected.size) break;
-      }
+      // Look the reserved blobs up directly. This used to page through the whole
+      // storage owner's prefix 1000 at a time and match names in memory, so the
+      // cost scaled with everything that owner had ever stored and simply gave up
+      // past 100,000 objects. A contributor's upload reserves against the PROJECT
+      // OWNER, so that scan gets worse precisely when collaboration starts
+      // working. storage.objects is uniquely indexed on (bucket_id, name).
+      const { data: verified, error: verifyError } = await admin.rpc("verify_reservation_blobs", {
+        _reservation_id: reservationId,
+        _uploader_id: userId,
+      });
+      if (verifyError) throw verifyError;
+      const found = new Map<string, number>(
+        (verified as { sha256: string; size: number }[] ?? []).map((blob) => [blob.sha256, Number(blob.size)]),
+      );
 
       const readyBlobs = [];
       for (const [sha256, expectedBlob] of expected) {
