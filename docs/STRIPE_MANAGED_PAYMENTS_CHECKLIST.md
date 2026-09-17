@@ -19,8 +19,18 @@ verified end to end without using live credentials or creating a real charge:
   link to `https://www.tunesfork.com/billing`;
 - portal plan switching is restricted to Producer and Studio monthly/yearly;
   Founding Producer is not an eligible switch destination;
+- card Smart Retries are enabled for up to eight attempts within two weeks, and
+  exhausted retries cancel the subscription;
+- Stripe's recovery automation starts retries immediately and ultimately cancels
+  an unrecovered subscription, while network-supported automatic card updates
+  remain available;
 - the sandbox webhook endpoint is active and uses the deployed sandbox signing
   secret; and
+- the five deployed payment functions and their shared Stripe modules match the
+  repository sources, all required sandbox secret names are present, and the
+  Managed Payments preview API version is explicitly pinned in Supabase;
+- deployed endpoint probes reject unknown prices, live/sandbox mismatches,
+  unauthenticated checkout/status/portal requests, and unsigned webhooks; and
 - the Vercel production client token points to the same named sandbox as the
   Supabase server configuration.
 
@@ -32,7 +42,8 @@ Still required before accepting live payments:
 
 1. complete the remaining sandbox matrix below (especially 3DS, failed payment,
    duplicate webhook delivery, and all non-Producer-yearly catalog variants);
-2. decide and enable customer recovery emails and the final action after retries;
+2. decide whether to enable Stripe's customer-facing failed-payment,
+   bank-debit-failure, and expiring-card emails (all are currently disabled);
 3. publish valid TunesFork terms and privacy URLs, then add them to Stripe's
    public business information;
 4. create and verify the equivalent catalog, portal configuration, webhook, and
