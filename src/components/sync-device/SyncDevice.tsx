@@ -1,4 +1,11 @@
-import { motion, useReducedMotion } from "motion/react";
+import { useEffect, useRef } from "react";
+import {
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+} from "motion/react";
 import "./SyncDevice.css";
 
 const syncLog = [
@@ -18,26 +25,61 @@ const syncLog = [
  * `float` gives it the ambient drift the rest of the product uses: a slow
  * cycle measured in seconds rather than milliseconds, low-contrast and safe to
  * ignore, paired with a shadow that breathes against it so the movement reads
- * as the object rising rather than the page scrolling. It stops entirely under
- * prefers-reduced-motion.
+ * as the object rising rather than the page scrolling.
+ *
+ * `track` adds a slight lean toward the pointer, on a spring so the object has
+ * mass rather than snapping to the cursor like a sticker. It follows the
+ * pointer anywhere on the page, not just over the device, because the device
+ * is the page's subject and should feel present while you read the copy beside
+ * it.
+ *
+ * The float and the lean live on separate elements on purpose. Both are
+ * transforms, and motion writes the whole transform property per element — put
+ * them together and whichever renders last silently wins.
+ *
+ * Both stop entirely under prefers-reduced-motion.
  */
 export default function SyncDevice({
   float = false,
+  track = false,
   className,
 }: {
   float?: boolean;
+  track?: boolean;
   className?: string;
 }) {
   const reduceMotion = useReducedMotion();
   const drift = float && !reduceMotion;
+  const lean = track && !reduceMotion;
+
+  const ref = useRef<HTMLDivElement>(null);
+  const px = useMotionValue(0);
+  const py = useMotionValue(0);
+  // Loose spring, heavy-ish: answers immediately, settles slowly.
+  const sx = useSpring(px, { stiffness: 70, damping: 20, mass: 0.9 });
+  const sy = useSpring(py, { stiffness: 70, damping: 20, mass: 0.9 });
+
+  const rotateY = useTransform(sx, [-1, 1], [9, -9]);
+  const rotateX = useTransform(sy, [-1, 1], [-7, 7]);
+  const shiftX = useTransform(sx, [-1, 1], [10, -10]);
+
+  useEffect(() => {
+    if (!lean) return;
+    const onMove = (e: PointerEvent) => {
+      const r = ref.current?.getBoundingClientRect();
+      if (!r) return;
+      // Normalised against a generous radius so distant movement still
+      // registers faintly rather than pinning at the extremes.
+      const radius = Math.max(window.innerWidth, window.innerHeight) * 0.55;
+      px.set(Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / radius)));
+      py.set(Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / radius)));
+    };
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () => window.removeEventListener("pointermove", onMove);
+  }, [lean, px, py]);
 
   return (
-    <motion.div
-      className={className}
-      style={{ position: "relative" }}
-      animate={drift ? { y: [0, -14, 0] } : undefined}
-      transition={drift ? { duration: 11, repeat: Infinity, ease: "easeInOut" } : undefined}
-    >
+    <div ref={ref} className={className} style={{ position: "relative", perspective: 1400 }}>
       {/* The ground shadow contracts as the device rises, which is what makes
           the drift read as height instead of as a scrolling page. */}
       <motion.span
@@ -47,6 +89,13 @@ export default function SyncDevice({
         transition={drift ? { duration: 11, repeat: Infinity, ease: "easeInOut" } : undefined}
       />
 
+      <motion.div
+        style={lean ? { rotateX, rotateY, x: shiftX, transformStyle: "preserve-3d" } : undefined}
+      >
+      <motion.div
+        animate={drift ? { y: [0, -14, 0] } : undefined}
+        transition={drift ? { duration: 11, repeat: Infinity, ease: "easeInOut" } : undefined}
+      >
       <div className="gcd" aria-label="Tunesfork Sync desktop app">
         <i className="gcd-screw gcd-screw-tr" /><i className="gcd-screw gcd-screw-bl" /><i className="gcd-screw gcd-screw-br" />
 
@@ -106,6 +155,8 @@ export default function SyncDevice({
 
         <footer className="gcd-foot"><span>PRECISION SYNC SYSTEMS</span><span>TUNESFORK.COM ↗</span><span>REV. A12</span></footer>
       </div>
-    </motion.div>
+      </motion.div>
+      </motion.div>
+    </div>
   );
 }

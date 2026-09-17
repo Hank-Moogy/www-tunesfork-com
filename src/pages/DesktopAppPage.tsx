@@ -122,7 +122,7 @@ export default function DesktopAppPage() {
               filter: "blur(30px)",
             }}
           />
-          <SyncDevice float className={side ? "w-full max-w-[300px]" : "w-full max-w-[330px]"} />
+          <SyncDevice float track className={side ? "w-full max-w-[300px]" : "w-full max-w-[330px]"} />
         </section>
         </div>
 
