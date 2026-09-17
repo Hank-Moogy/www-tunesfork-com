@@ -6,10 +6,13 @@
   --case-low: #0b0c0d;
   --ink: #d9d4c7;
   --muted: #777a78;
-  --orange: #ff6534;
-  --orange-glow: rgba(255, 83, 36, 0.45);
   --cyan: #3fe5ec;
   --green: #45ff72;
+  /* Electric green is the accent and the call to action across the product:
+     it means live, working, done. Work that is still in flight stays amber, so
+     "uploading" never looks like "uploaded". */
+  --accent: #45ff72;
+  --accent-glow: rgba(69, 255, 114, 0.45);
   --red: #ff4d49;
   --amber: #ffb52e;
 }
@@ -113,7 +116,7 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
   text-transform: uppercase;
 }
 .brand { font-size: 12px; letter-spacing: .08em; color: #e8e3d7; }
-.brand b { color: var(--orange); font-weight: 700; }
+.brand b { color: var(--accent); font-weight: 700; }
 .link-state { display: flex; align-items: center; gap: 7px; padding-bottom: 1px; }
 
 .pilot-light, .tiny-light, .jack-light {
@@ -190,13 +193,14 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 .screen-kicker { color: #68726e; font-size: 8px; letter-spacing: .22em; margin-bottom: 9px; }
 .screen-center strong {
   max-width: 100%;
-  color: var(--orange);
+  color: var(--accent);
   font-size: clamp(19px, 6vw, 27px);
   letter-spacing: .13em;
   line-height: 1.08;
-  text-shadow: 0 0 10px var(--orange-glow);
+  text-shadow: 0 0 10px var(--accent-glow);
 }
-.display-bezel.green .screen-center strong { color: #ff6a35; }
+.display-bezel.green .screen-center strong { color: var(--green); }
+.display-bezel.amber .screen-center strong { color: var(--amber); text-shadow: 0 0 10px rgba(255,181,46,.45); }
 .display-bezel.red .screen-center strong { color: var(--red); text-shadow: 0 0 10px rgba(255,77,73,.45); }
 .display-bezel.cyan .screen-center strong { color: var(--cyan); text-shadow: 0 0 10px rgba(63,229,236,.4); }
 .screen-detail {
@@ -211,9 +215,9 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 .screen-meter { height: 13px; display: flex; align-items: flex-end; justify-content: center; gap: 3px; margin: 0 auto 8px; }
 .screen-meter span { width: 3px; height: 3px; background: #28302d; }
 .screen-meter span.active {
-  background: var(--orange);
+  background: var(--accent);
   animation: meter 1.2s ease-in-out infinite alternate;
-  box-shadow: 0 0 4px var(--orange-glow);
+  box-shadow: 0 0 4px var(--accent-glow);
 }
 .screen-meter span:nth-child(3n) { animation-delay: -.35s; }
 .screen-meter span:nth-child(4n) { animation-delay: -.7s; }
@@ -240,7 +244,7 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 .telemetry-strip div { min-width: 0; padding: 9px 6px 8px; text-align: center; }
 .telemetry-strip div + div { border-left: 1px solid #292a2b; }
 .telemetry-strip span { display: block; color: #616664; font-size: 7px; letter-spacing: .13em; }
-.telemetry-strip strong { display: block; margin-top: 4px; overflow: hidden; color: var(--amber); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 0 7px rgba(255,181,46,.28); }
+.telemetry-strip strong { display: block; margin-top: 4px; overflow: hidden; color: var(--accent); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 0 7px rgba(69,255,114,.28); }
 
 .control-deck, .setup-controls {
   margin-top: 11px;
@@ -284,11 +288,11 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 }
 .onboarding-progress div.complete b { color: #9a9e99; }
 .onboarding-progress div.active span {
-  border-color: rgba(255,101,52,.75);
-  color: var(--orange);
-  box-shadow: 0 0 9px var(--orange-glow);
+  border-color: rgba(69,255,114,.75);
+  color: var(--accent);
+  box-shadow: 0 0 9px var(--accent-glow);
 }
-.onboarding-progress div.active b { color: var(--orange); }
+.onboarding-progress div.active b { color: var(--accent); }
 .onboarding-progress i { height: 1px; margin-top: 12px; background: #353737; }
 .onboarding-copy { text-align: center; }
 .onboarding-copy h2 {
@@ -353,10 +357,10 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
   transform: translateY(2px);
   box-shadow: inset 0 2px 4px rgba(0,0,0,.7), 0 1px 0 #080808;
 }
-.hardware-button.primary, .hardware-button.selected { color: var(--orange); text-shadow: 0 0 5px var(--orange-glow); }
+.hardware-button.primary, .hardware-button.selected { color: var(--accent); text-shadow: 0 0 5px var(--accent-glow); }
 .hardware-button.wide { width: 100%; min-height: 51px; }
 .hardware-button.danger, .mini-button.danger { color: #c86c69; }
-.button-led { display: inline-block; width: 5px; height: 5px; margin-right: 8px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 7px var(--orange-glow); }
+.button-led { display: inline-block; width: 5px; height: 5px; margin-right: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 7px var(--accent-glow); }
 
 .footswitch {
   min-height: 104px;
@@ -425,13 +429,25 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
   text-shadow: 0 0 7px rgba(69,255,114,.6);
 }
 .diagnostics-toggle:hover .diagnostics-action { color: #9bffae; }
-.terminal { overflow-y: auto; padding: 8px 10px; background: #020303; border-top: 1px solid #171a18; }
-.terminal.preview { height: 65px; }
-.terminal.expanded { max-height: 154px; }
-.terminal-line { display: grid; grid-template-columns: 68px 1fr; gap: 6px; padding: 2px 0; color: #65706b; font-size: 8px; line-height: 1.35; }
+.terminal { padding: 8px 10px; background: #020303; border-top: 1px solid #171a18; }
+.terminal.preview { height: 65px; overflow: hidden; }
+/* Collapsed, each line is a one-line summary so three of them always fit the
+   fixed height; a wrapped path would push the newest line out of the box.
+   Expanded, the full path matters, so it wraps. */
+.terminal.preview .terminal-line { white-space: nowrap; }
+.terminal.preview .terminal-line span:last-child { overflow: hidden; text-overflow: ellipsis; }
+/* Expanded, the log is the thing being read, so it grows to its full height and
+   the whole face scrolls. Capping it at a fixed height put a second scrollbar
+   inside an already-short window and made a long upload run unreadable — which
+   is exactly when someone opens this panel. */
+.terminal.expanded { max-height: none; overflow: visible; }
+.diagnostics.open { margin-bottom: 4px; }
+.terminal-line { display: grid; grid-template-columns: 68px 1fr; gap: 6px; padding: 2px 0; color: #65706b; font-size: 8px; line-height: 1.35; word-break: break-word; }
 .terminal-line span:first-child { color: #3d4843; }
+/* green done · cyan in flight · amber caution · red fault. Uploading must not
+   wear the same colour as uploaded. */
 .terminal-line.ok { color: var(--green); }
-.terminal-line.busy { color: var(--orange); }
+.terminal-line.busy { color: var(--cyan); }
 .terminal-line.warn { color: var(--amber); }
 .terminal-line.err { color: var(--red); }
 
@@ -447,7 +463,7 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 }
 .footer span:last-child { text-align: right; }
 .footer button { color: #777b78; font-size: 8px; letter-spacing: .1em; background: none; }
-.footer button:hover { color: var(--orange); }
+.footer button:hover { color: var(--accent); }
 
 @media (max-height: 680px) {
   .display-glass { min-height: 213px; }

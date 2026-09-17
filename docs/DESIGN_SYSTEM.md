@@ -18,15 +18,15 @@ Three surfaces had drifted into three unrelated design languages:
 | | Landing page | Sync tray app | Web app (before) |
 |---|---|---|---|
 | Ground | `#050505` black | `#0e0f11` brushed metal | `#f7f8fa` **light** |
-| Accent | green `#45ff72` | orange `#ff6534` | **purple** |
+| Accent | green `#45ff72` | green `#45ff72` | **purple** |
 | Idiom | editorial / brutalist | skeuomorphic eurorack | VisionOS glass |
 
 The web app was not merely off-brand, it was the opposite brand. It now
 descends from the tray app's palette, because the tray app is the shipping
 product, with two deliberate changes:
 
-- **Green `#45ff72` carries the CTA**, not orange. The tray app will be
-  aligned to this later; until then the two disagree on purpose.
+- **Green `#45ff72` carries the CTA**, not orange. The tray app now leads with
+  the same green, so the three surfaces finally agree.
 - **Surfaces come from [Ambientic's art direction]** — translucent films of
   light over a cool ground rather than opaque grey tiles. See
   `ART_DIRECTION.md` in the Ambientic repo for the source. The ideas borrowed
@@ -273,7 +273,5 @@ removed. Do not reintroduce upload-shaped UI for a path that does not exist.
 
 - **Layout passes** on Billing, DesktopApp, Admin and Share. Tokens are
   correct; the shape is untouched.
-- **The tray app** still leads with orange. Aligning it to green is a
-  deliberate, separate piece of work.
 - **`Like` on project comments** was removed rather than left as a dead
   button. It needs a table before it can come back.

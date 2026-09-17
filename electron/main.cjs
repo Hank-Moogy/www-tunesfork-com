@@ -156,11 +156,6 @@ function normalizeFolder(folder) {
   return path.resolve(folder);
 }
 
-function getProjectLink(projectFolder) {
-  const s = readState();
-  return s.projectLinks?.[normalizeFolder(projectFolder)] ?? null;
-}
-
 function recordFolderAccessIssue(folder, error) {
   const normalized = normalizeFolder(folder);
   const message = folderAccessMessage(normalized, error);
@@ -1159,33 +1154,44 @@ async function importWatchedFolders() {
     summary.found = projects.length;
     log("info", `Found ${projects.length} Ableton project folder(s)`);
 
+    // Every project in every watched folder is offered to the uploader, not
+    // just the ones Tunesfork has never seen. Skipping anything already linked
+    // meant a project that had drifted since its last save — the usual reason
+    // someone reaches for "back up everything" — was silently passed over.
+    // uploadProjectFolder already compares the content hash and returns
+    // { skipped: true } when a project really is up to date, so the decision is
+    // made on content rather than on whether a link happens to exist.
+    let index = 0;
     for (const project of projects) {
-      const link = getProjectLink(project.folder);
-      if (link?.projectId) {
-        summary.skipped += 1;
-        log("info", `Already imported: ${path.basename(project.folder)}`);
-        continue;
-      }
-
+      index += 1;
+      const name = path.basename(project.folder);
       try {
-        log("busy", `Importing ${path.basename(project.folder)}…`);
+        log("busy", `Backing up ${name} (${index}/${projects.length})…`);
         const { result } = await uploadProjectFolder({
           projectFolder: project.folder,
           alsPath: project.alsPath,
-          changeNote: "Imported from Tunesfork Sync",
+          changeNote: "Backed up from Tunesfork Sync",
         });
-        summary.uploaded += 1;
-        log("ok", `Imported ${path.basename(project.folder)} v${result.version_number}`);
+        if (result.skipped) {
+          summary.skipped += 1;
+          log("info", `${name} already up to date`);
+        } else if (result.status === "pending") {
+          summary.uploaded += 1;
+          log("ok", `Sent ${name} to the project owner for review`);
+        } else {
+          summary.uploaded += 1;
+          log("ok", `Backed up ${name} v${result.version_number}`);
+        }
       } catch (e) {
         summary.failed.push({ folder: project.folder, error: e.message });
-        log("err", `Import failed for ${path.basename(project.folder)}: ${e.message}`);
+        log("err", `Back-up failed for ${name}: ${e.message}`);
       }
     }
 
     if (Notification.isSupported()) {
       new Notification({
-        title: "Tunesfork import complete",
-        body: `${summary.uploaded} uploaded, ${summary.skipped} already imported, ${summary.failed.length} failed`,
+        title: "Back-up complete",
+        body: `${summary.uploaded} backed up, ${summary.skipped} already up to date, ${summary.failed.length} failed`,
       }).show();
     }
     return summary;
