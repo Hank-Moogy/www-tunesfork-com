@@ -2,6 +2,47 @@
 
 This checklist is sandbox-first. Do not configure live mode, create live charges, or deploy shared Supabase state until the storage-migration task confirms the project is clear.
 
+## Verified sandbox status — 17 September 2026
+
+The production web app is intentionally connected to the named **TunesFork
+sandbox** while launch acceptance is in progress. The following path has been
+verified end to end without using live credentials or creating a real charge:
+
+- all six lookup keys resolve through the deployed `get-stripe-price` function;
+- the checkout, checkout-status, portal, and webhook functions require
+  authentication or a valid Stripe signature as appropriate;
+- hosted Checkout completed a Producer yearly test-card subscription and
+  returned to TunesFork with a confirmed active subscription;
+- the webhook wrote the active subscription and entitlement to Supabase;
+- Billing Portal opens for the resulting Stripe customer and shows invoice
+  history, payment-method management, cancellation at period end, and a return
+  link to `https://www.tunesfork.com/billing`;
+- portal plan switching is restricted to Producer and Studio monthly/yearly;
+  Founding Producer is not an eligible switch destination;
+- the sandbox webhook endpoint is active and uses the deployed sandbox signing
+  secret; and
+- the Vercel production client token points to the same named sandbox as the
+  Supabase server configuration.
+
+Do not repeat the successful checkout on the same account just to re-verify the
+button: the application correctly redirects users with an existing subscription
+to Billing instead of creating a duplicate.
+
+Still required before accepting live payments:
+
+1. complete the remaining sandbox matrix below (especially 3DS, failed payment,
+   duplicate webhook delivery, and all non-Producer-yearly catalog variants);
+2. decide and enable customer recovery emails and the final action after retries;
+3. publish valid TunesFork terms and privacy URLs, then add them to Stripe's
+   public business information;
+4. create and verify the equivalent catalog, portal configuration, webhook, and
+   credentials in live mode; and
+5. complete Stripe's live business, tax, payout, and Managed Payments review.
+
+Never copy a sandbox secret into a live setting. Treat the sandbox and live
+catalogs as separate infrastructure and rerun the entire acceptance matrix after
+the live cutover.
+
 ## Planner decision
 
 The official Stripe implementation planner was run against **TunesFork sandbox** (`livemode: false`). For this international B2C SaaS:
