@@ -15,6 +15,7 @@ const { MAX_FILE_BYTES, safeRestoreDestination, validateLegacyZipEntries } = req
 const { isResourceAlreadyExistsError, isResourceAlreadyExistsResponse } = require("./storage-upload-errors.cjs");
 const { DEFAULT_SAVE_DEBOUNCE_MS, getSaveEventDelayMs } = require("./save-event-policy.cjs");
 const { appendLogLine, logFilePath } = require("./diagnostic-log.cjs");
+const { decideRestoreTarget, findDuplicateWatchFolders } = require("./working-copy.cjs");
 const {
   classifySaveTarget,
   readProjectMarker,
@@ -1313,12 +1314,52 @@ async function openProjectInAbleton(projectId, versionId) {
 
   // Download & extract
   const adm = require("adm-zip");
-  const safeName = (projectName || "Project").replace(/[\\/:*?"<>|]/g, "_");
-  const destRoot = path.join(
-    restoreProjectsRoot(),
-    `${safeName} [${projectId.slice(0, 8)}] V${versionNumber || 1} ${String(downloadedVersionId || "restore").slice(0, 8)}-${Date.now()}`
-  );
+
+  // A pending contribution has no version number until it is approved. Opening
+  // one is a review, not the project's state, so it must never land on top of
+  // the owner's own working copy.
+  const isReview = versionNumber == null;
+  const existing = getLocalProjectById(projectId);
+  const existingFolder = existing?.folder ?? null;
+  const folderExists = !!existingFolder && fs.existsSync(existingFolder);
+  let contentHash = null;
+  if (folderExists && !isReview) {
+    try { contentHash = buildProjectManifest(existingFolder, hashCacheFile).projectHash; } catch { contentHash = null; }
+  }
+  const target = decideRestoreTarget({
+    root: restoreProjectsRoot(),
+    projectId,
+    projectName,
+    versionId: downloadedVersionId,
+    isReview,
+    existingFolder,
+    folderExists,
+    contentHash,
+    baseContentHash: existing?.lastContentHash ?? null,
+  });
+
+  if (target.mode === "blocked") {
+    // Opening their own copy is the honest outcome: we will not delete work to
+    // deliver a download.
+    log("warn", target.reason);
+    if (Notification.isSupported()) {
+      new Notification({ title: "Opened your existing copy", body: target.reason, silent: false }).show();
+    }
+    const localAls = existing?.alsPath || findLatestAls(existingFolder);
+    if (!localAls) throw new Error(`No Ableton set found in ${existingFolder}`);
+    recentlyOpenedProjects.set(normalizeFolder(existingFolder), Date.now());
+    const blockedOpenError = await shell.openPath(localAls);
+    if (blockedOpenError) throw new Error(blockedOpenError);
+    return;
+  }
+
+  const destRoot = target.folder;
   fs.mkdirSync(destRoot, { recursive: true });
+  if (target.mode === "update") {
+    log("info", `Updating your copy of ${projectName} in place`);
+  } else if (target.mode === "review") {
+    log("info", `Opening this fork in a separate folder for review — it is not watched`);
+  }
   let alsPath;
   let zipPath = null;
   if (kind === "manifest" || manifest) {
@@ -1347,14 +1388,16 @@ async function openProjectInAbleton(projectId, versionId) {
   if (!fs.existsSync(alsPath)) throw new Error("Downloaded Ableton set could not be extracted");
 
   const downloadedProjectFolder = findProjectFolder(alsPath);
-  setProjectLink(downloadedProjectFolder, {
-    projectId,
-    projectName,
-    lastVersion: versionNumber,
-    lastVersionId: downloadedVersionId,
-    lastContentHash: null,
-  });
-  writeProjectMarker(downloadedProjectFolder, { projectId, projectName });
+  if (target.watch) {
+    setProjectLink(downloadedProjectFolder, {
+      projectId,
+      projectName,
+      lastVersion: versionNumber,
+      lastVersionId: downloadedVersionId,
+      lastContentHash: null,
+    });
+    writeProjectMarker(downloadedProjectFolder, { projectId, projectName });
+  }
   // Someone who just clicked "Open in Ableton" on the web expects their work to
   // be captured. Two things used to stop that happening: the watch list is
   // stored normalised and this compared a raw path against it, so a folder
@@ -1362,21 +1405,23 @@ async function openProjectInAbleton(projectId, versionId) {
   // restarted when sync happened to be running already, so a collaborator who
   // had ever paused it would work for an hour into a folder nothing was
   // watching.
-  const watchFolder = normalizeFolder(downloadedProjectFolder);
-  const state = readState();
-  if (!state.folders.some((folder) => normalizeFolder(folder) === watchFolder)) {
-    state.folders.push(watchFolder);
-    writeState(state);
-  }
-  if (stopWatcher) {
-    stopSync();
-  } else if (!readState().syncing) {
-    log("info", "Resuming sync so this project is watched");
-  }
-  try {
-    await startSync();
-  } catch (error) {
-    log("err", `Could not start watching the restored project: ${error.message}`);
+  if (target.watch) {
+    const watchFolder = normalizeFolder(downloadedProjectFolder);
+    const state = readState();
+    if (!state.folders.some((folder) => normalizeFolder(folder) === watchFolder)) {
+      state.folders.push(watchFolder);
+      writeState(state);
+    }
+    if (stopWatcher) {
+      stopSync();
+    } else if (!readState().syncing) {
+      log("info", "Resuming sync so this project is watched");
+    }
+    try {
+      await startSync();
+    } catch (error) {
+      log("err", `Could not start watching the restored project: ${error.message}`);
+    }
   }
 
   recentlyOpenedProjects.set(normalizeFolder(downloadedProjectFolder), Date.now());
@@ -1571,6 +1616,9 @@ ipcMain.handle("get-state", () => {
     recent: s.recent,
     importedProjectCount: Object.keys(s.projectLinks || {}).length,
     folderAccessIssues: checkWatchedFolderAccess(),
+    // Older restores of a project that is also watched somewhere newer. Never
+    // removed automatically: a stale copy can still hold unshared work.
+    duplicateFolders: findDuplicateWatchFolders(s.folders || [], s.projectLinks || {}, normalizeFolder),
     logFile: logFilePath(stateDir),
     // Support cannot debug a save that never reached the upload code without
     // knowing which folder is bound to which cloud project.
