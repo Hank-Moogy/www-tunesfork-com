@@ -26,6 +26,7 @@ const fixture = `<?xml version="1.0" encoding="UTF-8"?>
     <PluginDesc>
       <VstPluginInfo><PlugName Value="Legacy Synth"/></VstPluginInfo>
       <Vst3PluginInfo><PlugName Value="Modern Synth"/></Vst3PluginInfo>
+      <Vst3PluginInfo><Name Value="Name-Only Synth"/></Vst3PluginInfo>
       <AuPluginInfo><PlugName Value="Mac Synth"/></AuPluginInfo>
     </PluginDesc>
     <Scenes><Scene Id="0"><Name Value="Intro"/></Scene></Scenes>
@@ -72,7 +73,10 @@ describe("parseAlsFile", () => {
         color: 11,
       },
     ]);
-    expect(metadata?.plugins).toEqual(["Legacy Synth", "Modern Synth", "Mac Synth"]);
+    // Live is not consistent: some VST3 entries carry <Name> rather than
+    // <PlugName>, and reading only one returns an empty list for a set full of
+    // plugins — which is indistinguishable from a set that uses none.
+    expect(metadata?.plugins).toEqual(["Legacy Synth", "Modern Synth", "Name-Only Synth", "Mac Synth"]);
   });
 
   it("reports uncollected samples as non-blocking sharing warnings", () => {

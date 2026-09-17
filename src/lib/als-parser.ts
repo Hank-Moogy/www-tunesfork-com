@@ -97,7 +97,11 @@ export async function parseAlsFile(file: File): Promise<AlsMetadata | null> {
     // third-party VST2, VST3, and Audio Unit devices.
     const plugins = new Set<string>();
     doc.querySelectorAll("VstPluginInfo, Vst3PluginInfo, AuPluginInfo").forEach((plugin) => {
-      const name = plugin.querySelector("PlugName")?.getAttribute("Value");
+      // Some Live 11/12 VST3 entries carry <Name> instead of <PlugName>; reading
+      // only one yields an empty list for a set full of plugins, which reads as
+      // "uses no plugins" rather than as a parse gap.
+      const name = plugin.querySelector("PlugName")?.getAttribute("Value")
+        ?? plugin.querySelector("Name")?.getAttribute("Value");
       if (name) plugins.add(name);
     });
 

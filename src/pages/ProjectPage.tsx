@@ -212,6 +212,11 @@ export default function ProjectPage() {
   const [versions, setVersions] = useState<Version[]>([]);
   const [forkRequests, setForkRequests] = useState<Version[]>([]);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  // What this version needs, and whether the person looking has been seen using
+  // it. Derived from their own uploads, so it costs the user nothing to build.
+  const [versionPlugins, setVersionPlugins] = useState<
+    { name: string; normalized_name: string; have: boolean; project_count: number }[]
+  >([]);
   // Approving a fork means accepting music into your project. Track which ones
   // have actually been opened so the approve action can tell the difference
   // between a considered yes and a blind one. Per-viewer, per-browser: this is
@@ -288,6 +293,19 @@ export default function ProjectPage() {
     if (warnBeforeSharing("collaborate")) return;
     setAddCollabOpen(true);
   };
+
+useEffect(() => {
+    if (!selectedVersion?.id || !user) { setVersionPlugins([]); return; }
+    let active = true;
+    supabaseDynamic
+      .rpc("project_version_plugins", { _version_id: selectedVersion.id })
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) { console.warn("plugin coverage", error); setVersionPlugins([]); return; }
+        setVersionPlugins((data ?? []) as typeof versionPlugins);
+      });
+    return () => { active = false; };
+  }, [selectedVersion?.id, user]);
 
   useEffect(() => {
     if (!addCollabOpen) return;
@@ -707,6 +725,7 @@ export default function ProjectPage() {
 
   const trackList: Track[] = selectedVersion?.track_list ? (selectedVersion.track_list as unknown as Track[]) : [];
   const pluginList: string[] = selectedVersion?.plugin_list ? (selectedVersion.plugin_list as unknown as string[]) : [];
+  const missingPlugins = versionPlugins.filter((plugin) => !plugin.have);
   const arrangementClipCount = trackList.reduce((sum, track) => sum + track.clips.length, 0);
   const sessionClipCount = trackList.reduce((sum, track) => sum + (track.sessionClips?.length ?? 0), 0);
 
@@ -727,6 +746,7 @@ export default function ProjectPage() {
     ? `V${selectedVersion.version_number}${selectedVersion.change_note ? ` - ${selectedVersion.change_note}` : ""}`
     : "";
   const isProjectOwner = !!project && !!user && project.owner_id === user.id;
+
 
   // Approval makes the fork the project's current version in the cloud. Without
   // this the owner's own folder still holds their old content, and their next
@@ -1012,6 +1032,53 @@ export default function ProjectPage() {
                 )}
               </div>
             </div>
+
+            {/* Plugins this version uses. Not a warning — a shared project that
+                needs a synth you do not own is ordinary, and knowing before you
+                open it is the whole point. Marked rather than hidden, so the
+                list reads the same for the owner and the collaborator. */}
+            {versionPlugins.length > 0 && (
+              <div className="tf-surface rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 pt-4 pb-3">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Plugins
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {missingPlugins.length > 0
+                      ? `${versionPlugins.length - missingPlugins.length}/${versionPlugins.length} you have`
+                      : `${versionPlugins.length} · all yours`}
+                  </span>
+                </div>
+                {missingPlugins.length > 0 && (
+                  <p className="px-4 pb-3 text-xs text-muted-foreground">
+                    {missingPlugins.length === 1 ? "This plugin has" : "These plugins have"} not appeared in any
+                    project you have uploaded. Ableton will load the set without
+                    {missingPlugins.length === 1 ? " it" : " them"}.
+                  </p>
+                )}
+                <div className="px-2 pb-3 flex flex-wrap gap-1.5">
+                  {versionPlugins.map((plugin) => (
+                    <span
+                      key={plugin.normalized_name}
+                      title={plugin.have
+                        ? `Seen in ${plugin.project_count} of your project${plugin.project_count === 1 ? "" : "s"}`
+                        : "Not seen in any project you have uploaded"}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-mono ${
+                        plugin.have
+                          ? "bg-muted/50 text-muted-foreground"
+                          : "border border-[#ffb52e]/40 bg-[#ffb52e]/10 text-[#ffb52e]"
+                      }`}
+                    >
+                      <span
+                        aria-hidden
+                        className={`h-1.5 w-1.5 rounded-full ${plugin.have ? "bg-[#45ff72]" : "bg-[#ffb52e]"}`}
+                      />
+                      {plugin.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Collaborators panel */}
             <div className="tf-surface rounded-xl overflow-hidden">
