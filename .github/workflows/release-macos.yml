@@ -52,10 +52,64 @@ jobs:
       - name: Launch packaged app
         working-directory: electron
         run: npm run smoke:packaged-launch
+      # Upload first, publish second. Tagging used to create a public release
+      # immediately, which makes it "Latest" — and the web app's download button
+      # points at /releases/latest/download/. A slow or failed upload therefore
+      # took the public download page offline while the release sat there with
+      # no DMG behind it. A draft is not Latest, so the previous release keeps
+      # serving downloads until this one is genuinely complete.
       - name: Publish immutable release assets
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          REPO: ${{ github.repository }}
         run: |
-          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --verify-tag --generate-notes
-          gh release upload "$RELEASE_TAG" electron/release/Tunesfork-Sync-mac-universal.dmg electron/release/SHA256SUMS.txt --clobber
+          set -euo pipefail
+
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --generate-notes --draft
+          fi
+
+          # An upload that was interrupted leaves its asset stuck in a state
+          # other than "uploaded". It still occupies the filename, so --clobber
+          # cannot replace it and every retry fails with HTTP 500 — while
+          # `gh release view` hides it, because it only lists completed assets.
+          # Clear those before uploading or the retries below are pointless.
+          release_id="$(gh api "repos/$REPO/releases/tags/$RELEASE_TAG" --jq .id)"
+          gh api "repos/$REPO/releases/$release_id/assets" \
+            --jq '.[] | select(.state != "uploaded") | .id' | while read -r asset_id; do
+              echo "Removing incomplete asset $asset_id left by an earlier run"
+              gh api -X DELETE "repos/$REPO/releases/assets/$asset_id"
+            done
+
+          # A 200 MB upload fails often enough to be worth retrying rather than
+          # burning a whole notarized build.
+          for attempt in 1 2 3; do
+            if gh release upload "$RELEASE_TAG" \
+                 electron/release/Tunesfork-Sync-mac-universal.dmg \
+                 electron/release/SHA256SUMS.txt --clobber; then
+              break
+            fi
+            if [ "$attempt" = "3" ]; then
+              echo "::error::Asset upload failed three times; the release stays a draft so downloads keep working."
+              exit 1
+            fi
+            echo "Upload attempt $attempt failed; clearing partial assets and retrying"
+            gh api "repos/$REPO/releases/$release_id/assets" \
+              --jq '.[] | select(.state != "uploaded") | .id' | while read -r asset_id; do
+                gh api -X DELETE "repos/$REPO/releases/assets/$asset_id"
+              done
+            sleep 20
+          done
+
+          # Both assets are really there before anyone can be sent to them.
+          for name in Tunesfork-Sync-mac-universal.dmg SHA256SUMS.txt; do
+            state="$(gh api "repos/$REPO/releases/$release_id/assets" \
+              --jq ".[] | select(.name == \"$name\") | .state")"
+            if [ "$state" != "uploaded" ]; then
+              echo "::error::$name is '${state:-missing}', not uploaded. Leaving the release as a draft."
+              exit 1
+            fi
+          done
+
+          gh release edit "$RELEASE_TAG" --draft=false --latest
