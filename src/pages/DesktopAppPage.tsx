@@ -20,6 +20,12 @@ export default function DesktopAppPage() {
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const [versionLabel, setVersionLabel] = useState(DESKTOP_APP_VERSION_LABEL);
 
+  // ?side=1 puts the device beside the copy instead of under it, so the two
+  // arrangements can be compared before either is committed to.
+  const side =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("side") === "1";
+
   useEffect(() => {
     let active = true;
     void fetchDesktopAppVersionLabel().then((label) => {
@@ -51,14 +57,15 @@ export default function DesktopAppPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className="mx-auto max-w-4xl px-6 py-14 lg:py-20">
-        <section className="text-center">
-          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
+      <main className={`mx-auto px-6 py-14 lg:py-20 ${side ? "max-w-6xl" : "max-w-4xl"}`}>
+        <div className={side ? "grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16" : ""}>
+        <section className={`min-w-0 ${side ? "text-center lg:text-left" : "text-center"}`}>
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
             <Apple className="h-3.5 w-3.5" />
             macOS only · Apple Silicon + Intel
           </div>
 
-          <h1 className="mx-auto mt-7 max-w-3xl text-4xl font-bold tracking-tight md:text-6xl">
+          <h1 className={`mt-7 max-w-3xl text-4xl font-bold tracking-tight md:text-6xl ${side ? "" : "mx-auto"}`}>
             {isWelcome ? (
               <>Welcome{welcomeName ? `, ${welcomeName}` : ""}. Install Tunesfork Sync.</>
             ) : (
@@ -66,17 +73,17 @@ export default function DesktopAppPage() {
             )}
           </h1>
 
-          <p className="mx-auto mt-5 max-w-xl text-base text-muted-foreground md:text-lg">
+          <p className={`mt-5 max-w-xl text-base text-muted-foreground md:text-lg ${side ? "" : "mx-auto"}`}>
             Tunesfork automatically backs up all your sessions to the cloud, in the
             background, while you keep working.
           </p>
 
-          <div className="mx-auto mt-9 max-w-xl">
+          <div className={`mt-9 max-w-xl ${side ? "" : "mx-auto"}`}>
             <Button
               size="lg"
               onClick={downloadMac}
               disabled={!DOWNLOAD_URLS.mac}
-              className="h-20 w-full rounded-2xl bg-primary text-lg font-semibold shadow-[0_18px_50px_-18px_hsl(var(--primary)/0.8)] transition hover:-translate-y-0.5 hover:bg-primary/90 md:text-xl"
+              className="h-auto min-h-20 w-full whitespace-normal rounded-2xl bg-primary px-5 py-4 text-base font-semibold leading-snug shadow-[0_18px_50px_-18px_hsl(var(--primary)/0.8)] transition hover:-translate-y-0.5 hover:bg-primary/90 sm:text-lg md:text-xl"
             >
               <Download className="mr-2 h-6 w-6" />
               Download Tunesfork Sync for Mac
@@ -87,17 +94,25 @@ export default function DesktopAppPage() {
             </p>
           </div>
 
-          <div className="mx-auto mt-8 flex max-w-xl flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+          <div className={`mt-8 flex max-w-xl flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground ${side ? "justify-center lg:justify-start" : "mx-auto justify-center"}`}>
             <span>1. Install</span>
             <span>2. Pair your account</span>
             <span>3. Choose your Ableton folder</span>
           </div>
         </section>
 
-        {/* The app itself, centred and drifting. The page asks someone to
-            install a thing they have never seen; showing it is worth more than
-            another paragraph about it. */}
-        <section className="relative mx-auto mt-24 flex max-w-md justify-center pb-16" aria-hidden="true">
+        {/* The app itself, drifting. The page asks someone to install a thing
+            they have never seen; showing it is worth more than another
+            paragraph about it. Beside the copy it reads as the subject of the
+            sentence; beneath it, as evidence after the argument. */}
+        <section
+          className={
+            side
+              ? "relative flex min-w-0 justify-center pb-4 lg:justify-end"
+              : "relative mx-auto mt-24 flex max-w-md justify-center pb-16"
+          }
+          aria-hidden="true"
+        >
           {/* Light behind the object, as everywhere else in the product. */}
           <div
             className="pointer-events-none absolute inset-0 -z-10"
@@ -107,8 +122,9 @@ export default function DesktopAppPage() {
               filter: "blur(30px)",
             }}
           />
-          <SyncDevice float className="w-full max-w-[330px]" />
+          <SyncDevice float className={side ? "w-full max-w-[300px]" : "w-full max-w-[330px]"} />
         </section>
+        </div>
 
         {isWelcome && (
           <div className="mt-10 text-center">

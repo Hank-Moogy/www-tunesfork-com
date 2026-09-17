@@ -265,10 +265,12 @@
   position: absolute;
   z-index: 0;
   bottom: -26px;
-  left: 50%;
+  /* Centred by offset, not by transform: motion animates scaleX on this
+     element and writes its own transform, which silently overwrote a
+     translateX(-50%) and pushed the shadow off to one side. */
+  left: 11%;
   width: 78%;
   height: 34px;
-  transform: translateX(-50%);
   border-radius: 100%;
   background: radial-gradient(closest-side, rgba(0, 0, 0, 0.85), transparent 75%);
   filter: blur(18px);
