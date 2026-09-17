@@ -18,6 +18,8 @@ import CheckoutPage from "./pages/CheckoutPage";
 import CheckoutReturn from "./pages/CheckoutReturn";
 import BillingPage from "./pages/BillingPage";
 import NotFound from "./pages/NotFound";
+import TermsPage from "./pages/TermsPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import DesktopAppPage from "./pages/DesktopAppPage";
 import DesktopPairPage from "./pages/DesktopPairPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -104,6 +106,8 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
