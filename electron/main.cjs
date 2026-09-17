@@ -16,6 +16,7 @@ const { isResourceAlreadyExistsError, isResourceAlreadyExistsResponse } = requir
 const { DEFAULT_SAVE_DEBOUNCE_MS, getSaveEventDelayMs } = require("./save-event-policy.cjs");
 const { appendLogLine, logFilePath } = require("./diagnostic-log.cjs");
 const { decideRestoreTarget, findDuplicateWatchFolders } = require("./working-copy.cjs");
+const { openWarning, summarize } = require("./completeness.cjs");
 const {
   classifySaveTarget,
   readProjectMarker,
@@ -69,6 +70,8 @@ const defaultState = {
   recent: [],
   folderAccessIssues: {},
   sampleIssues: {},
+  // Projects restored from the cloud whose audio did not fully arrive.
+  restoreIssues: {},
   // token is intentionally NOT in this file — stored in OS keychain via keytar.
   // For the alpha we keep it in a sidecar file with 600 perms; swap for keytar in v0.2.
 };
@@ -496,6 +499,60 @@ function cancelPairing() {
     pollInterval = null;
   }
   log("info", "Pairing cancelled");
+}
+
+
+// ---------- restore completeness ----------
+// The promise Tunesfork makes is that a shared project arrives complete, so
+// after a restore we ask the restored folder itself rather than trusting what
+// the uploader's machine reported. The same check the uploader ran, run here,
+// catches both a project that was incomplete when it left and one that failed
+// to fully arrive.
+function reportRestoreCompleteness({ projectFolder, alsPath, projectName, uploadedSampleCheck }) {
+  let localCheck = null;
+  try {
+    localCheck = collectVersionMetadata(projectFolder, alsPath, false).sampleCheck;
+  } catch (error) {
+    log("warn", `Could not verify samples after restore: ${error.message}`);
+  }
+  // Prefer what this machine can see; fall back to the uploader's verdict only
+  // when the set could not be parsed here.
+  const effective = localCheck && localCheck.verified !== false ? localCheck : (uploadedSampleCheck ?? localCheck);
+  const summary = summarize(effective);
+
+  const state = readState();
+  state.restoreIssues = state.restoreIssues || {};
+  const key = normalizeFolder(projectFolder);
+  if (summary.complete) {
+    if (state.restoreIssues[key]) {
+      delete state.restoreIssues[key];
+      writeState(state);
+    }
+    log("ok", `Every sample in ${projectName} is present`);
+    return;
+  }
+
+  const warning = openWarning({ projectName, sampleCheck: effective });
+  state.restoreIssues[key] = {
+    projectFolder: key,
+    projectName,
+    title: warning.title,
+    body: warning.body,
+    names: summary.names,
+    missing: summary.missing,
+    external: summary.external,
+    verified: summary.verified,
+    at: Date.now(),
+  };
+  writeState(state);
+
+  log(warning.severity === "error" ? "err" : "warn", `${warning.title} — ${warning.body}`);
+  // Name the files. A count is a statistic; the filename is what lets someone
+  // recognise the sound that is missing.
+  for (const name of summary.names) log("warn", `  not present: ${name}`);
+  if (Notification.isSupported()) {
+    new Notification({ title: warning.title, body: warning.body, silent: false }).show();
+  }
 }
 
 // ---------- sync engine (lazy-loaded so pre-pair UI is fast) ----------
@@ -1313,6 +1370,7 @@ async function openProjectInAbleton(projectId, versionId) {
     projectName,
     versionId: downloadedVersionId,
     versionNumber,
+    sample_check: uploadedSampleCheck = null,
   } = download;
 
   // Download & extract
@@ -1426,6 +1484,18 @@ async function openProjectInAbleton(projectId, versionId) {
       log("err", `Could not start watching the restored project: ${error.message}`);
     }
   }
+
+  // The promise Tunesfork makes is that a shared project arrives complete. The
+  // only way to know is to ask the restored folder itself, rather than trusting
+  // what the uploader's machine reported — that catches a project that was
+  // incomplete when it left and one that failed to fully arrive, with the same
+  // check the uploader ran.
+  reportRestoreCompleteness({
+    projectFolder: downloadedProjectFolder,
+    alsPath,
+    projectName,
+    uploadedSampleCheck,
+  });
 
   recentlyOpenedProjects.set(normalizeFolder(downloadedProjectFolder), Date.now());
   const openError = await shell.openPath(alsPath);
@@ -1622,6 +1692,7 @@ ipcMain.handle("get-state", () => {
     // Older restores of a project that is also watched somewhere newer. Never
     // removed automatically: a stale copy can still hold unshared work.
     duplicateFolders: findDuplicateWatchFolders(s.folders || [], s.projectLinks || {}, normalizeFolder),
+    restoreIssues: Object.values(s.restoreIssues || {}).sort((a, b) => b.at - a.at),
     logFile: logFilePath(stateDir),
     // Support cannot debug a save that never reached the upload code without
     // knowing which folder is bound to which cloud project.

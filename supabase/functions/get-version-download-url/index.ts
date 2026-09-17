@@ -118,6 +118,7 @@ Deno.serve(async (req) => {
           projectName: project.name,
           versionId: version.id,
           versionNumber: version.version_number,
+          sample_check: version.sample_check ?? null,
         });
       }
 
@@ -140,6 +141,10 @@ Deno.serve(async (req) => {
         kind: "blob_urls",
         blobs: hashesToSign.map((sha256) => ({ sha256, signed_url: urlByHash.get(sha256) })),
         versionId: version.id,
+        // The desktop re-derives completeness from the restored folder, but the
+        // stored verdict says what the uploader's machine saw — which is the
+        // only way to tell "never uploaded" from "failed to arrive".
+        sample_check: version.sample_check ?? null,
       });
     }
 

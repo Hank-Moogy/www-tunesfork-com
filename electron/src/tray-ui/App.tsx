@@ -64,6 +64,10 @@ type AppState = {
   importedProjectCount: number;
   recent: { name: string; version: number | null; status?: string; at: number }[];
   folderAccessIssues: { folder: string; code: string; message: string }[];
+  restoreIssues?: {
+    projectFolder: string; projectName: string; title: string; body: string;
+    names: string[]; missing: number; external: number; verified: boolean; at: number;
+  }[];
   sampleIssues: SampleIssue[];
 };
 
@@ -163,7 +167,7 @@ export default function App() {
   const [state, setState] = useState<AppState>({
     paired: false, deviceName: null, userId: null, email: null, plan: null,
     storageUsedBytes: 0, storageLimitBytes: null, folders: [], syncing: false,
-    importing: false, importedProjectCount: 0, recent: [], folderAccessIssues: [], sampleIssues: [],
+    importing: false, importedProjectCount: 0, recent: [], folderAccessIssues: [], sampleIssues: [], restoreIssues: [],
   });
   const [stateLoaded, setStateLoaded] = useState(false);
   const [pairCode, setPairCode] = useState<string | null>(null);
@@ -566,6 +570,27 @@ export default function App() {
             </section>
           )}
 
+          {(state.restoreIssues?.length ?? 0) > 0 && (
+            <section className="restore-panel">
+              {state.restoreIssues!.map((issue) => (
+                <div key={issue.projectFolder}>
+                  <div className="panel-label">{issue.title.toUpperCase()}</div>
+                  <p className="quota-copy">{issue.body}</p>
+                  {issue.names.length > 0 && (
+                    <ul className="missing-list">
+                      {issue.names.map((name) => <li key={name}>{name}</li>)}
+                    </ul>
+                  )}
+                  <div className="inline-actions">
+                    <button className="mini-button" onClick={() => tfsync.openExternal(`${TUNESFORK_URL}/project`)}>
+                      TELL THE OWNER
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </section>
+          )}
+
           {state.folderAccessIssues.length > 0 && (
             <section className="alert-panel">
               <div className="panel-label">INPUT FAULT · FOLDER ACCESS</div>
@@ -657,6 +682,19 @@ function getDisplayStatus({
   }
   if (!state.paired) {
     return { kicker: "OFFLINE", title: "PAIR DEVICE", detail: "CONNECT THIS UNIT TO YOUR TUNESFORK ACCOUNT", footer: "Continue in your browser to begin", tone: "idle", animated: false };
+  }
+  // A project that opened without its audio is the product failing at the one
+  // thing it promises, so it is said first.
+  if ((state.restoreIssues?.length ?? 0) > 0) {
+    const issue = state.restoreIssues![0];
+    return {
+      kicker: "INCOMPLETE PROJECT",
+      title: "MISSING AUDIO",
+      detail: `${issue.projectName.toUpperCase()} · ${issue.external > 0 ? "SAMPLES WERE NEVER UPLOADED" : "SAMPLES NOT IN THE FOLDER"}`,
+      footer: "Ableton will show these clips as offline",
+      tone: "red",
+      animated: false,
+    };
   }
   if (state.folderAccessIssues.length > 0) {
     return { kicker: "INPUT FAULT", title: "ACCESS NEEDED", detail: "RECONNECT THE BLOCKED ABLETON FOLDER", footer: "Folder permission interrupted", tone: "red", animated: false };
