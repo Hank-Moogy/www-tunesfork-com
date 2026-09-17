@@ -108,6 +108,13 @@ function createDevBridge(): Window["tfsync"] {
     error: [
       { ts: Date.now() - 1000, level: "err", msg: "Upload failed: network unavailable" },
     ],
+    // A real upload run is dozens of lines long. The expanded log has to stay
+    // readable at that length, which three sample lines will never show.
+    logflood: Array.from({ length: 60 }, (_, index) => ({
+      ts: Date.now() - (60 - index) * 900,
+      level: (["busy", "ok", "info", "warn", "err"] as const)[index % 5],
+      msg: `Uploading changed file Project/Samples/Recorded/9-Audio 00${index} [2026-09-06 160457].wav (1.6 MB)…`,
+    })),
   };
   return {
     openExternal: async () => {},
@@ -170,6 +177,7 @@ export default function App() {
   const [log, setLog] = useState<LogLine[]>([]);
   const [patchBayOpen, setPatchBayOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     tfsync.getState().then((next) => {
@@ -389,6 +397,13 @@ export default function App() {
   ];
   const visibleLog = log.length ? (diagnosticsOpen ? log : log.slice(-3)) : fallbackLog;
 
+  // An expanded log grows the whole face, so new lines appear below the fold.
+  // Follow them, which is the point of watching a log during an upload.
+  useEffect(() => {
+    if (!diagnosticsOpen) return;
+    logEndRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [diagnosticsOpen, log.length]);
+
   return (
     <div className={`app ${isMac ? "mac" : ""}`}>
       <div className="gear-shell">
@@ -527,17 +542,20 @@ export default function App() {
               <div className="button-bank">
                 <button className="hardware-button" onClick={addFolder}>ADD FOLDER</button>
                 <button
-                  className="hardware-button"
-                  onClick={importAndWatch}
-                  disabled={state.folders.length === 0 || importing || state.importing}
-                >
-                  {importing || state.importing ? "SCANNING" : state.importedProjectCount ? "IMPORT NEW" : "IMPORT"}
-                </button>
-                <button
                   className={`hardware-button ${patchBayOpen ? "selected" : ""}`}
                   onClick={() => setPatchBayOpen((open) => !open)}
                 >
                   FOLDERS
+                </button>
+                {/* Sweeps every watched folder and uploads anything that has
+                    changed since its last save. The old "IMPORT" wording named
+                    the mechanism; this names what the user wants done. */}
+                <button
+                  className="hardware-button primary"
+                  onClick={importAndWatch}
+                  disabled={state.folders.length === 0 || importing || state.importing}
+                >
+                  {importing || state.importing ? "BACKING UP…" : "BACK UP ALL PROJECTS"}
                 </button>
               </div>
             </section>
@@ -586,8 +604,8 @@ export default function App() {
               {lastImport && (
                 <div className="import-readout">
                   <span>{lastImport.found} FOUND</span>
-                  <span>{lastImport.uploaded} UPLOADED</span>
-                  <span>{lastImport.skipped} LINKED</span>
+                  <span>{lastImport.uploaded} BACKED UP</span>
+                  <span>{lastImport.skipped} UP TO DATE</span>
                   <span className={lastImport.failed.length ? "danger-text" : ""}>{lastImport.failed.length} FAILED</span>
                 </div>
               )}
@@ -606,6 +624,7 @@ export default function App() {
                   <span>{line.msg}</span>
                 </div>
               ))}
+              <div ref={logEndRef} />
             </div>
           </section>}
         </main>
