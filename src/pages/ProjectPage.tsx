@@ -267,10 +267,15 @@ export default function ProjectPage() {
   const commentInputRef = useRef<HTMLInputElement>(null);
   const previewInputRef = useRef<HTMLInputElement>(null);
   const latestSampleCheck = versionSampleCheck(versions[0]);
+  // No sample check at all is not the same as a clean one. Versions stored
+  // before checking existed, and rows whose .als could not be read, are unknown
+  // — and unknown was silently passing the share gate as though it were fine,
+  // which is precisely how a collaborator ends up opening a project to silence.
   const latestSampleIssues = latestSampleCheck
     ? latestSampleCheck.missing + latestSampleCheck.external + (latestSampleCheck.verified === false ? 1 : 0)
-    : 0;
-  const latestSampleVerificationUnavailable = latestSampleCheck?.verified === false;
+    : versions.length > 0 ? 1 : 0;
+  const latestSampleVerificationUnavailable =
+    latestSampleCheck?.verified === false || (versions.length > 0 && !latestSampleCheck);
 
   const warnBeforeSharing = (action: "share" | "collaborate") => {
     if (latestSampleIssues === 0) return false;
