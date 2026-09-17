@@ -1,6 +1,8 @@
 # TunesFork Stripe Managed Payments launch checklist
 
-This checklist is sandbox-first. Do not configure live mode, create live charges, or deploy shared Supabase state until the storage-migration task confirms the project is clear.
+This checklist is sandbox-first. A live catalog may be prepared without enabling
+payments, but do not add live credentials, switch the application to live mode,
+create a live charge, or deploy shared Supabase state without a reviewed cutover.
 
 ## Verified sandbox status — 17 September 2026
 
@@ -44,7 +46,7 @@ to Billing instead of creating a duplicate.
 Still required before accepting live payments:
 
 1. complete the remaining sandbox matrix below (especially 3DS, failed payment,
-   duplicate webhook delivery, and all non-Producer-yearly catalog variants);
+   cancellation, and all non-Producer-yearly catalog variants);
 2. decide whether to enable Stripe's customer-facing failed-payment,
    bank-debit-failure, and expiring-card emails (all are currently disabled);
 3. publish valid TunesFork terms and privacy URLs, then add them to Stripe's
@@ -52,6 +54,39 @@ Still required before accepting live payments:
 4. create and verify the equivalent catalog, portal configuration, webhook, and
    credentials in live mode; and
 5. complete Stripe's live business, tax, payout, and Managed Payments review.
+
+## Live-mode preparation status — 17 September 2026
+
+Live mode remains **disabled** in both Supabase and Vercel. No live API key,
+live webhook signing secret, or live customer charge has been created.
+
+Stripe's live Managed Payments onboarding has been completed through the
+existing prebuilt Checkout integration. The live catalog currently contains
+active Producer and Founding Producer products with their monthly and yearly
+EUR prices and exact lookup keys. Studio is not yet complete.
+
+Do not cut over to live mode yet. The two existing live products were created
+with Stripe tax code `txcd_10103000` (`Software as a service (SaaS) - personal
+use`), but the deployed TunesFork payment contract requires `txcd_10103100`
+(`Software as a service (SaaS) - electronic download - personal use`). Correct
+both existing products and create Studio with `txcd_10103100`, then verify all
+six lookup keys through the live `get-stripe-price` path before adding any live
+credentials.
+
+The remaining live-mode sequence is:
+
+1. correct Producer and Founding Producer to `txcd_10103100`;
+2. create Studio monthly and yearly with inclusive tax behavior and the exact
+   lookup keys in the catalog table below;
+3. verify every live Price is active, recurring, EUR, interval count 1, tax
+   inclusive, and attached to the required product tax code;
+4. configure the live Customer Portal and revenue-recovery settings to match
+   the verified sandbox configuration;
+5. publish Terms and Privacy URLs and complete Stripe's business, tax, payout,
+   and Managed Payments review;
+6. create a live webhook endpoint and obtain the live API and webhook secrets;
+7. enter those secrets directly into Supabase, run a reviewed live cutover, and
+   perform one explicitly authorized low-value production acceptance purchase.
 
 Never copy a sandbox secret into a live setting. Treat the sandbox and live
 catalogs as separate infrastructure and rerun the entire acceptance matrix after
@@ -70,7 +105,7 @@ The official Stripe implementation planner was run against **TunesFork sandbox**
 
 Managed Payments is preview-gated. It is not compatible with TunesFork's former embedded Checkout path. The stable integration baseline is `2026-02-25.clover`, while Checkout requests that set `managed_payments[enabled]=true` must use the current Managed Payments preview version enabled for the Stripe account. Stripe's current setup guide shows `2026-03-04.preview`; verify the activated account's documentation before every production rollout.
 
-## Sandbox catalog
+## Catalog contract
 
 Create three recurring-service products. Set Stripe tax code `txcd_10103100`
 (`Software as a service (SaaS) - electronic download - personal use`) on each
