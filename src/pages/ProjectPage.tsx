@@ -212,6 +212,11 @@ export default function ProjectPage() {
   const [versions, setVersions] = useState<Version[]>([]);
   const [forkRequests, setForkRequests] = useState<Version[]>([]);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  // The arrangement and session grids are wide, dense and built for a mouse.
+  // On a phone they are the least useful thing on the page and would push the
+  // discussion far below the fold, so they start folded away there and stay
+  // open on a desktop, where there is room for them.
+  const [abletonViewOpen, setAbletonViewOpen] = useState(false);
   // What this version needs, and whether the person looking has been seen using
   // it. Derived from their own uploads, so it costs the user nothing to build.
   const [versionPlugins, setVersionPlugins] = useState<
@@ -838,9 +843,9 @@ useEffect(() => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="mx-auto max-w-7xl px-6 py-6">
-        <div className="flex gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start">
           {/* ============ LEFT SIDEBAR ============ */}
-          <aside className="w-72 shrink-0 space-y-4">
+          <aside className="order-2 min-w-0 space-y-4 lg:order-none lg:col-start-1 lg:row-start-1 lg:row-span-2 lg:w-72">
             {/* Versions panel */}
             {/* Fork requests — a contributor's save waits here until the owner
                 accepts it into the version history. */}
@@ -1128,9 +1133,9 @@ useEffect(() => {
           </aside>
 
           {/* ============ MAIN COLUMN ============ */}
-          <div className="flex-1 min-w-0 space-y-4">
+          <div className="order-1 min-w-0 space-y-4 lg:order-none lg:col-start-2 lg:row-start-1">
             {/* Header */}
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
               <div className="flex items-start gap-3 min-w-0">
                 <Button
                   variant="ghost"
@@ -1171,7 +1176,7 @@ useEffect(() => {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                 {selectedCanPromote && (
                   <Button
                     variant="outline"
@@ -1290,13 +1295,27 @@ useEffect(() => {
               </div>
             )}
 
+          </div>
+
+          {/* Everything below the fold on a phone: the Ableton views, the
+              plugin list and the discussion. On desktop this simply
+              continues the right-hand column. */}
+          <div className="order-3 min-w-0 space-y-4 lg:order-none lg:col-start-2 lg:row-start-2">
             {/* Ableton project views */}
             {trackList.length > 0 && (
               <div className="tf-surface rounded-xl overflow-hidden">
-                <div className="px-4 py-2.5 flex items-center gap-2 border-b border-border/60">
+                <div className="px-4 py-2.5 flex flex-wrap items-center gap-2 border-b border-border/60">
                   <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs font-medium text-muted-foreground">Ableton View</span>
-                  <div className="ml-2 flex rounded-lg border border-border bg-secondary/40 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setAbletonViewOpen((open) => !open)}
+                    className="lg:hidden ml-auto rounded-md border border-border px-2 py-1 text-[10px] font-medium text-muted-foreground"
+                    aria-expanded={abletonViewOpen}
+                  >
+                    {abletonViewOpen ? "Hide" : "Show"}
+                  </button>
+                  <div className={`ml-2 rounded-lg border border-border bg-secondary/40 p-0.5 ${abletonViewOpen ? "flex" : "hidden lg:flex"}`}>
                     <button
                       type="button"
                       onClick={() => setProjectView("arrangement")}
@@ -1316,13 +1335,15 @@ useEffect(() => {
                       Session · {sessionClipCount}
                     </button>
                   </div>
-                  <span className="text-[10px] text-muted-foreground font-mono ml-auto">{trackList.length} tracks</span>
+                  <span className="text-[10px] text-muted-foreground font-mono lg:ml-auto">{trackList.length} tracks</span>
                 </div>
-                {projectView === "arrangement" ? (
-                  <ArrangementTimeline tracks={trackList} />
-                ) : (
-                  <SessionGrid tracks={trackList} />
-                )}
+                <div className={abletonViewOpen ? "block" : "hidden lg:block"}>
+                  {projectView === "arrangement" ? (
+                    <ArrangementTimeline tracks={trackList} />
+                  ) : (
+                    <SessionGrid tracks={trackList} />
+                  )}
+                </div>
               </div>
             )}
 
