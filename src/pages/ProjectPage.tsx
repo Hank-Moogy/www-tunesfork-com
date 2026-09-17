@@ -723,6 +723,16 @@ export default function ProjectPage() {
     : "";
   const isProjectOwner = !!project && !!user && project.owner_id === user.id;
 
+  // Approval makes the fork the project's current version in the cloud. Without
+  // this the owner's own folder still holds their old content, and their next
+  // save uploads it as a newer version — quietly reverting the work they just
+  // approved. The desktop app decides whether writing is safe; a copy with
+  // unshared changes is opened, not overwritten.
+  const updateLocalCopy = (versionId: string) => {
+    const url = `tunesfork://open-project/${project?.id}?version=${versionId}`;
+    window.location.href = url;
+  };
+
   const reviewForkRequest = async (versionId: string, decision: "approve" | "reject") => {
     setReviewingId(versionId);
     try {
@@ -748,8 +758,9 @@ export default function ProjectPage() {
         setSelectedVersion(approved);
         toast({
           title: `Approved as version ${approved.version_number ?? ""}`.trim(),
-          description: "The contribution is now part of this project's history.",
+          description: "Updating your copy on this Mac. If it has changes of its own, Tunesfork will open it instead of replacing it.",
         });
+        updateLocalCopy(versionId);
       } else {
         toast({
           title: "Fork request rejected",
@@ -865,7 +876,11 @@ export default function ProjectPage() {
                             disabled={busy}
                             onClick={() => reviewForkRequest(request.id, "approve")}
                           >
-                            {busy ? "Working…" : openedForks.has(request.id) ? "Approve" : "Approve without listening"}
+                            {busy
+                              ? "Working…"
+                              : openedForks.has(request.id)
+                              ? "Approve & update my copy"
+                              : "Approve without listening"}
                           </Button>
                           <Button
                             size="sm"
@@ -877,6 +892,10 @@ export default function ProjectPage() {
                             Reject
                           </Button>
                         </div>
+                        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                          Approving makes this the current version and updates your local copy of
+                          {" "}{project.name}. Close it in Ableton first.
+                        </p>
                       </div>
                     );
                   })}
