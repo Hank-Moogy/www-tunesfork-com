@@ -85,7 +85,7 @@ function createDevBridge(): Window["tfsync"] {
     storageLimitBytes: 107374182400,
     folders: preview === "empty" || preview === "unpaired" ? [] : ["/Users/demo/Music/Ableton Projects"],
     syncing: !["paused", "empty", "unpaired", "permission"].includes(preview),
-    importing: preview === "importing",
+    importing: preview === "importing" || preview === "backingup",
     importedProjectCount: preview === "empty" || preview === "unpaired" ? 0 : 3,
     folderAccessIssues: preview === "permission"
       ? [{ folder: "/Users/demo/Documents/Ableton", code: "EPERM", message: "Folder access blocked" }]
@@ -114,6 +114,15 @@ function createDevBridge(): Window["tfsync"] {
     ],
     // A real upload run is dozens of lines long. The expanded log has to stay
     // readable at that length, which three sample lines will never show.
+    backingup: [
+      { ts: Date.now() - 9000, level: "info" as const, msg: "Found 12 Ableton project folder(s)" },
+      { ts: Date.now() - 8000, level: "busy" as const, msg: "Backing up Hollow Taste [2026-07-13 174304] Project (7/12)…" },
+      ...Array.from({ length: 24 }, (_, index) => ({
+        ts: Date.now() - 7000 + index * 250,
+        level: "busy" as const,
+        msg: `Uploading changed file Hollow Taste [2026-07-13 174304] Project/Samples/Imported/Kick 808 Tone${index}.wav (0.4 MB)…`,
+      })),
+    ],
     logflood: Array.from({ length: 60 }, (_, index) => ({
       ts: Date.now() - (60 - index) * 900,
       level: (["busy", "ok", "info", "warn", "err"] as const)[index % 5],
@@ -376,6 +385,7 @@ export default function App() {
         importing: importing || state.importing,
         latestLog,
         recentUpload,
+        log,
       });
   const isMac = navigator.platform.toLowerCase().includes("mac");
   const fallbackLog: LogLine[] = [
@@ -664,18 +674,37 @@ export default function App() {
   );
 }
 
+// The main process announces each project as it starts it. Backing up a large
+// library is minutes of per-file chatter, and that announcement scrolls out of
+// the log long before the run ends — leaving no way to tell a working run from
+// a stuck one. Recover it so the screen can hold the count steady.
+export function parseBackupProgress(lines: { msg: string }[]) {
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const match = /^Backing up (.+) \((\d+)\/(\d+)\)/.exec(lines[i].msg);
+    if (!match) continue;
+    return {
+      project: match[1].trim().replace(/ Project$/i, ""),
+      current: Number(match[2]),
+      total: Number(match[3]),
+    };
+  }
+  return null;
+}
+
 function getDisplayStatus({
   state,
   pairing,
   importing,
   latestLog,
   recentUpload,
+  log,
 }: {
   state: AppState;
   pairing: boolean;
   importing: boolean;
   latestLog: LogLine | null;
   recentUpload: AppState["recent"][number] | null;
+  log: LogLine[];
 }) {
   if (!state.paired && pairing) {
     return { kicker: "AUTH CHANNEL", title: "CONFIRM PAIRING", detail: "MATCH THIS CODE IN YOUR BROWSER", footer: "Pairing request active", tone: "amber", animated: true };
@@ -700,6 +729,17 @@ function getDisplayStatus({
     return { kicker: "INPUT FAULT", title: "ACCESS NEEDED", detail: "RECONNECT THE BLOCKED ABLETON FOLDER", footer: "Folder permission interrupted", tone: "red", animated: false };
   }
   if (importing) {
+    const progress = parseBackupProgress(log);
+    if (progress) {
+      return {
+        kicker: "BACKING UP",
+        title: `PROJECT ${progress.current} OF ${progress.total}`,
+        detail: progress.project.toUpperCase(),
+        footer: latestLog?.msg || "Backing up every watched folder",
+        tone: "cyan",
+        animated: true,
+      };
+    }
     return { kicker: "PROJECT SCAN", title: "INDEXING", detail: "READING PROJECTS AND PREPARING SNAPSHOTS", footer: latestLog?.msg || "Scanning connected folders", tone: "cyan", animated: true };
   }
   if (latestLog?.level === "busy") {
