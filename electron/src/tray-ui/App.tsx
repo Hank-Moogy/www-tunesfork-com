@@ -410,6 +410,7 @@ export default function App() {
     },
   ];
   const visibleLog = log.length ? (diagnosticsOpen ? log : log.slice(-3)) : fallbackLog;
+  const backupProgress = (importing || state.importing) ? parseBackupProgress(log) : null;
 
   // An expanded log grows the whole face, so new lines appear below the fold.
   // Follow them, which is the point of watching a log during an upload.
@@ -527,6 +528,41 @@ export default function App() {
             </section>
           ) : stateLoaded ? (
             <>
+              {/* A back-up runs for minutes and the screen above it keeps
+                  changing — a warning or a finished upload will take it over
+                  mid-run. The count needs somewhere of its own that does not
+                  move, high enough to be the first thing read. */}
+              {backupProgress && (
+                <section className="backup-band" aria-live="polite">
+                  <div className="backup-band-head">
+                    <span>BACKING UP ALL PROJECTS</span>
+                    <strong>
+                      {String(backupProgress.current).padStart(2, "0")} / {String(backupProgress.total).padStart(2, "0")}
+                    </strong>
+                  </div>
+                  <div
+                    className="backup-band-bar"
+                    role="progressbar"
+                    aria-valuenow={backupProgress.current}
+                    aria-valuemin={0}
+                    aria-valuemax={backupProgress.total}
+                    aria-label={`Backing up project ${backupProgress.current} of ${backupProgress.total}`}
+                  >
+                    {Array.from({ length: backupProgress.total }).map((_, index) => (
+                      <i
+                        key={index}
+                        className={
+                          index < backupProgress.current - 1 ? "is-done"
+                          : index === backupProgress.current - 1 ? "is-current"
+                          : ""
+                        }
+                      />
+                    ))}
+                  </div>
+                  <div className="backup-band-project">{backupProgress.project}</div>
+                </section>
+              )}
+
               <section className="telemetry-strip">
                 <div>
                   <span>FOLDERS</span>
