@@ -822,6 +822,16 @@ export default function ProjectPage() {
                   {forkRequests.map((request) => {
                     const author = profileMap.get(request.uploader_id)?.display_name || "A collaborator";
                     const busy = reviewingId === request.id;
+                    // A fork is a whole snapshot taken when the collaborator
+                    // opened the project. If the project has moved on since,
+                    // approving it discards everything in between — so say so
+                    // rather than quietly doing it.
+                    const tip = versions[0] ?? null;
+                    const base = request.base_version_id ?? null;
+                    const staleAgainst = base && tip && base !== tip.id
+                      ? versions.find((v) => v.id === base) ?? null
+                      : null;
+                    const isStale = !!base && !!tip && base !== tip.id;
                     return (
                       <div key={request.id} className="rounded-lg px-3 py-3 bg-muted/40">
                         <p className="text-sm font-medium truncate">
@@ -830,6 +840,13 @@ export default function ProjectPage() {
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {author} · {formatRelative(request.created_at)}
                         </p>
+                        {isStale && (
+                          <p className="mt-2 rounded-md bg-[#ffb52e]/10 border border-[#ffb52e]/30 px-2.5 py-2 text-xs text-[#ffb52e]">
+                            Built on version {staleAgainst?.version_number ?? "an earlier version"}; this project is now at
+                            {" "}version {tip?.version_number}. Approving replaces the current version with this one, so
+                            changes made since will not be in it.
+                          </p>
+                        )}
                         <div className="flex flex-wrap gap-2 mt-3">
                           {/* The whole review model assumes you have heard the
                               changes. Until this existed, approving was blind. */}
