@@ -17,6 +17,13 @@ const { DEFAULT_SAVE_DEBOUNCE_MS, getSaveEventDelayMs } = require("./save-event-
 const { appendLogLine, logFilePath } = require("./diagnostic-log.cjs");
 const { decideRestoreTarget, findDuplicateWatchFolders } = require("./working-copy.cjs");
 const { openWarning, summarize } = require("./completeness.cjs");
+const { isQuotaError, parseQuotaDetail, quotaNotification, storageUsage } = require("./quota.cjs");
+const {
+  findUnbackedProjects,
+  shouldNotifyUnbacked,
+  signatureOf,
+  unbackedNotification,
+} = require("./backup-coverage.cjs");
 const {
   classifySaveTarget,
   readProjectMarker,
@@ -72,6 +79,11 @@ const defaultState = {
   sampleIssues: {},
   // Projects restored from the cloud whose audio did not fully arrive.
   restoreIssues: {},
+  // Set when the account runs out of room, cleared by the next upload that
+  // succeeds. The tray reads it to offer the way out.
+  quotaBlocked: null,
+  unbackedProjects: [],
+  unbackedNotice: null,
   // token is intentionally NOT in this file — stored in OS keychain via keytar.
   // For the alpha we keep it in a sidecar file with 600 perms; swap for keytar in v0.2.
 };
@@ -555,6 +567,77 @@ function reportRestoreCompleteness({ projectFolder, alsPath, projectName, upload
   }
 }
 
+// ---------- storage quota ----------
+function recordQuotaBlock({ projectName, detail }) {
+  const numbers = parseQuotaDetail(detail);
+  const notice = quotaNotification({ projectName, detail });
+  const state = readState();
+  state.quotaBlocked = {
+    projectName: projectName ?? null,
+    usedBytes: numbers?.usedBytes ?? state.storageUsedBytes ?? null,
+    limitBytes: numbers?.limitBytes ?? state.storageLimitBytes ?? null,
+    requiredBytes: numbers?.requiredBytes ?? null,
+    at: Date.now(),
+  };
+  if (numbers?.limitBytes != null) state.storageLimitBytes = numbers.limitBytes;
+  if (numbers?.usedBytes != null) state.storageUsedBytes = numbers.usedBytes;
+  writeState(state);
+  log("err", `${notice.title} — ${notice.body}`);
+  if (Notification.isSupported()) {
+    const n = new Notification({ title: notice.title, body: notice.body, silent: false });
+    // Straight to the plans, which is the only thing that resolves this.
+    n.on("click", () => shell.openExternal(`${TUNESFORK_URL}/pricing`));
+    n.show();
+  }
+}
+
+function clearQuotaBlock() {
+  const state = readState();
+  if (!state.quotaBlocked) return;
+  state.quotaBlocked = null;
+  writeState(state);
+}
+
+// ---------- back-up coverage ----------
+// A project sitting in a watched folder that has never been saved while
+// Tunesfork was watching is invisible to the watcher, and the user has no way
+// to know their folder is not actually covered.
+function scanBackupCoverage({ notify = true } = {}) {
+  const state = readState();
+  if (!state.paired || state.folders.length === 0) return [];
+  const accessible = [];
+  for (const folder of state.folders) {
+    try { accessible.push(assertFolderReadable(folder)); } catch { /* reported elsewhere */ }
+  }
+  if (accessible.length === 0) return [];
+
+  let projects = [];
+  try { projects = findAbletonProjectFolders(accessible); } catch { return []; }
+
+  const unbacked = findUnbackedProjects(projects, state.projectLinks || {}, {
+    normalize: normalizeFolder,
+    readMarker: (folder) => readProjectMarker(folder),
+  });
+
+  const fresh = readState();
+  fresh.unbackedProjects = unbacked;
+  const previous = fresh.unbackedNotice ?? null;
+  const announce = notify && shouldNotifyUnbacked(unbacked, previous);
+  if (announce) fresh.unbackedNotice = { signature: signatureOf(unbacked), at: Date.now() };
+  writeState(fresh);
+
+  if (announce && Notification.isSupported()) {
+    const notice = unbackedNotification(unbacked);
+    const n = new Notification({ title: notice.title, body: notice.body, silent: false });
+    n.on("click", () => { toggleTrayWindow(); });
+    n.show();
+  }
+  if (unbacked.length > 0) {
+    log("warn", `${unbacked.length} project(s) in your watched folders have never been backed up`);
+  }
+  return unbacked;
+}
+
 // ---------- sync engine (lazy-loaded so pre-pair UI is fast) ----------
 let stopWatcher = null;
 const projectUploadChains = new Map();
@@ -681,8 +764,12 @@ async function processAlsSave(alsPath) {
       project_name: path.basename(projectFolder).replace(/ Project$/i, ""),
       error_code: error?.code || (String(error?.message || "").includes("QUOTA_EXCEEDED") ? "QUOTA_EXCEEDED" : "UPLOAD_FAILED"),
     });
-    if (error?.code === "QUOTA_EXCEEDED" || String(error?.message || "").includes("QUOTA_EXCEEDED")) {
+    if (isQuotaError(error)) {
       emitAnalytics("Storage Quota Rejected Upload");
+      recordQuotaBlock({
+        projectName: path.basename(projectFolder).replace(/ Project$/i, ""),
+        detail: error?.detail ?? null,
+      });
     }
     if (error?.code === "SAMPLES_INCOMPLETE" && Notification.isSupported()) {
       const notification = new Notification({
@@ -1012,6 +1099,7 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
       lastContentHash: contentHash,
     });
     writeProjectMarker(projectFolder, { projectId: result.project_id, projectName });
+    clearQuotaBlock();
     addRecentUpload(projectName, result.version_number, result.status);
     log(
       "info",
@@ -1199,7 +1287,7 @@ async function importWatchedFolders() {
   const shouldResume = s.syncing;
   if (shouldResume) stopSync();
 
-  const summary = { found: 0, uploaded: 0, skipped: 0, failed: [] };
+  const summary = { found: 0, uploaded: 0, skipped: 0, failed: [], quotaBlocked: false };
   try {
     const accessibleFolders = [];
     for (const folder of s.folders) {
@@ -1246,10 +1334,22 @@ async function importWatchedFolders() {
       } catch (e) {
         summary.failed.push({ folder: project.folder, error: e.message });
         log("err", `Back-up failed for ${name}: ${e.message}`);
+        // Every remaining project would fail the same way, each after a full
+        // hash of its folder. Stop and say so once.
+        if (isQuotaError(e)) {
+          summary.quotaBlocked = true;
+          const remaining = projects.length - index;
+          if (remaining > 0) {
+            log("warn", `Stopped: no cloud storage left. ${remaining} project(s) not attempted.`);
+          }
+          break;
+        }
       }
     }
 
-    if (Notification.isSupported()) {
+    // A quota stop has already raised its own notification; a cheerful
+    // "complete" on top of it would contradict it.
+    if (Notification.isSupported() && !summary.quotaBlocked) {
       new Notification({
         title: "Back-up complete",
         body: `${summary.uploaded} backed up, ${summary.skipped} already up to date, ${summary.failed.length} failed`,
@@ -1627,6 +1727,16 @@ app.whenReady().then(() => {
   if (s.paired && s.folders.length > 0) {
     startSync().catch((e) => log("err", `Auto-start failed: ${e.message}`));
   }
+  // Give the watcher a moment to settle, then report what it cannot see.
+  setTimeout(() => {
+    try { scanBackupCoverage(); } catch (e) { log("warn", `Coverage scan failed: ${e.message}`); }
+  }, 8000);
+  // A folder's contents change outside Tunesfork; re-check occasionally rather
+  // than only at launch. shouldNotifyUnbacked keeps this from becoming nagging.
+  setInterval(() => {
+    try { scanBackupCoverage(); } catch { /* best effort */ }
+  }, 6 * 60 * 60 * 1000);
+
   const accessIssues = checkWatchedFolderAccess();
   if (!s.paired || s.folders.length === 0 || accessIssues.length > 0) {
     setTimeout(() => {
@@ -1694,6 +1804,9 @@ ipcMain.handle("get-state", () => {
     duplicateFolders: findDuplicateWatchFolders(s.folders || [], s.projectLinks || {}, normalizeFolder),
     restoreIssues: Object.values(s.restoreIssues || {}).sort((a, b) => b.at - a.at),
     logFile: logFilePath(stateDir),
+    storage: storageUsage({ usedBytes: s.storageUsedBytes, limitBytes: s.storageLimitBytes }),
+    quotaBlocked: s.quotaBlocked ?? null,
+    unbackedProjects: s.unbackedProjects ?? [],
     // Support cannot debug a save that never reached the upload code without
     // knowing which folder is bound to which cloud project.
     projectLinks: Object.values(s.projectLinks || {}).map((link) => ({
@@ -1717,6 +1830,11 @@ ipcMain.handle("set-folders", async (_e, folders) => {
     stopSync();
     if (s.folders.length > 0) await startSync();
   }
+  // Adding a folder is exactly when its projects are least likely to be backed
+  // up, and the moment the user is thinking about it.
+  setTimeout(() => {
+    try { scanBackupCoverage(); } catch (e) { log("warn", `Coverage scan failed: ${e.message}`); }
+  }, 1500);
 });
 ipcMain.handle("repair-folder-access", async (_e, folder) => {
   const normalized = normalizeFolder(folder);

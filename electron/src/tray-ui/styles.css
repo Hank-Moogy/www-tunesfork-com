@@ -282,6 +282,38 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
   white-space: nowrap;
 }
 
+/* Storage. Amber and red here are the point: this is the one readout that has
+   to be legible before it becomes a problem, not after. */
+.storage-strip {
+  margin-top: 9px;
+  padding: 9px 11px 10px;
+  border: 1px solid #0a0b0b;
+  border-radius: 7px;
+  background: linear-gradient(#141617, #090a0a);
+  box-shadow: inset 0 1px 2px #000;
+}
+.storage-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.storage-head span { color: #616664; font-size: 7px; letter-spacing: .13em; }
+.storage-head strong { color: var(--accent); font-size: 9px; letter-spacing: .08em; white-space: nowrap; }
+.storage-bar { height: 4px; margin-top: 7px; border-radius: 2px; background: #232a26; overflow: hidden; }
+.storage-bar i { display: block; height: 100%; background: var(--accent); box-shadow: 0 0 6px var(--accent-glow); transition: width .4s ease; }
+.storage-strip.is-warn .storage-head strong, .storage-strip.is-critical .storage-head strong { color: var(--amber); }
+.storage-strip.is-warn .storage-bar i, .storage-strip.is-critical .storage-bar i { background: var(--amber); box-shadow: 0 0 6px rgba(255,181,46,.5); }
+.storage-strip.is-full { border-color: #3a1413; }
+.storage-strip.is-full .storage-head strong { color: var(--red); }
+.storage-strip.is-full .storage-bar i { background: var(--red); box-shadow: 0 0 6px rgba(255,77,73,.5); }
+
+.quota-panel, .unbacked-panel {
+  margin-top: 9px;
+  padding: 11px;
+  border-radius: 7px;
+  background: linear-gradient(rgba(255,255,255,.03), rgba(0,0,0,.2));
+}
+.quota-panel { border: 1px solid #3a1413; box-shadow: inset 0 1px 2px #000, 0 0 16px rgba(255,77,73,.08); }
+.quota-panel .panel-label { color: var(--red); }
+.unbacked-panel { border: 1px solid #3a3113; box-shadow: inset 0 1px 2px #000, 0 0 16px rgba(255,181,46,.07); }
+.unbacked-panel .panel-label { color: var(--amber); }
+
 .telemetry-strip {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

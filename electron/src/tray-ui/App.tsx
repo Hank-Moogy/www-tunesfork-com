@@ -64,6 +64,15 @@ type AppState = {
   importedProjectCount: number;
   recent: { name: string; version: number | null; status?: string; at: number }[];
   folderAccessIssues: { folder: string; code: string; message: string }[];
+  storage?: {
+    metered: boolean;
+    percent: number | null;
+    usedLabel: string | null;
+    limitLabel: string | null;
+    level: "ok" | "warn" | "critical" | "full";
+  } | null;
+  quotaBlocked?: { projectName: string | null; usedBytes: number | null; limitBytes: number | null; at: number } | null;
+  unbackedProjects?: { folder: string; name: string }[];
   restoreIssues?: {
     projectFolder: string; projectName: string; title: string; body: string;
     names: string[]; missing: number; external: number; verified: boolean; at: number;
@@ -89,6 +98,22 @@ function createDevBridge(): Window["tfsync"] {
     importedProjectCount: preview === "empty" || preview === "unpaired" ? 0 : 3,
     folderAccessIssues: preview === "permission"
       ? [{ folder: "/Users/demo/Documents/Ableton", code: "EPERM", message: "Folder access blocked" }]
+      : [],
+    storage: preview === "quota"
+      ? { metered: false, percent: 100, usedLabel: "5.4 GB", limitLabel: "5.4 GB", level: "full" as const }
+      : preview === "nearfull"
+      ? { metered: false, percent: 92, usedLabel: "4.9 GB", limitLabel: "5.4 GB", level: "warn" as const }
+      : { metered: false, percent: 34, usedLabel: "36 GB", limitLabel: "107 GB", level: "ok" as const },
+    quotaBlocked: preview === "quota"
+      ? { projectName: "Midnight Sketch", usedBytes: 5_400_000_000, limitBytes: 5_368_709_120, at: Date.now() }
+      : null,
+    unbackedProjects: preview === "unbacked"
+      ? [
+          { folder: "/Users/demo/Music/Ableton Projects/Dawn Chorus Project", name: "Dawn Chorus" },
+          { folder: "/Users/demo/Music/Ableton Projects/Rust Project", name: "Rust" },
+          { folder: "/Users/demo/Music/Ableton Projects/Tape Loop Project", name: "Tape Loop" },
+          { folder: "/Users/demo/Music/Ableton Projects/Hymn Project", name: "Hymn" },
+        ]
       : [],
     sampleIssues: preview === "samples"
       ? [{
@@ -176,7 +201,7 @@ export default function App() {
   const [state, setState] = useState<AppState>({
     paired: false, deviceName: null, userId: null, email: null, plan: null,
     storageUsedBytes: 0, storageLimitBytes: null, folders: [], syncing: false,
-    importing: false, importedProjectCount: 0, recent: [], folderAccessIssues: [], sampleIssues: [], restoreIssues: [],
+    importing: false, importedProjectCount: 0, recent: [], folderAccessIssues: [], sampleIssues: [], restoreIssues: [], storage: null, quotaBlocked: null, unbackedProjects: [],
   });
   const [stateLoaded, setStateLoaded] = useState(false);
   const [pairCode, setPairCode] = useState<string | null>(null);
@@ -563,6 +588,58 @@ export default function App() {
                 </section>
               )}
 
+              {/* Nothing can save while this is true, so it sits above
+                  everything and carries the only action that resolves it. */}
+              {state.quotaBlocked && (
+                <section className="quota-panel">
+                  <div className="panel-label">STORAGE FULL · BACK-UPS PAUSED</div>
+                  <p className="quota-copy">
+                    {state.storage?.usedLabel && state.storage?.limitLabel
+                      ? `${state.storage.usedLabel} of ${state.storage.limitLabel} used. `
+                      : ""}
+                    New saves will not reach the cloud until you free space or move to a larger plan.
+                  </p>
+                  <div className="inline-actions">
+                    <button
+                      className="hardware-button primary"
+                      onClick={() => {
+                        trackDesktopEvent("Pricing Plan Selected", { source: "tray_quota_block" });
+                        tfsync.openExternal(`${TUNESFORK_URL}/pricing`);
+                      }}
+                    >
+                      SEE PLANS
+                    </button>
+                    <button className="hardware-button" onClick={() => tfsync.openExternal(`${TUNESFORK_URL}/dashboard`)}>
+                      FREE UP SPACE
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              {/* Projects the watcher cannot see, because they have never been
+                  saved while Tunesfork was watching. */}
+              {!state.quotaBlocked && (state.unbackedProjects?.length ?? 0) > 0 && (
+                <section className="unbacked-panel">
+                  <div className="panel-label">
+                    {state.unbackedProjects!.length} PROJECT{state.unbackedProjects!.length === 1 ? "" : "S"} NOT BACKED UP
+                  </div>
+                  <p className="quota-copy">
+                    {state.unbackedProjects!.slice(0, 3).map((p) => p.name).join(", ")}
+                    {state.unbackedProjects!.length > 3 ? ` and ${state.unbackedProjects!.length - 3} more` : ""}
+                    {" "}in your watched folders have never been saved to the cloud.
+                  </p>
+                  <div className="inline-actions">
+                    <button
+                      className="hardware-button primary"
+                      onClick={importAndWatch}
+                      disabled={importing || state.importing}
+                    >
+                      {importing || state.importing ? "BACKING UP…" : "BACK THEM UP NOW"}
+                    </button>
+                  </div>
+                </section>
+              )}
+
               <section className="telemetry-strip">
                 <div>
                   <span>FOLDERS</span>
@@ -577,6 +654,26 @@ export default function App() {
                   <strong>{recentUpload ? relTime(recentUpload.at).toUpperCase() : "—"}</strong>
                 </div>
               </section>
+
+              {/* The numbers were already in state and shown nowhere, so the
+                  80% and 95% warnings had no dial to point at. */}
+              {state.storage && (
+                <section className={`storage-strip is-${state.storage.level}`}>
+                  <div className="storage-head">
+                    <span>CLOUD STORAGE</span>
+                    <strong>
+                      {state.storage.metered
+                        ? `${state.storage.usedLabel ?? "—"} · METERED`
+                        : `${state.storage.usedLabel ?? "—"} / ${state.storage.limitLabel ?? "—"}`}
+                    </strong>
+                  </div>
+                  {!state.storage.metered && (
+                    <div className="storage-bar" role="progressbar" aria-valuenow={state.storage.percent ?? 0} aria-valuemin={0} aria-valuemax={100}>
+                      <i style={{ width: `${state.storage.percent ?? 0}%` }} />
+                    </div>
+                  )}
+                </section>
+              )}
 
             <section className="control-deck">
               <button
@@ -757,6 +854,19 @@ function getDisplayStatus({
       title: "MISSING AUDIO",
       detail: `${issue.projectName.toUpperCase()} · ${issue.external > 0 ? "SAMPLES WERE NEVER UPLOADED" : "SAMPLES NOT IN THE FOLDER"}`,
       footer: "Ableton will show these clips as offline",
+      tone: "red",
+      animated: false,
+    };
+  }
+  // Nothing will save again until this is resolved, so it outranks the rest.
+  if (state.quotaBlocked) {
+    return {
+      kicker: "STORAGE FULL",
+      title: "UPGRADE NEEDED",
+      detail: state.quotaBlocked.projectName
+        ? `${state.quotaBlocked.projectName.toUpperCase()} WAS NOT BACKED UP`
+        : "YOUR LAST SAVE WAS NOT BACKED UP",
+      footer: "Saves resume as soon as there is room",
       tone: "red",
       animated: false,
     };
