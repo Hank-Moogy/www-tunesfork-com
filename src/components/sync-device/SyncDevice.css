@@ -1,0 +1,276 @@
+/**
+ * The Tunesfork Sync device, as a standalone visual.
+ *
+ * Copied out of LandingPageGalaxyClassic.css so the desktop-app page can show
+ * the product without importing a thousand lines of landing-page styles. The
+ * landing page still carries its own copy of these rules; once the ?hero=flip
+ * experiment is settled one way or the other, that copy should be deleted and
+ * the page should import this file instead. Two copies of the same selectors
+ * is a drift risk, and this comment is the only thing preventing it.
+ *
+ * Source of truth for how the app actually looks: electron/src/tray-ui/.
+ */
+
+.gc-root .gc-stage .gcd {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(57%, 412px);
+  transform: rotateY(-6deg) rotateX(1.5deg);
+}
+
+/* ── Tunesfork Sync device ─────────────────────────────────────────────
+   Colours, type and the pulsing meter are lifted from electron/src/tray-ui
+   so the landing page shows the app as it actually ships. */
+.gcd {
+  --case: #1a1b1d;
+  --ink: #d9d4c7;
+  --dim: #777a78;
+  --orange: #ff6534;
+  --orange-glow: rgba(255, 83, 36, 0.45);
+  --amber: #ffb52e;
+  --green: #45ff72;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 9px;
+  overflow: hidden;
+  border: 1px solid #37393c;
+  border-radius: 18px;
+  color: var(--ink);
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .022) 0 1px, transparent 1px 3px),
+    linear-gradient(145deg, #2a2c2f 0%, #17181a 35%, #222426 65%, #101113 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .13),
+    inset 0 -2px 8px rgba(0, 0, 0, .8),
+    0 30px 80px rgba(0, 0, 0, .7);
+  font-family: "SFMono-Regular", "Roboto Mono", ui-monospace, Menlo, monospace;
+  font-size: 12px;
+}
+
+.gcd-screw {
+  position: absolute;
+  z-index: 5;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #92979b 0 9%, #474b4e 28%, #121315 64%, #050506 100%);
+  box-shadow: 0 1px 2px #000, inset 0 1px 1px rgba(255, 255, 255, .35);
+}
+
+.gcd-screw::after { content: ""; position: absolute; top: 5px; right: 2px; left: 2px; height: 1px; background: #090a0b; transform: rotate(-28deg); }
+
+.gcd-screw-tr { top: 12px; right: 12px; }
+
+.gcd-screw-bl { bottom: 12px; left: 12px; }
+
+.gcd-screw-br { right: 12px; bottom: 12px; }
+
+.gcd-traffic { position: absolute; top: 12px; left: 14px; display: flex; gap: 7px; }
+
+.gcd-traffic i { width: 11px; height: 11px; border-radius: 50%; box-shadow: inset 0 1px 1px rgba(255, 255, 255, .35); }
+
+.gcd-traffic i:nth-child(1) { background: #ff5f57; }
+
+.gcd-traffic i:nth-child(2) { background: #febc2e; }
+
+.gcd-traffic i:nth-child(3) { background: #28c840; }
+
+.gcd-head { position: relative; z-index: 2; display: flex; min-height: 48px; padding: 28px 14px 9px; align-items: flex-end; justify-content: space-between; gap: 8px; }
+
+.gcd-brand { display: flex; align-items: center; gap: 10px; }
+
+.gcd-badge {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  place-items: center;
+  border: 1px solid #080909;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #45494c, #181a1c 55%, #080909);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, .13), 0 2px 4px rgba(0, 0, 0, .6);
+}
+
+.gcd-badge img { width: 100%; height: 100%; object-fit: contain; filter: contrast(1.08) brightness(1.25); }
+
+.gcd-id { display: flex; flex-direction: column; gap: 5px; }
+
+.gcd-id small { color: #8c8e8c; font-size: 6.5px; letter-spacing: .14em; white-space: nowrap; }
+
+.gcd-id strong { color: #e8e3d7; font-size: 10.5px; font-weight: 500; letter-spacing: .03em; white-space: nowrap; }
+
+.gcd-id b { color: var(--orange); font-weight: 700; }
+
+.gcd-link { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; color: #8c8e8c; font-size: 6.5px; letter-spacing: .12em; white-space: nowrap; }
+
+.gcd-led { display: inline-block; width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #343638; }
+
+.gcd-led.is-green { background: var(--green); box-shadow: 0 0 9px rgba(69, 255, 114, .85); }
+
+.gcd-led.is-amber { background: var(--amber); box-shadow: 0 0 8px rgba(255, 181, 46, .8); }
+
+.gcd-bezel {
+  position: relative;
+  z-index: 2;
+  margin: 0 9px;
+  padding: 8px;
+  border: 1px solid #070707;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #050506, #2b2c2d 48%, #080909);
+  box-shadow: inset 0 0 0 2px #111, 0 8px 20px rgba(0, 0, 0, .45);
+}
+
+.gcd-glass {
+  position: relative;
+  display: flex;
+  min-height: 196px;
+  padding: 12px 14px 11px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #282c2d;
+  border-radius: 6px;
+  background: radial-gradient(ellipse at center, rgba(34, 49, 48, .26), transparent 68%), linear-gradient(#050706, #010202);
+  box-shadow: inset 0 0 35px #000, inset 0 0 3px rgba(255, 255, 255, .12);
+}
+
+.gcd-scan { position: absolute; inset: 0; opacity: .26; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, .035) 3px 4px); }
+
+.gcd-topline { position: relative; z-index: 1; display: flex; justify-content: space-between; color: #5e6965; font-size: 9px; }
+
+.gcd-center { position: relative; z-index: 1; display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+
+.gcd-kicker { margin-bottom: 10px; color: #68726e; font-size: 7px; letter-spacing: .2em; white-space: nowrap; }
+
+.gcd-center strong {
+  color: var(--orange);
+  font-size: clamp(12px, 1.15vw, 17px);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: .1em;
+  white-space: nowrap;
+  text-shadow: 0 0 10px var(--orange-glow);
+}
+
+.gcd-detail { margin-top: 10px; color: #8f9994; font-size: 6.5px; line-height: 1.55; letter-spacing: .1em; white-space: nowrap; }
+
+/* The level meter, keyframes and stagger match the shipping app exactly. */
+.gcd-meter { position: relative; z-index: 1; display: flex; height: 13px; margin: 0 auto 9px; align-items: flex-end; justify-content: center; gap: 3px; }
+
+.gcd-meter span { width: 3px; height: 3px; background: #28302d; }
+
+.gcd-meter span.is-active { background: var(--orange); box-shadow: 0 0 4px var(--orange-glow); animation: gcd-meter 1.2s ease-in-out infinite alternate; }
+
+.gcd-meter span:nth-child(3n) { animation-delay: -.35s; }
+
+.gcd-meter span:nth-child(4n) { animation-delay: -.7s; }
+
+.gcd-watch { position: relative; z-index: 1; display: flex; align-items: center; gap: 7px; color: #70817a; font-size: 7.5px; white-space: nowrap; }
+
+.gcd-telemetry {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  margin: 9px 9px 0;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid #070707;
+  border-radius: 8px;
+  background: linear-gradient(#151617, #090a0a);
+  box-shadow: inset 0 1px 2px #000, 0 1px 0 rgba(255, 255, 255, .05);
+}
+
+.gcd-telemetry div { min-width: 0; padding: 10px 6px 9px; text-align: center; }
+
+.gcd-telemetry div + div { border-left: 1px solid #292a2b; }
+
+.gcd-telemetry span { display: block; color: #616664; font-size: 6.5px; letter-spacing: .11em; white-space: nowrap; }
+
+.gcd-telemetry strong { display: block; margin-top: 4px; color: var(--amber); font-size: 11px; font-weight: 700; white-space: nowrap; text-shadow: 0 0 7px rgba(255, 181, 46, .28); }
+
+.gcd-deck {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  margin: 10px 9px 0;
+  padding: 12px;
+  grid-template-columns: 82px 1fr;
+  gap: 8px;
+  border: 1px solid #101112;
+  border-radius: 11px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, .035), rgba(0, 0, 0, .18));
+}
+
+.gcd-switch { display: grid; padding: 8px 0 9px; place-items: center; border: 1px solid #080808; border-radius: 9px; background: linear-gradient(145deg, #27292b, #101112); box-shadow: inset 0 1px 1px rgba(255, 255, 255, .08), 0 3px 0 #070707; }
+
+.gcd-cap {
+  display: block;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 9px;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, #c4c4c4 0 1px, #6f6f6f 1px 2px, #cdcdcd 2px 3px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, .65), inset 0 0 6px rgba(0, 0, 0, .4);
+}
+
+.gcd-switch-label { color: var(--green); font-size: 8px; letter-spacing: .1em; text-shadow: 0 0 8px rgba(69, 255, 114, .5); }
+
+.gcd-bank { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; align-content: start; }
+
+.gcd-btn {
+  display: grid;
+  min-height: 34px;
+  padding: 6px;
+  place-items: center;
+  border: 1px solid #070808;
+  border-radius: 6px;
+  color: #aaa69c;
+  font-size: 7px;
+  letter-spacing: .08em;
+  white-space: nowrap;
+  background: linear-gradient(#303235, #1b1c1e);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), inset 0 -2px 2px rgba(0, 0, 0, .5), 0 3px 0 #090a0a;
+}
+
+.gcd-btn.is-wide { grid-column: 1 / 3; }
+
+.gcd-diag { position: relative; z-index: 2; margin: 10px 9px 0; overflow: hidden; border: 1px solid #101112; border-radius: 10px; background: rgba(0, 0, 0, .38); }
+
+.gcd-diag-head { display: flex; padding: 9px 11px; justify-content: space-between; color: #7c817e; font-size: 6.5px; letter-spacing: .13em; white-space: nowrap; }
+
+.gcd-min { color: var(--green); }
+
+.gcd-diag-body { display: grid; padding: 0 12px 10px; gap: 5px; }
+
+.gcd-diag-body p { margin: 0; overflow: hidden; color: #6f7471; font-size: 7px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+
+.gcd-diag-body i { margin-right: 7px; color: #4c514f; font-style: normal; }
+
+.gcd-diag-body p.is-busy { color: var(--orange); }
+
+.gcd-diag-body p.is-ok { color: var(--green); }
+
+.gcd-foot { position: relative; z-index: 2; display: flex; padding: 9px 30px 4px; align-items: center; justify-content: space-between; gap: 6px; color: #6e716f; font-size: 6px; letter-spacing: .1em; white-space: nowrap; }
+
+[data-hero="flip"] .tf-chapter-visual .gcd {
+  width: min(100%, 330px);
+  transform: perspective(1500px) rotateY(-7deg) rotateX(1.5deg);
+}
+
+@keyframes gcd-meter { from { height: 3px; opacity: .35; } to { height: 12px; opacity: 1; } }
+
+/* Ambient float. The shadow lives outside .gcd so it is not clipped by the
+   device's own overflow, and sits behind it on the page's ground. */
+.gcd-float-shadow {
+  position: absolute;
+  z-index: 0;
+  bottom: -26px;
+  left: 50%;
+  width: 78%;
+  height: 34px;
+  transform: translateX(-50%);
+  border-radius: 100%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.85), transparent 75%);
+  filter: blur(18px);
+  pointer-events: none;
+}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Apple, ArrowRight, Download } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import SyncDevice from "@/components/sync-device/SyncDevice";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,6 +92,22 @@ export default function DesktopAppPage() {
             <span>2. Pair your account</span>
             <span>3. Choose your Ableton folder</span>
           </div>
+        </section>
+
+        {/* The app itself, centred and drifting. The page asks someone to
+            install a thing they have never seen; showing it is worth more than
+            another paragraph about it. */}
+        <section className="relative mx-auto mt-24 flex max-w-md justify-center pb-16" aria-hidden="true">
+          {/* Light behind the object, as everywhere else in the product. */}
+          <div
+            className="pointer-events-none absolute inset-0 -z-10"
+            style={{
+              background:
+                "radial-gradient(60% 45% at 50% 42%, hsl(var(--brand) / 0.12), transparent 70%)",
+              filter: "blur(30px)",
+            }}
+          />
+          <SyncDevice float className="w-full max-w-[330px]" />
         </section>
 
         {isWelcome && (
