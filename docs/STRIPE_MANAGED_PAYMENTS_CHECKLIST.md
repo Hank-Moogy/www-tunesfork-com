@@ -31,6 +31,9 @@ verified end to end without using live credentials or creating a real charge:
   Managed Payments preview API version is explicitly pinned in Supabase;
 - deployed endpoint probes reject unknown prices, live/sandbox mismatches,
   unauthenticated checkout/status/portal requests, and unsigned webhooks; and
+- manually redelivering the successful subscription event returned HTTP 200
+  with `received: true` and `duplicate: true`, proving the deployed webhook
+  idempotency claim prevents duplicate entitlement processing;
 - the Vercel production client token points to the same named sandbox as the
   Supabase server configuration.
 
