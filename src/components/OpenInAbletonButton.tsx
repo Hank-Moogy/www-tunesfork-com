@@ -9,6 +9,12 @@ interface Props {
   versionId?: string;
   className?: string;
   disabled?: boolean;
+  /** Reviewing a fork is the same handoff with different words on the button. */
+  label?: string;
+  variant?: "default" | "outline" | "ghost" | "secondary";
+  size?: "default" | "sm" | "lg" | "icon";
+  /** Fired when the handoff is actually attempted, not merely rendered. */
+  onLaunched?: () => void;
 }
 
 /**
@@ -22,6 +28,10 @@ export default function OpenInAbletonButton({
   versionId,
   className,
   disabled,
+  label = "Open in Ableton",
+  variant = "outline",
+  size,
+  onLaunched,
 }: Props) {
   const navigate = useNavigate();
   const timerRef = useRef<number | null>(null);
@@ -82,6 +92,7 @@ export default function OpenInAbletonButton({
       });
     }, 3500);
 
+    onLaunched?.();
     // Top-level navigation is the most reliable custom-protocol launch in
     // Chrome and Safari. The web page remains open while the OS handles it.
     window.location.href = url;
@@ -89,7 +100,8 @@ export default function OpenInAbletonButton({
 
   return (
     <Button
-      variant="outline"
+      variant={variant}
+      size={size}
       className={
         className ??
         "h-9 gap-2 rounded-xl bg-card/50 backdrop-blur-sm border-primary/40 text-primary hover:text-primary hover:bg-primary/10"
@@ -98,7 +110,7 @@ export default function OpenInAbletonButton({
       disabled={disabled}
       title="Open this project in Ableton via the TunesFork desktop app"
     >
-      Open in Ableton
+      {label}
     </Button>
   );
 }

@@ -1355,14 +1355,28 @@ async function openProjectInAbleton(projectId, versionId) {
     lastContentHash: null,
   });
   writeProjectMarker(downloadedProjectFolder, { projectId, projectName });
+  // Someone who just clicked "Open in Ableton" on the web expects their work to
+  // be captured. Two things used to stop that happening: the watch list is
+  // stored normalised and this compared a raw path against it, so a folder
+  // could be added twice and neither entry match; and the watcher was only
+  // restarted when sync happened to be running already, so a collaborator who
+  // had ever paused it would work for an hour into a folder nothing was
+  // watching.
+  const watchFolder = normalizeFolder(downloadedProjectFolder);
   const state = readState();
-  if (!state.folders.includes(downloadedProjectFolder)) {
-    state.folders.push(downloadedProjectFolder);
+  if (!state.folders.some((folder) => normalizeFolder(folder) === watchFolder)) {
+    state.folders.push(watchFolder);
     writeState(state);
-    if (stopWatcher) {
-      stopSync();
-      await startSync();
-    }
+  }
+  if (stopWatcher) {
+    stopSync();
+  } else if (!readState().syncing) {
+    log("info", "Resuming sync so this project is watched");
+  }
+  try {
+    await startSync();
+  } catch (error) {
+    log("err", `Could not start watching the restored project: ${error.message}`);
   }
 
   recentlyOpenedProjects.set(normalizeFolder(downloadedProjectFolder), Date.now());
