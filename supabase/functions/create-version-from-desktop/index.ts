@@ -332,6 +332,9 @@ Deno.serve(async (req) => {
         _ready_blobs: readyBlobs,
         _uploaded_bytes: bytesUploaded,
         _reused_bytes: fileSize - bytesUploaded,
+        _base_version_id: typeof body.base_version_id === "string" && /^[0-9a-f-]{36}$/i.test(body.base_version_id)
+          ? body.base_version_id
+          : null,
       });
       if (finalizeError || !result?.version_id) {
         const message = finalizeError?.message ?? "VERSION_FINALIZATION_FAILED";

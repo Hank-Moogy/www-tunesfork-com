@@ -929,6 +929,9 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
       sample_check: sampleCheck,
     };
     if (priorLink?.projectId) body.project_id = priorLink.projectId;
+    // What this folder was last known to hold. The server decides whether that
+    // is still the tip; the client only reports where it started.
+    if (priorLink?.lastVersionId) body.base_version_id = priorLink.lastVersionId;
 
     const response = await fetch(`${FUNCTIONS_URL}/create-version-from-desktop`, {
       method: "POST",

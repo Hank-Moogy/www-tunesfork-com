@@ -384,6 +384,7 @@ export type Database = {
         Row: {
           ableton_version: string | null
           audio_preview_url: string | null
+          base_version_id: string | null
           change_note: string | null
           created_at: string
           file_size_bytes: number
@@ -406,6 +407,7 @@ export type Database = {
         Insert: {
           ableton_version?: string | null
           audio_preview_url?: string | null
+          base_version_id?: string | null
           change_note?: string | null
           created_at?: string
           file_size_bytes?: number
@@ -428,6 +430,7 @@ export type Database = {
         Update: {
           ableton_version?: string | null
           audio_preview_url?: string | null
+          base_version_id?: string | null
           change_note?: string | null
           created_at?: string
           file_size_bytes?: number
