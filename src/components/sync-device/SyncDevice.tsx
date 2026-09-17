@@ -68,11 +68,18 @@ export default function SyncDevice({
     const onMove = (e: PointerEvent) => {
       const r = ref.current?.getBoundingClientRect();
       if (!r) return;
-      // Normalised against a generous radius so distant movement still
-      // registers faintly rather than pinning at the extremes.
-      const radius = Math.max(window.innerWidth, window.innerHeight) * 0.55;
-      px.set(Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / radius)));
-      py.set(Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / radius)));
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      // Normalised against how far the pointer can actually travel from the
+      // device on each axis, rather than against the viewport's longest side.
+      // The device sits off-centre — beside the copy, not behind it — so one
+      // shared radius saturated well before the pointer reached the far edge,
+      // and the object sat pinned at full lean across the headline instead of
+      // answering the cursor where the reader's eye actually is.
+      const radiusX = Math.max(cx, window.innerWidth - cx, 1);
+      const radiusY = Math.max(cy, window.innerHeight - cy, 1);
+      px.set(Math.max(-1, Math.min(1, (e.clientX - cx) / radiusX)));
+      py.set(Math.max(-1, Math.min(1, (e.clientY - cy) / radiusY)));
     };
     window.addEventListener("pointermove", onMove, { passive: true });
     return () => window.removeEventListener("pointermove", onMove);

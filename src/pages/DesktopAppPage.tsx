@@ -20,12 +20,6 @@ export default function DesktopAppPage() {
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const [versionLabel, setVersionLabel] = useState(DESKTOP_APP_VERSION_LABEL);
 
-  // ?side=1 puts the device beside the copy instead of under it, so the two
-  // arrangements can be compared before either is committed to.
-  const side =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("side") === "1";
-
   useEffect(() => {
     let active = true;
     void fetchDesktopAppVersionLabel().then((label) => {
@@ -57,15 +51,15 @@ export default function DesktopAppPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className={`mx-auto px-6 py-14 lg:py-20 ${side ? "max-w-6xl" : "max-w-4xl"}`}>
-        <div className={side ? "grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16" : ""}>
-        <section className={`min-w-0 ${side ? "text-center lg:text-left" : "text-center"}`}>
+      <main className="mx-auto max-w-6xl px-6 py-14 lg:py-20">
+        <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+        <section className="min-w-0 text-center lg:text-left">
           <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
             <Apple className="h-3.5 w-3.5" />
             macOS only · Apple Silicon + Intel
           </div>
 
-          <h1 className={`mt-7 max-w-3xl text-4xl font-bold tracking-tight md:text-6xl ${side ? "" : "mx-auto"}`}>
+          <h1 className="mt-7 max-w-3xl text-4xl font-bold tracking-tight md:text-6xl">
             {isWelcome ? (
               <>Welcome{welcomeName ? `, ${welcomeName}` : ""}. Install Tunesfork Sync.</>
             ) : (
@@ -73,12 +67,12 @@ export default function DesktopAppPage() {
             )}
           </h1>
 
-          <p className={`mt-5 max-w-xl text-base text-muted-foreground md:text-lg ${side ? "" : "mx-auto"}`}>
+          <p className="mt-5 max-w-xl text-base text-muted-foreground md:text-lg">
             Tunesfork automatically backs up all your sessions to the cloud, in the
             background, while you keep working.
           </p>
 
-          <div className={`mt-9 max-w-xl ${side ? "" : "mx-auto"}`}>
+          <div className="mt-9 max-w-xl">
             <Button
               size="lg"
               onClick={downloadMac}
@@ -94,7 +88,7 @@ export default function DesktopAppPage() {
             </p>
           </div>
 
-          <div className={`mt-8 flex max-w-xl flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground ${side ? "justify-center lg:justify-start" : "mx-auto justify-center"}`}>
+          <div className="mt-8 flex max-w-xl flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground lg:justify-start">
             <span>1. Install</span>
             <span>2. Pair your account</span>
             <span>3. Choose your Ableton folder</span>
@@ -106,11 +100,7 @@ export default function DesktopAppPage() {
             paragraph about it. Beside the copy it reads as the subject of the
             sentence; beneath it, as evidence after the argument. */}
         <section
-          className={
-            side
-              ? "relative flex min-w-0 justify-center pb-4 lg:justify-end"
-              : "relative mx-auto mt-24 flex max-w-md justify-center pb-16"
-          }
+          className="relative flex min-w-0 justify-center pb-4 lg:justify-end"
           aria-hidden="true"
         >
           {/* Light behind the object, as everywhere else in the product. */}
@@ -122,7 +112,7 @@ export default function DesktopAppPage() {
               filter: "blur(30px)",
             }}
           />
-          <SyncDevice float track className={side ? "w-full max-w-[300px]" : "w-full max-w-[330px]"} />
+          <SyncDevice float track className="w-full max-w-[300px]" />
         </section>
         </div>
 
