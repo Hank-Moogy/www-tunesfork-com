@@ -207,7 +207,11 @@ function parseAlsFile(alsPath) {
     collectAll(doc, "Vst3PluginInfo", pluginNodes);
     const plugins = new Set();
     for (const p of pluginNodes) {
-      const n = attrValue(p.PlugName, "Value");
+      // Live has not been consistent about this: VST2 and AU carry <PlugName>,
+      // while some Live 11/12 VST3 entries only carry <Name>. Reading just one
+      // silently returns an empty plugin list for a set full of plugins, and an
+      // empty list is indistinguishable from "uses no plugins".
+      const n = attrValue(p.PlugName, "Value") || attrValue(p.Name, "Value");
       if (n) plugins.add(n);
     }
 
