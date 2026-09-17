@@ -5,6 +5,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
 
+const SITE_URL = Deno.env.get("TUNESFORK_SITE_URL") ?? "https://www.tunesfork.com";
+
 async function sha256Hex(s: string) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -88,6 +90,58 @@ function parseManifest(value: unknown): { schema_version: 1; files: ManifestFile
   });
   if (!hasAbletonSet) throw new Error("Manifest does not contain an Ableton .als file");
   return { schema_version: 1, files };
+}
+
+
+// A fork request the owner never hears about is a fork request that never gets
+// reviewed. Notifying is best-effort: the save already succeeded, so a mail
+// failure must never turn into an upload failure for the contributor.
+async function notifyOwnerOfForkRequest(params: {
+  projectId: string;
+  versionId: string;
+  uploaderId: string;
+  changeNote: string | null;
+  supersededCount: number;
+}) {
+  try {
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data: project } = await admin
+      .from("projects").select("id,name,owner_id").eq("id", params.projectId).maybeSingle();
+    if (!project || project.owner_id === params.uploaderId) return;
+
+    const { data: ownerAuth } = await admin.auth.admin.getUserById(project.owner_id);
+    const ownerEmail = ownerAuth?.user?.email;
+    if (!ownerEmail) return;
+
+    const { data: ownerProfile } = await admin
+      .from("profiles").select("display_name").eq("user_id", project.owner_id).maybeSingle();
+    const { data: contributorProfile } = await admin
+      .from("profiles").select("display_name").eq("user_id", params.uploaderId).maybeSingle();
+    const { data: contributorAuth } = await admin.auth.admin.getUserById(params.uploaderId);
+
+    await admin.functions.invoke("send-transactional-email", {
+      body: {
+        templateName: "fork-request-received",
+        recipientEmail: ownerEmail,
+        // Keyed on the contribution, so a retried finalization cannot mail twice.
+        idempotencyKey: `fork-request-${params.versionId}`,
+        templateData: {
+          ownerName: ownerProfile?.display_name ?? null,
+          contributorName: contributorProfile?.display_name ?? null,
+          contributorEmail: contributorAuth?.user?.email ?? null,
+          projectName: project.name,
+          projectUrl: `${SITE_URL}/project/${project.id}`,
+          changeNote: params.changeNote,
+          replacedPrevious: params.supersededCount > 0,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("[create-version-from-desktop] fork request notification failed", error);
+  }
 }
 
 Deno.serve(async (req) => {
@@ -304,6 +358,17 @@ Deno.serve(async (req) => {
       }
 
       await admin.from("device_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tokenRow.id);
+
+      if (result.status === "pending") {
+        await notifyOwnerOfForkRequest({
+          projectId: result.project_id,
+          versionId: result.version_id,
+          uploaderId: userId,
+          changeNote: body.change_note ?? null,
+          supersededCount: Number(result.superseded_count ?? 0),
+        });
+      }
+
       return new Response(JSON.stringify({
         ...result,
         share_ready: shareReady,

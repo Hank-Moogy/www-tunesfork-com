@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseDynamic } from "@/lib/supabaseDynamic";
+import { splitContributions } from "@/lib/contributions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
@@ -209,6 +210,8 @@ export default function ProjectPage() {
 
   const [project, setProject] = useState<Project | null>(null);
   const [versions, setVersions] = useState<Version[]>([]);
+  const [forkRequests, setForkRequests] = useState<Version[]>([]);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -287,17 +290,23 @@ export default function ProjectPage() {
       if (!proj) { navigate("/dashboard"); return; }
       setProject(proj as unknown as Project);
 
-      const { data: vers } = await supabase
+      const { data: allRows } = await supabase
         .from("project_versions").select("*").eq("project_id", id)
         .order("version_number", { ascending: false })
         .order("created_at", { ascending: false });
-      setVersions(vers ?? []);
+      // A pending fork request is not part of the version history until the
+      // owner approves it, so it must not appear in the version list, be
+      // selectable as "current", or drive the project's latest-version UI.
+      const rows = allRows ?? [];
+      const { versions: approved, forkRequests: pending } = splitContributions(rows);
+      setVersions(approved);
+      setForkRequests(pending);
       // Newest save of the latest major version (saves group by version_number).
-      if (vers && vers.length > 0) setSelectedVersion(vers[0]);
+      if (approved.length > 0) setSelectedVersion(approved[0]);
 
       const { data: collabs } = await supabase.from("collaborators").select("*").eq("project_id", id);
       const collabUserIds = collabs?.map((c) => c.user_id) ?? [];
-      const uploaderIds = (vers ?? []).map((v) => v.uploader_id);
+      const uploaderIds = rows.map((v) => v.uploader_id);
       const allIds = Array.from(new Set([...collabUserIds, ...uploaderIds, proj.owner_id].filter(Boolean)));
       const { data: profiles } = await supabase
         .from("profiles").select("user_id, display_name, avatar_url").in("user_id", allIds);
@@ -643,8 +652,9 @@ export default function ProjectPage() {
       .eq("project_id", project.id)
       .order("version_number", { ascending: false })
       .order("created_at", { ascending: false });
-    const nextVersions = data ?? [];
+    const { versions: nextVersions, forkRequests: nextForkRequests } = splitContributions(data ?? []);
     setVersions(nextVersions);
+    setForkRequests(nextForkRequests);
     if (selectedId) {
       setSelectedVersion(nextVersions.find((version) => version.id === selectedId) ?? nextVersions[0] ?? null);
     } else {
@@ -693,6 +703,52 @@ export default function ProjectPage() {
   const currentVersionLabel = selectedVersion
     ? `V${selectedVersion.version_number}${selectedVersion.change_note ? ` - ${selectedVersion.change_note}` : ""}`
     : "";
+  const isProjectOwner = !!project && !!user && project.owner_id === user.id;
+
+  const reviewForkRequest = async (versionId: string, decision: "approve" | "reject") => {
+    setReviewingId(versionId);
+    try {
+      const { data, error } = await supabaseDynamic.rpc("review_project_contribution", {
+        _version_id: versionId,
+        _decision: decision,
+      });
+      if (error) throw error;
+      // Best-effort: the decision is already recorded, so a mail failure must not
+      // look to the owner like the review did not go through.
+      void supabase.functions
+        .invoke("notify-contribution-reviewed", { body: { versionId } })
+        .catch(() => {});
+      const request = forkRequests.find((v) => v.id === versionId) ?? null;
+      setForkRequests((current) => current.filter((v) => v.id !== versionId));
+      if (decision === "approve" && request) {
+        const approved = {
+          ...request,
+          status: "approved",
+          version_number: (data as { version_number?: number } | null)?.version_number ?? null,
+        } as Version;
+        setVersions((current) => [approved, ...current]);
+        setSelectedVersion(approved);
+        toast({
+          title: `Approved as version ${approved.version_number ?? ""}`.trim(),
+          description: "The contribution is now part of this project's history.",
+        });
+      } else {
+        toast({
+          title: "Fork request rejected",
+          description: "The contributor keeps their local copy; nothing changed here.",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Could not review this fork request",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setReviewingId(null);
+    }
+  };
+
   const versionGroups = groupVersions(versions);
   const selectedGroup = selectedVersion
     ? versionGroups.find((group) => group.versionNumber === selectedVersion.version_number)
@@ -732,6 +788,56 @@ export default function ProjectPage() {
           {/* ============ LEFT SIDEBAR ============ */}
           <aside className="w-72 shrink-0 space-y-4">
             {/* Versions panel */}
+            {/* Fork requests — a contributor's save waits here until the owner
+                accepts it into the version history. */}
+            {isProjectOwner && forkRequests.length > 0 && (
+              <div className="tf-surface rounded-xl overflow-hidden border border-[#ffb52e]/40">
+                <div className="flex items-center justify-between px-4 pt-4 pb-3">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#ffb52e]">
+                    Fork requests
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {forkRequests.length} waiting
+                  </span>
+                </div>
+                <div className="px-2 pb-2 space-y-1 max-h-[320px] overflow-y-auto">
+                  {forkRequests.map((request) => {
+                    const author = profileMap.get(request.uploader_id)?.display_name || "A collaborator";
+                    const busy = reviewingId === request.id;
+                    return (
+                      <div key={request.id} className="rounded-lg px-3 py-3 bg-muted/40">
+                        <p className="text-sm font-medium truncate">
+                          {request.change_note?.split("\n")[0] || "Untitled change"}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {author} · {formatRelative(request.created_at)}
+                        </p>
+                        <div className="flex gap-2 mt-3">
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={busy}
+                            onClick={() => reviewForkRequest(request.id, "approve")}
+                          >
+                            {busy ? "Working…" : "Approve"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs text-muted-foreground"
+                            disabled={busy}
+                            onClick={() => reviewForkRequest(request.id, "reject")}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="tf-surface rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-4 pt-4 pb-3">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -828,6 +934,11 @@ export default function ProjectPage() {
                 })}
                 {versions.length === 0 && (
                   <p className="text-xs text-muted-foreground text-center py-6">No versions yet.</p>
+                )}
+                {!isProjectOwner && forkRequests.length > 0 && (
+                  <p className="text-xs text-[#ffb52e] text-center py-3">
+                    Your save was sent to the owner for review.
+                  </p>
                 )}
               </div>
             </div>

@@ -62,7 +62,7 @@ type AppState = {
   syncing: boolean;
   importing: boolean;
   importedProjectCount: number;
-  recent: { name: string; version: number; at: number }[];
+  recent: { name: string; version: number | null; status?: string; at: number }[];
   folderAccessIssues: { folder: string; code: string; message: string }[];
   sampleIssues: SampleIssue[];
 };
@@ -653,6 +653,11 @@ function getDisplayStatus({
     return { kicker: "SYSTEM ALERT", title: "CHECK LOG", detail: latestLog.msg.toUpperCase(), footer: "Open diagnostics for details", tone: "red", animated: false };
   }
   if (recentUpload && Date.now() - recentUpload.at < 90_000) {
+    // A contributor's save is a fork request until the owner approves it, so it
+    // has no version number to show yet.
+    if (recentUpload.status === "pending") {
+      return { kicker: "SENT FOR REVIEW", title: "FORK REQUEST", detail: `${recentUpload.name} · AWAITING OWNER APPROVAL`.toUpperCase(), footer: "The project owner decides when this becomes a version", tone: "amber", animated: false };
+    }
     return { kicker: "TRANSFER COMPLETE", title: "UPLOADED", detail: `${recentUpload.name} · VERSION ${recentUpload.version}`.toUpperCase(), footer: "Cloud snapshot secured", tone: "green", animated: false };
   }
   if (state.folders.length === 0) {
