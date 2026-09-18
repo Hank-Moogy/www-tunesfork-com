@@ -103,7 +103,21 @@ export function initializeAnalytics(): Promise<void> {
         performanceConfig: { enabled: true },
         privacyConfig: {
           defaultMaskLevel: "light",
-          blockSelector: ["input[type='password']", "[data-analytics-secret]", "[data-stripe]", "[href*='/invite/']"],
+          // "light" masks password inputs and explicitly marked elements — and
+          // nothing else. Every other input is replayed as typed, which for this
+          // app meant four email fields, three of which hold somebody else's
+          // address: the people being invited to collaborate. They have no
+          // account, have never visited the site, and have no relationship with
+          // Tunesfork, so recording their address is the one piece of capture
+          // here that is hard to justify on any basis. Invite links were already
+          // blocked; the address that produces them was not.
+          blockSelector: [
+            "input[type='password']",
+            "input[type='email']",
+            "[data-analytics-secret]",
+            "[data-stripe]",
+            "[href*='/invite/']",
+          ],
           unmaskSelector: ["[data-amp-unmask]"],
         },
       } as unknown as NonNullable<Parameters<typeof amplitude.initAll>[1]>["sessionReplay"],
