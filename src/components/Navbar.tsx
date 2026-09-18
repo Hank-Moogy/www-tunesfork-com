@@ -90,7 +90,7 @@ export default function Navbar() {
             a phone still needs to reach Pricing and the desktop app. */}
         <div className="-mx-2 flex min-w-0 items-center gap-1 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <NavLink to="/dashboard" label="Projects" onSelect={() => trackButtonClick("nav_dashboard", "navbar")} />
-          <NavLink to="/desktop-app" label="Desktop" badge="NEW" onSelect={() => trackButtonClick("nav_desktop_app", "navbar")} />
+          <NavLink to="/desktop-app" label="Download" onSelect={() => trackButtonClick("nav_desktop_app", "navbar")} />
           <NavLink to="/pricing" label="Pricing" onSelect={() => trackButtonClick("nav_pricing", "navbar")} />
         </div>
 
