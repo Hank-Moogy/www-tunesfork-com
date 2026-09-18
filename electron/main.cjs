@@ -16,7 +16,7 @@ const { isResourceAlreadyExistsError, isResourceAlreadyExistsResponse } = requir
 const { DEFAULT_SAVE_DEBOUNCE_MS, getSaveEventDelayMs } = require("./save-event-policy.cjs");
 const { appendLogLine, logFilePath } = require("./diagnostic-log.cjs");
 const { decideRestoreTarget, findDuplicateWatchFolders } = require("./working-copy.cjs");
-const { openWarning, summarize } = require("./completeness.cjs");
+const { openWarning, projectMarkerMissing, summarize } = require("./completeness.cjs");
 const { isQuotaError, parseQuotaDetail, quotaNotification, storageUsage } = require("./quota.cjs");
 const {
   findUnbackedProjects,
@@ -542,6 +542,12 @@ function reportRestoreCompleteness({ projectFolder, alsPath, projectName, upload
   // when the set could not be parsed here.
   const effective = localCheck && localCheck.verified !== false ? localCheck : (uploadedSampleCheck ?? localCheck);
   const summary = summarize(effective);
+
+  // Files present but unresolvable is indistinguishable from files missing, from
+  // where the user is sitting.
+  if (projectMarkerMissing(projectFolder)) {
+    log("err", `${projectName} is missing its Ableton Project Info folder — Ableton will show its samples as offline`);
+  }
 
   const state = readState();
   state.restoreIssues = state.restoreIssues || {};
@@ -1663,6 +1669,17 @@ async function reconstructManifestVersion(destRoot, manifest, auth) {
   });
   const als = jobs.find((file) => file.path.toLowerCase().endsWith(".als"));
   if (!als) throw new Error("No .als file found in downloaded project");
+
+  // Ableton decides a folder is a Live project by the presence of an "Ableton
+  // Project Info" directory, and resolves every relative sample path from it.
+  // That directory is empty, and a manifest lists files — so it was never
+  // uploaded and never recreated. Without it Ableton treats the restored set as
+  // a loose file, cannot anchor the relative paths, falls back to the absolute
+  // paths from the uploader's machine, and shows every sample offline. That is
+  // the whole project arriving silent, which is the one thing this product must
+  // not do.
+  const projectRoot = path.dirname(als.destination);
+  fs.mkdirSync(path.join(projectRoot, "Ableton Project Info"), { recursive: true });
 
   for (let offset = 0; offset < jobs.length; offset += 100) {
     const batch = jobs.slice(offset, offset + 100);

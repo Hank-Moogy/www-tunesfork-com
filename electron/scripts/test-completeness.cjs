@@ -1,6 +1,10 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { openWarning, shareWarning, summarize } = require("../completeness.cjs");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { ABLETON_PROJECT_MARKER, openWarning, projectMarkerMissing, shareWarning, summarize } =
+  require("../completeness.cjs");
 
 const complete = { verified: true, included: 40, missing: 0, external: 0, missing_paths: [], external_paths: [] };
 
@@ -70,4 +74,18 @@ test("survives a version stored before sample checks existed", () => {
   assert.equal(summarize(null).verified, false);
   assert.equal(summarize(undefined).verified, false);
   assert.doesNotThrow(() => openWarning({ sampleCheck: null }));
+});
+
+test("a folder without the Ableton project marker cannot resolve its samples", () => {
+  // Every file can be present and Ableton will still load them offline: it
+  // anchors relative paths on this folder, and treats a set without it as loose.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tf-marker-"));
+  fs.writeFileSync(path.join(dir, "x.als"), "");
+  assert.equal(projectMarkerMissing(dir), true);
+  fs.mkdirSync(path.join(dir, ABLETON_PROJECT_MARKER));
+  assert.equal(projectMarkerMissing(dir), false);
+});
+
+test("an unreadable folder is not reported as missing its marker", () => {
+  assert.equal(projectMarkerMissing("/proc/nonexistent-tunesfork-xyz"), true);
 });
