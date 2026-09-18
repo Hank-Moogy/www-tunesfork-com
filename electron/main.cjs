@@ -10,7 +10,11 @@ const { Readable } = require("node:stream");
 const { pipeline } = require("node:stream/promises");
 const { parseAlsFile } = require("./als-parser.cjs");
 const { buildSampleCheck } = require("./sample-check.cjs");
-const { buildProjectManifest, manifestForApi } = require("./incremental-sync.cjs");
+const {
+  assertBlobStillMatchesPlan,
+  buildProjectManifest,
+  manifestForApi,
+} = require("./incremental-sync.cjs");
 const { MAX_FILE_BYTES, safeRestoreDestination, validateLegacyZipEntries } = require("./restore-validation.cjs");
 const { isResourceAlreadyExistsError, isResourceAlreadyExistsResponse } = require("./storage-upload-errors.cjs");
 const { DEFAULT_SAVE_DEBOUNCE_MS, getSaveEventDelayMs } = require("./save-event-policy.cjs");
@@ -1041,6 +1045,7 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
     for (const target of missing) {
       const file = uniqueFiles.get(target.sha256);
       if (!file) throw new Error(`Server requested an unknown blob ${target.sha256}`);
+      assertBlobStillMatchesPlan(file);
       log("busy", `Uploading changed file ${file.path} (${(file.size / 1e6).toFixed(1)} MB)…`);
       // Supabase's resumable endpoint cannot create a zero-length upload — it answers
       // the creation POST with 404 NotFound — so empty files take the one-shot PUT.
@@ -1068,7 +1073,18 @@ async function tryIncrementalUpload({ projectFolder, changeNote, priorLink, cont
           if (!isResourceAlreadyExistsResponse(upload.status, uploadText)) {
             throw new Error(`Blob upload failed ${upload.status}: ${uploadText}`);
           }
-          log("info", `Reusing uploaded orphan ${file.path}; server will verify it during finalization.`);
+          // An object already sitting at this path is not evidence that its
+          // contents are right: finalization compares size, never the hash. Take
+          // the write we know is correct rather than adopting unverified bytes.
+          log("info", `Overwriting unverified orphan ${file.path}`);
+          const replace = await fetch(target.signed_url, {
+            method: "PUT",
+            headers: { "Content-Type": "application/octet-stream", "x-upsert": "true" },
+            body: fs.readFileSync(file.source_path),
+          });
+          if (!replace.ok) {
+            throw new Error(`Blob upload failed ${replace.status}: ${await replace.text()}`);
+          }
         }
       }
       bytesUploaded += file.size;
@@ -1186,41 +1202,47 @@ async function uploadSignedObjectResumable({
   const endpoint = `https://${projectRef}.storage.supabase.co/storage/v1/upload/resumable/sign`;
   let lastLoggedPct = -1;
 
-  try {
-    await new Promise((resolve, reject) => {
-      const upload = new tus.Upload(fs.createReadStream(filePath), {
-        endpoint,
-        uploadSize: fileSize,
-        retryDelays: [0, 3000, 5000, 10000, 20000],
-        headers: {
-          "x-signature": signedUploadToken,
-          "x-upsert": upsert ? "true" : "false",
-        },
-        uploadDataDuringCreation: false,
-        removeFingerprintOnSuccess: true,
-        chunkSize: 6 * 1024 * 1024,
-        metadata: {
-          bucketName,
-          objectName: objectPath,
-          contentType,
-          cacheControl: "3600",
-        },
-        onError: (error) => reject(error),
-        onProgress: (bytesUploaded, bytesTotal) => {
-          if (!bytesTotal) return;
-          const pct = Math.floor((bytesUploaded / bytesTotal) * 100);
-          if (pct >= lastLoggedPct + 10 || pct === 100) {
-            lastLoggedPct = pct;
-            log("busy", `Upload ${pct}%`, `upload:${objectPath}`);
-          }
-        },
-        onSuccess: () => resolve(),
-      });
-      upload.start();
+  const send = (overwrite) => new Promise((resolve, reject) => {
+    const upload = new tus.Upload(fs.createReadStream(filePath), {
+      endpoint,
+      uploadSize: fileSize,
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      headers: {
+        "x-signature": signedUploadToken,
+        "x-upsert": overwrite ? "true" : "false",
+      },
+      uploadDataDuringCreation: false,
+      removeFingerprintOnSuccess: true,
+      chunkSize: 6 * 1024 * 1024,
+      metadata: {
+        bucketName,
+        objectName: objectPath,
+        contentType,
+        cacheControl: "3600",
+      },
+      onError: (error) => reject(error),
+      onProgress: (bytesUploaded, bytesTotal) => {
+        if (!bytesTotal) return;
+        const pct = Math.floor((bytesUploaded / bytesTotal) * 100);
+        if (pct >= lastLoggedPct + 10 || pct === 100) {
+          lastLoggedPct = pct;
+          log("busy", `Upload ${pct}%`, `upload:${objectPath}`);
+        }
+      },
+      onSuccess: () => resolve(),
     });
+    upload.start();
+  });
+
+  try {
+    await send(upsert);
   } catch (error) {
     if (!isResourceAlreadyExistsError(error)) throw error;
-    log("info", `Reusing uploaded orphan ${objectPath}; server will verify it during finalization.`);
+    // An object already at this path is not evidence that its contents are
+    // right: finalization compares size, never the hash. Overwrite it rather
+    // than adopting bytes nobody has verified.
+    log("info", `Overwriting unverified orphan ${objectPath}`);
+    await send(true);
   }
 }
 
