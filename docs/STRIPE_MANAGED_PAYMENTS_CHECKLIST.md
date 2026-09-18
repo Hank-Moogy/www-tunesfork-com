@@ -47,8 +47,8 @@ Still required before accepting live payments:
 
 1. complete the remaining sandbox matrix below (especially 3DS, failed payment,
    cancellation, and all non-Producer-yearly catalog variants);
-2. decide whether to enable Stripe's customer-facing failed-payment,
-   bank-debit-failure, and expiring-card emails (all are currently disabled);
+2. apply the customer-email decision recorded in the cutover runbook below
+   (failed card payment on, failed bank debit on, expiring card off);
 3. publish valid TunesFork terms and privacy URLs, then add them to Stripe's
    public business information;
 4. create and verify the equivalent catalog, portal configuration, webhook, and
@@ -238,3 +238,170 @@ Run all of these before considering live mode:
 12. After the founding transition, existing founding subscribers retain access while new founding checkouts are unavailable.
 
 Only after this matrix passes should the live catalog, live webhook endpoint, live secrets, and live Managed Payments activation be prepared as a separate reviewed change.
+
+## Live cutover runbook — 18 September 2026
+
+This operationalises the seven-step live sequence above with the exact values to
+enter. Live mode is still **disabled**; nothing here authorises a live charge.
+
+Steps marked **[owner]** cannot be delegated to an agent: they require creating
+credentials, handling secret values, submitting identity, tax, or bank details,
+or authorising a real payment. Secrets must never be pasted into chat, logs, or
+Git.
+
+The repository side needs no change. `supabase/functions/_shared/payment-contract.ts`
+already pins all six lookup keys, amounts, currency, and interval, pins the required
+tax code `txcd_10103100`, and `assertPriceMatchesContract` refuses checkout on any
+drift. Everything below is Stripe Dashboard or Supabase secret configuration.
+
+### L1. Correct the live product tax code
+
+Dashboard → Product catalog → each product → Edit → Tax code, in **live** mode.
+
+| Product | Current (wrong) | Required |
+|---|---|---|
+| Producer | `txcd_10103000` | `txcd_10103100` |
+| Founding Producer | `txcd_10103000` | `txcd_10103100` |
+
+This fails closed, so it is not cosmetic: `assertPriceMatchesContract` compares
+`price.product.tax_code` against `TUNESFORK_PRODUCT_TAX_CODE` and throws on
+mismatch. Live checkout will reject every plan until both products are corrected.
+
+### L2. Create the live Studio product
+
+Name `Studio`, tax code `txcd_10103100`, two recurring EUR prices with
+**inclusive** tax behaviour and interval count 1:
+
+| Amount | Interval | Lookup key |
+|---:|---|---|
+| €29 | month | `studio_monthly` |
+| €290 | year | `studio_yearly` |
+
+Set the lookup keys exactly; the server resolves Prices by lookup key, not by ID.
+
+### L3. Verify the six live prices
+
+Each must be active, recurring, EUR, interval count 1, tax inclusive, attached to a
+product whose tax code is `txcd_10103100`, and carry exactly one matching lookup key.
+
+| Lookup key | Amount | `unit_amount` | Interval |
+|---|---:|---:|---|
+| `producer_monthly` | €7.99 | 799 | month |
+| `producer_yearly` | €79 | 7900 | year |
+| `founding_producer_monthly` | €4.99 | 499 | month |
+| `founding_producer_yearly` | €49 | 4900 | year |
+| `studio_monthly` | €29 | 2900 | month |
+| `studio_yearly` | €290 | 29000 | year |
+
+A lookup key resolving to two Prices, or an amount off by a cent, fails checkout.
+
+### L4. Live Customer Portal
+
+Return URL `https://www.tunesfork.com/billing`. Allow invoice history and receipts,
+payment-method updates, and cancellation **at period end**. Restrict plan switching
+to the four standard Prices: `producer_monthly`, `producer_yearly`, `studio_monthly`,
+`studio_yearly`.
+
+Exclude both Founding Producer Prices from the switch destinations. Existing founding
+subscribers keep their Price until they change plan or cancel themselves; the portal
+must never offer the founding discount to a standard customer.
+
+### L5. Live revenue recovery
+
+- Smart Retries: **8 attempts over two weeks**
+- After retries are exhausted: **cancel the subscription**
+- Automatic card updates: **on**
+
+Customer emails — decided 18 September 2026:
+
+| Email | Setting | Reason |
+|---|---|---|
+| Failed card payment | **On** | Primary involuntary-churn recovery; pairs with the eight-attempt retry schedule |
+| Failed bank debit | **On** | Managed Payments selects methods dynamically, so SEPA can appear without a per-customer opt-in, and bank-debit failures are otherwise silent |
+| Expiring card | **Off** | Largely redundant with automatic card updates, which silently refresh most major-network cards |
+
+`invoice.payment_failed` already drives the local `past_due` transition, so these
+emails supplement in-app recovery rather than replacing it.
+
+### L6. Live webhook endpoint
+
+`https://urrxrntdkmmmqqwaihfj.supabase.co/functions/v1/payments-webhook?env=live`
+
+Subscribe to exactly these five events, no more:
+
+- `checkout.session.completed`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_failed`
+
+**Sequencing caveat, verified in code.** `payments-webhook` resolves the environment
+*before* verifying the signature: `getConfiguredStripeEnvironment(searchParams.get("env"))`
+throws whenever the `?env=` value differs from `STRIPE_ENVIRONMENT`. While
+`STRIPE_ENVIRONMENT=sandbox`, every delivery to `?env=live` returns HTTP 400 before the
+signature is checked. No state is written and nothing is corrupted, but Stripe will show
+the endpoint as failing, retry it, and eventually warn about it. Either create this
+endpoint immediately before the cutover, or create it now and expect red deliveries
+until `STRIPE_ENVIRONMENT` flips.
+
+### L7. Live secrets **[owner]**
+
+Enter directly in the Supabase secret store:
+
+| Name | Value | Validation enforced by `getConnectionApiKey` |
+|---|---|---|
+| `STRIPE_LIVE_API_KEY` | live restricted secret key | must start `sk_live_`, no whitespace, `[A-Za-z0-9_]` only |
+| `PAYMENTS_LIVE_WEBHOOK_SECRET` | signing secret of the L6 endpoint | required before any live delivery verifies |
+
+Prefer a **restricted** key over the account secret key, scoped to write on Checkout
+Sessions, Customers, Subscriptions, Prices, Products, and Billing Portal Sessions.
+
+Keep `STRIPE_ENVIRONMENT=sandbox` until the cutover. The live secrets are inert while
+the environment is `sandbox`.
+
+### L8. Business review and public information **[owner]**
+
+Publish valid TunesFork Terms and Privacy URLs and add them to Stripe's public business
+information — this is an outstanding launch blocker, not an optional step. Then complete
+the live business identity, French EI/micro-entreprise details, tax settings consistent
+with the **inclusive** price behaviour, payout bank details, and the Managed Payments
+eligibility review.
+
+Confirm the account's required preview API version and set
+`STRIPE_MANAGED_PAYMENTS_API_VERSION` to it. `createManagedPaymentsStripeClient`
+validates the `YYYY-MM-DD.preview` shape and falls back to `2026-03-04.preview`, which
+may be stale by activation.
+
+Confirm the inclusive-tax decision with the accountant before activating.
+
+### L9. Cutover **[owner]**
+
+Do not begin until L1–L8 are verified.
+
+1. Flip Supabase `STRIPE_ENVIRONMENT` to `live`.
+2. Set the matching live `VITE_PAYMENTS_CLIENT_TOKEN` (`pk_live_…`) in Vercel and
+   redeploy. `getStripeEnvironment()` derives the UI label from this prefix; the
+   server's `STRIPE_ENVIRONMENT` stays authoritative and rejects a mismatch.
+3. Verify all six lookup keys resolve live through `get-stripe-price`.
+4. Confirm the L6 endpoint now returns 200.
+5. One explicitly authorised, low-value real purchase.
+6. Verify in order: webhook delivery, the `subscriptions` row with the exact lookup key
+   and `environment=live`, entitlement applied, portal reachable, invoice available,
+   cancellation at period end, refund.
+
+Steps 5 and 6 involve a real charge to a real card and must be performed by the account
+owner.
+
+### Outstanding sandbox acceptance
+
+These gate the cutover and remain unrun. Producer yearly already passed on a test card,
+and that account must not be reused — the app correctly redirects an existing subscriber
+to Billing instead of creating a duplicate, so use a fresh account per scenario.
+
+- The five remaining plan/interval combinations through Stripe-hosted Checkout
+- Required-3DS scenario
+- Failed payment → local `past_due` entitlement
+- Checkout cancellation returns to Pricing and creates no subscription
+- Portal cancellation sets `cancel_at_period_end`, access persists to period end
+- Subscription deletion becomes `canceled` locally
+- Duplicate-subscription prevention routes an existing subscriber to Billing
