@@ -965,7 +965,10 @@ useEffect(() => {
                   const isCurrent = groupIndex === 0;
                   const title = v.change_note?.split("\n")[0] || `Version ${v.version_number}`;
                   const subtitle = group.saves.length > 0
-                    ? `Saved ${formatRelative(v.created_at)} · ${group.saves.length + 1} saved versions`
+                    // Saves under a version, not versions — calling six saves
+                    // "6 saved versions" is what made the numbering confusing in
+                    // the first place.
+                    ? `Saved ${formatRelative(v.created_at)} · ${group.saves.length + 1} saves`
                     : isCurrent
                       ? `Modified ${formatRelative(v.created_at)}`
                       : "Initial upload";

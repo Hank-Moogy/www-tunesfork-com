@@ -193,8 +193,11 @@ BEGIN
     0,
     40
   );
-  IF (result->>'version_number')::integer <> 2 THEN
-    RAISE EXCEPTION 'version numbering did not advance from 1 to 2: %', result;
+  -- This asserted that a second save became version 2, which is the behaviour
+  -- that produced v51 from an afternoon of saving. A save joins the current
+  -- version; only promotion or approving a fork mints a new number.
+  IF (result->>'version_number')::integer <> 1 THEN
+    RAISE EXCEPTION 'a second save should join version 1, not start version 2: %', result;
   END IF;
   created_version_id := (result->>'version_id')::uuid;
 
