@@ -103,4 +103,26 @@ function shareWarning({ projectName, sampleCheck }) {
   };
 }
 
-module.exports = { basename, openWarning, plural, shareWarning, summarize };
+// Ableton resolves every relative sample path from the project folder, which it
+// only recognises as a project when "Ableton Project Info" is there. Files can
+// all be present and still load as offline without it, which is exactly how a
+// restore reported "every sample is present" while Ableton showed none of them.
+const ABLETON_PROJECT_MARKER = "Ableton Project Info";
+
+function projectMarkerMissing(projectFolder, fsImpl = require("node:fs"), pathImpl = require("node:path")) {
+  try {
+    return !fsImpl.existsSync(pathImpl.join(projectFolder, ABLETON_PROJECT_MARKER));
+  } catch {
+    return false;
+  }
+}
+
+module.exports = {
+  ABLETON_PROJECT_MARKER,
+  basename,
+  openWarning,
+  plural,
+  projectMarkerMissing,
+  shareWarning,
+  summarize,
+};
