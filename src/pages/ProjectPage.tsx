@@ -622,7 +622,15 @@ useEffect(() => {
       setAddingCollab(false);
       return;
     }
-    const { error } = await supabase.from("collaborators").insert({ project_id: project.id, user_id: targetUserId, permission_level: collabRole });
+    // Someone already on the project is usually being given a different role,
+    // not added twice. A plain insert hit the (project_id, user_id) unique
+    // constraint and put the raw Postgres error in front of the user.
+    const { error } = await supabase
+      .from("collaborators")
+      .upsert(
+        { project_id: project.id, user_id: targetUserId, permission_level: collabRole },
+        { onConflict: "project_id,user_id" },
+      );
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {

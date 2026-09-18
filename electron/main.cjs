@@ -420,6 +420,17 @@ function createTrayWindow() {
     trayWindow?.hide();
   });
   trayWindow.setAlwaysOnTop(true, "floating");
+  // A menu-bar popover closes when you click away. Without this it stayed
+  // floating above every window, including the browser the user was trying to
+  // read, which is not how a tray app is expected to behave.
+  //
+  // Pairing is the exception: the code lives in this window and the user has to
+  // go to their browser to type it, so hiding on blur would take away the one
+  // thing they are looking at. pollInterval is set for exactly that window.
+  trayWindow.on("blur", () => {
+    if (pollInterval) return;
+    if (trayWindow && !trayWindow.isDestroyed() && trayWindow.isVisible()) trayWindow.hide();
+  });
   if (process.platform === "darwin") {
     trayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   }
@@ -1347,6 +1358,10 @@ async function importWatchedFolders() {
       }
     }
 
+    // The uncovered-projects banner was computed before this run and would keep
+    // claiming projects were unprotected after they had just been backed up.
+    try { scanBackupCoverage({ notify: false }); } catch { /* best effort */ }
+
     // A quota stop has already raised its own notification; a cheerful
     // "complete" on top of it would contradict it.
     if (Notification.isSupported() && !summary.quotaBlocked) {
@@ -1435,7 +1450,28 @@ if (process.platform !== "darwin") {
 }
 
 // ---------- open in Ableton ----------
+// Clicking "Open in Ableton" twice used to start two restores into the same
+// folder, which then deleted each other's partial downloads and failed with
+// ENOENT on files that had just been written. A restore takes minutes, so a
+// second click while the first is still working is the normal thing to do.
+const restoresInFlight = new Map();
+
 async function openProjectInAbleton(projectId, versionId) {
+  const inFlight = restoresInFlight.get(projectId);
+  if (inFlight) {
+    log("info", "Already opening this project — waiting for it to finish");
+    return inFlight;
+  }
+  const run = openProjectInAbletonInner(projectId, versionId);
+  restoresInFlight.set(projectId, run);
+  try {
+    return await run;
+  } finally {
+    restoresInFlight.delete(projectId);
+  }
+}
+
+async function openProjectInAbletonInner(projectId, versionId) {
   // A project imported by this tray app is already present locally. Opening
   // that exact .als is immediate and preserves Ableton's project identity.
   // Downloading the cloud ZIP here created a duplicate project and could take
@@ -1655,24 +1691,41 @@ async function reconstructManifestVersion(destRoot, manifest, auth) {
         const signedUrl = urlByHash.get(file.sha256);
         if (!signedUrl) throw new Error(`Invalid download metadata for ${file.path}`);
         fs.mkdirSync(path.dirname(file.destination), { recursive: true });
-        const partial = `${file.destination}.tfsync-part`;
-        try {
-          const response = await fetch(signedUrl);
-          if (!response.ok || !response.body) throw new Error(`Download failed ${response.status}`);
-          await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(partial, { mode: 0o600 }));
-          const stat = fs.statSync(partial);
-          if (stat.size !== file.size || hashFileSync(partial) !== file.sha256) {
-            throw new Error(`Integrity check failed for ${file.path}`);
+        // Each attempt writes its own partial. A shared name meant two attempts
+        // — or two restores of the same project — could delete each other's
+        // half-written file and fail with ENOENT on a path that had just been
+        // written successfully.
+        let lastError = null;
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+          const partial = `${file.destination}.${process.pid}.${attempt}.tfsync-part`;
+          try {
+            const response = await fetch(signedUrl);
+            if (!response.ok || !response.body) throw new Error(`Download failed ${response.status}`);
+            await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(partial, { mode: 0o600 }));
+            const stat = fs.statSync(partial);
+            if (stat.size !== file.size || hashFileSync(partial) !== file.sha256) {
+              throw new Error(`Integrity check failed for ${file.path}`);
+            }
+            fs.renameSync(partial, file.destination);
+            if (Number.isFinite(file.mtime_ms)) {
+              const modified = new Date(file.mtime_ms);
+              fs.utimesSync(file.destination, modified, modified);
+            }
+            lastError = null;
+            break;
+          } catch (error) {
+            try { fs.unlinkSync(partial); } catch {}
+            lastError = error;
+            // A project restores hundreds of files. Losing all of them because
+            // one stream was cut short is the difference between a restore that
+            // works and one that has to be retried by hand, over and over.
+            if (attempt < 3) {
+              log("warn", `Retrying ${path.basename(file.path)} (${error.message})`);
+              await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+            }
           }
-          fs.renameSync(partial, file.destination);
-          if (Number.isFinite(file.mtime_ms)) {
-            const modified = new Date(file.mtime_ms);
-            fs.utimesSync(file.destination, modified, modified);
-          }
-        } catch (error) {
-          try { fs.unlinkSync(partial); } catch {}
-          throw error;
         }
+        if (lastError) throw lastError;
       }
     };
     await Promise.all(Array.from({ length: Math.min(4, batch.length) }, worker));
