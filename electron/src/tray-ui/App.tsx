@@ -65,6 +65,7 @@ type AppState = {
   recent: { name: string; version: number | null; status?: string; at: number }[];
   folderAccessIssues: { folder: string; code: string; message: string }[];
   storage?: {
+    known: boolean;
     metered: boolean;
     percent: number | null;
     usedLabel: string | null;
@@ -100,10 +101,10 @@ function createDevBridge(): Window["tfsync"] {
       ? [{ folder: "/Users/demo/Documents/Ableton", code: "EPERM", message: "Folder access blocked" }]
       : [],
     storage: preview === "quota"
-      ? { metered: false, percent: 100, usedLabel: "5.4 GB", limitLabel: "5.4 GB", level: "full" as const }
+      ? { known: true, metered: false, percent: 100, usedLabel: "5 GB", limitLabel: "5 GB", level: "full" as const }
       : preview === "nearfull"
-      ? { metered: false, percent: 92, usedLabel: "4.9 GB", limitLabel: "5.4 GB", level: "warn" as const }
-      : { metered: false, percent: 34, usedLabel: "36 GB", limitLabel: "107 GB", level: "ok" as const },
+      ? { known: true, metered: false, percent: 92, usedLabel: "4.6 GB", limitLabel: "5 GB", level: "warn" as const }
+      : { known: true, metered: false, percent: 34, usedLabel: "34 GB", limitLabel: "100 GB", level: "ok" as const },
     quotaBlocked: preview === "quota"
       ? { projectName: "Midnight Sketch", usedBytes: 5_400_000_000, limitBytes: 5_368_709_120, at: Date.now() }
       : null,
@@ -664,10 +665,12 @@ export default function App() {
                     <strong>
                       {state.storage.metered
                         ? `${state.storage.usedLabel ?? "—"} · METERED`
-                        : `${state.storage.usedLabel ?? "—"} / ${state.storage.limitLabel ?? "—"}`}
+                        : state.storage.known
+                        ? `${state.storage.usedLabel ?? "—"} / ${state.storage.limitLabel ?? "—"}`
+                        : `${state.storage.usedLabel ?? "—"} STORED`}
                     </strong>
                   </div>
-                  {!state.storage.metered && (
+                  {!state.storage.metered && state.storage.known && (
                     <div className="storage-bar" role="progressbar" aria-valuenow={state.storage.percent ?? 0} aria-valuemin={0} aria-valuemax={100}>
                       <i style={{ width: `${state.storage.percent ?? 0}%` }} />
                     </div>

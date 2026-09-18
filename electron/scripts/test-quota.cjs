@@ -31,29 +31,50 @@ test("survives a rejection that carries no usable detail", () => {
 
 test("names the project and the ceiling when it can", () => {
   const detail = JSON.stringify({ used_bytes: 5300000000, limit_bytes: 5368709120 });
-  assert.match(quotaNotification({ projectName: "Amalhea", detail }).body, /5\.4 GB of cloud storage is full/);
+  // The figure the user was sold, not a decimal conversion of it.
+  assert.match(quotaNotification({ projectName: "Amalhea", detail }).body, /your 5 GB of cloud storage is full/);
 });
 
-test("an account with no ceiling is metered, not 0% full", () => {
-  const usage = storageUsage({ usedBytes: 9529571384, limitBytes: null });
+test("a legacy account with no ceiling is metered, not 0% full", () => {
+  const usage = storageUsage({ usedBytes: 9529571384, limitBytes: null, plan: "legacy" });
   assert.equal(usage.metered, true);
+  assert.equal(usage.known, true);
   assert.equal(usage.percent, null);
   assert.equal(usage.level, "ok");
-  assert.equal(usage.usedLabel, "9.5 GB");
+  assert.equal(usage.usedLabel, "8.9 GB");
+});
+
+test("a plan whose limit has not loaded is unknown, not metered", () => {
+  // Every newly paired account looks like this for a moment. Calling it metered
+  // told free users they had no ceiling, which is the opposite of the truth.
+  const usage = storageUsage({ usedBytes: 0, limitBytes: null, plan: "free" });
+  assert.equal(usage.known, false);
+  assert.equal(usage.metered, false);
+  assert.equal(usage.limitLabel, null);
+});
+
+test("limits read the way the pricing page advertises them", () => {
+  // Entitlements are binary gigabytes; the page says 5 GB, 100 GB, 500 GB. A
+  // tray reading 5.4 GB next to a page reading 5 GB invites doubt about the one
+  // number the user is paying for.
+  assert.equal(storageUsage({ usedBytes: 0, limitBytes: 5368709120, plan: "free" }).limitLabel, "5 GB");
+  assert.equal(storageUsage({ usedBytes: 0, limitBytes: 107374182400, plan: "producer" }).limitLabel, "100 GB");
+  assert.equal(storageUsage({ usedBytes: 0, limitBytes: 536870912000, plan: "studio" }).limitLabel, "500 GB");
 });
 
 test("grades usage so the tray can warn before the limit, not after", () => {
-  const at = (used) => storageUsage({ usedBytes: used, limitBytes: 100 }).level;
+  const at = (used) => storageUsage({ usedBytes: used, limitBytes: 100, plan: "free" }).level;
   assert.equal(at(10), "ok");
   assert.equal(at(80), "warn");
   assert.equal(at(95), "critical");
   assert.equal(at(100), "full");
   assert.equal(at(140), "full");
   // never renders past a full bar
-  assert.equal(storageUsage({ usedBytes: 140, limitBytes: 100 }).percent, 100);
+  assert.equal(storageUsage({ usedBytes: 140, limitBytes: 100, plan: "free" }).percent, 100);
 });
 
 test("formats sizes without false precision", () => {
-  assert.equal(formatGb(5368709120), "5.4 GB");
-  assert.equal(formatGb(107374182400), "107 GB");
+  assert.equal(formatGb(5368709120), "5 GB");
+  assert.equal(formatGb(107374182400), "100 GB");
+  assert.equal(formatGb(1288490188), "1.2 GB");
 });

@@ -1804,7 +1804,12 @@ ipcMain.handle("get-state", () => {
     duplicateFolders: findDuplicateWatchFolders(s.folders || [], s.projectLinks || {}, normalizeFolder),
     restoreIssues: Object.values(s.restoreIssues || {}).sort((a, b) => b.at - a.at),
     logFile: logFilePath(stateDir),
-    storage: storageUsage({ usedBytes: s.storageUsedBytes, limitBytes: s.storageLimitBytes }),
+    // Before pairing there is no account to report on, and a readout of
+    // "0 GB" next to a Pair button is noise at the exact moment the user is
+    // being asked to do one thing.
+    storage: s.paired
+      ? storageUsage({ usedBytes: s.storageUsedBytes, limitBytes: s.storageLimitBytes, plan: s.plan })
+      : null,
     quotaBlocked: s.quotaBlocked ?? null,
     unbackedProjects: s.unbackedProjects ?? [],
     // Support cannot debug a save that never reached the upload code without

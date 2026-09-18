@@ -33,10 +33,15 @@ function parseQuotaDetail(detail) {
   };
 }
 
+// Entitlements are stored as binary gigabytes — 5 GiB, 100 GiB, 500 GiB — and
+// the pricing page advertises them as 5 GB, 100 GB and 500 GB. Dividing by 1e9
+// turned those into 5.4, 107.4 and 536.9, so the app quietly disagreed with the
+// page the user had just read about the one number they were buying.
 function formatGb(bytes) {
   if (!Number.isFinite(bytes)) return null;
-  const gb = bytes / 1e9;
-  return `${gb >= 10 ? Math.round(gb) : gb.toFixed(1)} GB`;
+  const gb = bytes / 1024 ** 3;
+  const rounded = gb >= 10 ? Math.round(gb) : Math.round(gb * 10) / 10;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)} GB`;
 }
 
 // One sentence the user can act on: what did not happen, and why.
@@ -50,14 +55,23 @@ function quotaNotification({ projectName, detail }) {
 }
 
 // Storage the tray can show before the limit is reached rather than after.
-function storageUsage({ usedBytes, limitBytes }) {
+//
+// "No limit" and "limit not loaded yet" look identical from the bytes alone, and
+// conflating them told every newly paired user their plan was metered — which is
+// a legacy-account term, and the opposite of the 5 GB ceiling a free account
+// actually has. The plan disambiguates them.
+function storageUsage({ usedBytes, limitBytes, plan }) {
   if (limitBytes == null || !Number.isFinite(limitBytes) || limitBytes <= 0) {
-    // Legacy and metered accounts have no ceiling to draw.
-    return { metered: true, percent: null, usedLabel: formatGb(usedBytes), limitLabel: null, level: "ok" };
+    if (plan === "legacy") {
+      return { known: true, metered: true, percent: null, usedLabel: formatGb(usedBytes), limitLabel: null, level: "ok" };
+    }
+    // Say how much is stored, and nothing we cannot stand behind.
+    return { known: false, metered: false, percent: null, usedLabel: formatGb(usedBytes), limitLabel: null, level: "ok" };
   }
   const used = Number.isFinite(usedBytes) && usedBytes > 0 ? usedBytes : 0;
   const percent = Math.min(100, Math.round((used / limitBytes) * 100));
   return {
+    known: true,
     metered: false,
     percent,
     usedLabel: formatGb(used),
