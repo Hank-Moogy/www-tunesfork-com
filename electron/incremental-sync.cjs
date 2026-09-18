@@ -163,8 +163,35 @@ function manifestForApi(manifest) {
   };
 }
 
+// The manifest's sha256 is computed while planning, but the bytes are read from
+// disk again at upload time. Ableton is often still writing a collected sample
+// when the watcher fires, so those two can disagree — and the resumable upload
+// sends exactly `uploadSize` bytes, so a file that grew in between is stored
+// TRUNCATED at precisely the size the server expects. Finalization only checks
+// that a blob exists and has the right size, never that it hashes to the key it
+// is filed under, so the bad blob is accepted and the damage only surfaces much
+// later, as an integrity failure when someone restores that version.
+//
+// Re-stat immediately before sending and abandon the save instead. The watcher
+// fires again on the next write, and the replan hashes the settled file.
+function assertBlobStillMatchesPlan(file) {
+  let stat;
+  try {
+    stat = fs.statSync(file.source_path);
+  } catch {
+    const error = new Error(`${file.path} disappeared while syncing; Tunesfork will retry on the next save.`);
+    error.code = "SOURCE_CHANGED_DURING_UPLOAD";
+    throw error;
+  }
+  if (stat.size === file.size && stat.mtimeMs === file.mtime_ms) return;
+  const error = new Error(`${file.path} changed while syncing; Tunesfork will retry on the next save.`);
+  error.code = "SOURCE_CHANGED_DURING_UPLOAD";
+  throw error;
+}
+
 module.exports = {
   MANIFEST_SCHEMA_VERSION,
+  assertBlobStillMatchesPlan,
   buildProjectManifest,
   hashFile,
   manifestForApi,

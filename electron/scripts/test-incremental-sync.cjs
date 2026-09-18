@@ -4,7 +4,11 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const zlib = require("node:zlib");
-const { buildProjectManifest, manifestForApi } = require("../incremental-sync.cjs");
+const {
+  assertBlobStillMatchesPlan,
+  buildProjectManifest,
+  manifestForApi,
+} = require("../incremental-sync.cjs");
 
 function fixture() {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "tfsync-manifest-"));
@@ -65,6 +69,70 @@ test("excludes desktop-shell metadata that cannot round-trip through storage", (
       "Demo Project/Icon.png",
       "Demo Project/Samples/kick.wav",
     ]);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+// A sample that is still being written when the watcher fires would otherwise be
+// uploaded truncated to its planned size — which the server accepts, because it
+// only checks that the blob exists and is the expected length. The corruption
+// then stays hidden until someone restores that version.
+test("refuses to upload a blob whose source grew after planning", () => {
+  const { temp, project, cache } = fixture();
+  try {
+    const sample = path.join(project, "Samples", "kick.wav");
+    const planned = buildProjectManifest(project, cache).manifest.files
+      .find((file) => file.path.endsWith("kick.wav"));
+
+    assert.doesNotThrow(() => assertBlobStillMatchesPlan(planned));
+
+    fs.appendFileSync(sample, "Ableton was still writing this");
+    assert.throws(() => assertBlobStillMatchesPlan(planned), (error) => {
+      assert.equal(error.code, "SOURCE_CHANGED_DURING_UPLOAD");
+      assert.match(error.message, /changed while syncing/);
+      return true;
+    });
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("refuses to upload a blob rewritten in place at the same size", () => {
+  const { temp, project, cache } = fixture();
+  try {
+    const sample = path.join(project, "Samples", "kick.wav");
+    const planned = buildProjectManifest(project, cache).manifest.files
+      .find((file) => file.path.endsWith("kick.wav"));
+
+    const replacement = Buffer.alloc(fs.statSync(sample).size, 0x41);
+    fs.writeFileSync(sample, replacement);
+    const future = new Date(Date.now() + 5000);
+    fs.utimesSync(sample, future, future);
+
+    assert.equal(fs.statSync(sample).size, planned.size);
+    assert.throws(() => assertBlobStillMatchesPlan(planned), (error) => {
+      assert.equal(error.code, "SOURCE_CHANGED_DURING_UPLOAD");
+      return true;
+    });
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("refuses to upload a blob whose source disappeared", () => {
+  const { temp, project, cache } = fixture();
+  try {
+    const sample = path.join(project, "Samples", "kick.wav");
+    const planned = buildProjectManifest(project, cache).manifest.files
+      .find((file) => file.path.endsWith("kick.wav"));
+
+    fs.rmSync(sample);
+    assert.throws(() => assertBlobStillMatchesPlan(planned), (error) => {
+      assert.equal(error.code, "SOURCE_CHANGED_DURING_UPLOAD");
+      assert.match(error.message, /disappeared while syncing/);
+      return true;
+    });
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }
